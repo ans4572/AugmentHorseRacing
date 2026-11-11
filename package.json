@@ -1,0 +1,32 @@
+{
+  "name": "augment-derby",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "증강 경마 (Augment Derby) - 웹 기반 실시간 멀티플레이 파티 게임",
+  "scripts": {
+    "dev": "concurrently -k -n server,client \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch server/src/index.ts",
+    "dev:client": "vite",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc --noEmit",
+    "start:server": "tsx server/src/index.ts",
+    "preview:client": "vite preview",
+    "test": "vitest run",
+    "audit:augments": "tsx server/scripts/audit-augments.ts"
+  },
+  "dependencies": {
+    "three": "^0.187.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/three": "^0.187.0",
+    "@types/ws": "^8.5.13",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}

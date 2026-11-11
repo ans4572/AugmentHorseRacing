@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>증강 경마 — Augment Derby</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <!-- 연결 상태 -->
+  <div id="conn-banner" class="hidden">서버에 연결하는 중...</div>
+
+  <!-- 화면 1: 메인 -->
+  <div id="scr-main" class="screen">
+    <div class="main-card">
+      <h1 class="logo">🏇 증강 경마</h1>
+      <p class="tagline">배팅하고, 방해하고, 역전하라! 코믹 멀티플레이 경마 파티</p>
+      <input id="main-name" type="text" maxlength="12" placeholder="닉네임 입력 (최대 12자)" />
+      <div class="btn-col">
+        <button id="btn-goto-create" class="btn big">🏠 방 만들기</button>
+        <button id="btn-goto-join" class="btn big alt">🚪 방 참가</button>
+        <button id="btn-goto-solo" class="btn big solo">🎮 혼자 하기 (NPC 5명)</button>
+        <button id="btn-goto-stable" class="btn big stable">🐴 내 마구간 <span id="main-carrots" class="carrot-chip">🥕 0</span></button>
+        <button id="btn-howto" class="btn big ghost">📖 게임 방법</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 화면 2: 방 생성 -->
+  <div id="scr-create" class="screen hidden">
+    <div class="main-card">
+      <h2>🏠 방 만들기</h2>
+      <label>방 이름 <input id="create-name" type="text" maxlength="20" placeholder="예: 불꽃의 경마장" /></label>
+      <label>공개 여부
+        <select id="create-private">
+          <option value="public">공개 (목록에 표시)</option>
+          <option value="private">비공개 (초대 코드)</option>
+        </select>
+      </label>
+      <label>배팅 공개 방식
+        <select id="create-blind">
+          <option value="open">공개 — 배팅이 끝나면 모두의 배팅을 보여 줌</option>
+          <option value="blind">🙈 블라인드 — 결과 발표 전까지 내 배팅만 보임</option>
+        </select>
+      </label>
+      <label>최대 인원 <span id="create-max-label">4명</span>
+        <input id="create-max" type="range" min="2" max="8" value="4" />
+      </label>
+      <label>총 라운드 <span id="create-rounds-label">3라운드</span>
+        <input id="create-rounds" type="range" min="1" max="5" value="3" />
+      </label>
+      <div class="info-chip">시작 코인: <b id="create-coins">1,100</b> 코인</div>
+      <label>NPC 수 <span id="create-npc-label">1</span>
+        <input id="create-npc" type="range" min="0" max="7" value="1" />
+      </label>
+      <div class="btn-row">
+        <button id="btn-create-back" class="btn ghost">← 뒤로</button>
+        <button id="btn-create-go" class="btn">방 생성!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 화면: 혼자 하기 (싱글 모드) -->
+  <div id="scr-solo" class="screen hidden">
+    <div class="main-card">
+      <h2>🎮 혼자 하기</h2>
+      <p class="muted">NPC 5명과 6인전으로 바로 시작합니다. 대기 시간은 버튼으로 건너뛸 수 있어요.</p>
+      <label>총 라운드 <span id="solo-rounds-label">3라운드</span>
+        <input id="solo-rounds" type="range" min="1" max="5" value="3" />
+      </label>
+      <div class="info-chip">시작 코인: <b id="solo-coins">1100</b> 코인</div>
+      <div class="solo-horse">
+        <div>
+          <div class="muted">출전하는 내 말</div>
+          <b id="solo-horse-summary">⭐ 당근이</b>
+        </div>
+        <button id="btn-solo-stable" class="btn small alt">🐴 꾸미기</button>
+      </div>
+      <p class="muted">내 말은 6마리 중 하나로 뛰고, 순위에 따라 당근 🥕 을 받습니다. 능력치는 매 경기 무작위예요.</p>
+      <div class="btn-row">
+        <button id="btn-solo-back" class="btn ghost">← 뒤로</button>
+        <button id="btn-solo-go" class="btn">바로 시작!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 화면: 내 마구간 (내 말 꾸미기) -->
+  <div id="scr-stable" class="screen hidden">
+    <div class="main-card wide">
+      <div class="row-between">
+        <h2>🐴 내 마구간</h2>
+        <div id="stable-carrots" class="carrot-chip big">🥕 0</div>
+      </div>
+      <div class="stable-body">
+        <div class="stable-left">
+          <div id="stable-preview"></div>
+          <label>말 이름 <input id="stable-name" type="text" maxlength="8" placeholder="최대 8자" /></label>
+        </div>
+        <div class="stable-right">
+          <div id="stable-tabs" class="stable-tabs"></div>
+          <div id="stable-items" class="stable-items"></div>
+          <div id="stable-buybar" class="stable-buybar hidden"></div>
+        </div>
+      </div>
+      <div id="stable-stats" class="muted"></div>
+      <p class="muted">당근 🥕 은 "혼자 하기"에서 내 말의 순위 상금과 게임 종료 보너스로 모읍니다. 꾸미기는 겉모습만 바꿉니다.</p>
+      <div class="btn-row">
+        <button id="btn-stable-back" class="btn ghost">← 뒤로</button>
+        <button id="btn-stable-solo" class="btn solo">🎮 이 말로 출전!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 화면 3: 방 참가 -->
+  <div id="scr-join" class="screen hidden">
+    <div class="main-card wide">
+      <h2>🚪 방 참가</h2>
+      <div class="join-code-row">
+        <input id="join-code" type="text" maxlength="6" placeholder="초대 코드 (6자리)" />
+        <button id="btn-join-code" class="btn">코드로 참가</button>
+      </div>
+      <div class="row-between">
+        <h3>공개 방 목록</h3>
+        <button id="btn-refresh-rooms" class="btn small ghost">🔄 새로고침</button>
+      </div>
+      <div id="room-list" class="room-list"><p class="muted">불러오는 중...</p></div>
+      <button id="btn-join-back" class="btn ghost">← 뒤로</button>
+    </div>
+  </div>
+
+  <!-- 화면 4: 대기 로비 -->
+  <div id="scr-lobby" class="screen hidden">
+    <div class="main-card wide">
+      <h2 id="lobby-title">대기 로비</h2>
+      <div id="lobby-code" class="info-chip hidden"></div>
+      <div id="lobby-settings" class="lobby-settings"></div>
+      <div id="lobby-players" class="lobby-players"></div>
+      <div class="btn-row">
+        <button id="btn-lobby-leave" class="btn ghost">나가기</button>
+        <span id="lobby-npc-controls" class="hidden">
+          <button id="btn-npc-add" class="btn small alt">NPC +</button>
+          <button id="btn-npc-remove" class="btn small alt">NPC −</button>
+        </span>
+        <button id="btn-lobby-start" class="btn hidden">🏁 게임 시작!</button>
+      </div>
+      <p id="lobby-wait-msg" class="muted">방장이 게임을 시작하길 기다리는 중...</p>
+    </div>
+  </div>
+
+  <!-- 화면 5~9: 게임 -->
+  <div id="scr-game" class="screen hidden">
+    <div id="topbar">
+      <div id="top-round">-</div>
+      <div id="top-phase">-</div>
+      <div id="top-timer"></div>
+      <div id="top-coins">💰 0</div>
+      <button id="btn-game-leave" class="btn small ghost" title="게임에서 나가 메인 화면으로 돌아갑니다">🚪 나가기</button>
+    </div>
+    <div id="game-body">
+      <div id="game-left">
+        <div id="race-wrap">
+          <div id="race-canvas"></div>
+          <div id="camera-select" class="hidden"></div>
+          <div id="overlay-countdown" class="hidden"></div>
+          <div id="augment-bar" class="hidden"></div>
+        </div>
+        <div id="bottom-bar">
+          <div id="emotes"></div>
+          <div id="game-log"></div>
+        </div>
+      </div>
+      <div id="sidebar">
+        <h3>👥 참가자</h3>
+        <div id="side-players"></div>
+        <h3>🎫 배팅 현황</h3>
+        <div id="side-bets"><p class="muted">아직 공개 전</p></div>
+      </div>
+    </div>
+
+    <!-- 배팅 오버레이 (능력치 확인 + 배팅) -->
+    <div id="overlay-betting" class="game-overlay hidden">
+      <div class="overlay-inner">
+        <div class="row-between">
+          <h2 id="betting-title">🐎 출전마 확인</h2>
+          <div id="betting-timer" class="phase-timer"></div>
+        </div>
+        <div id="horse-cards" class="horse-cards"></div>
+        <div id="bet-controls" class="bet-controls">
+          <div id="bet-type-tabs" class="bet-tabs"></div>
+          <div class="bet-amount-row">
+            <span id="bet-selected-info" class="muted">말을 선택하세요</span>
+            <input id="bet-amount" type="number" min="10" step="10" value="10" />
+            <button class="btn small alt bet-quick" data-add="10">+10</button>
+            <button class="btn small alt bet-quick" data-add="50">+50</button>
+            <button class="btn small alt bet-quick" data-add="100">+100</button>
+            <button id="bet-max" class="btn small alt">MAX</button>
+            <button id="btn-place-bet" class="btn small">배팅!</button>
+          </div>
+          <div id="bet-limit-info" class="muted"></div>
+          <div id="my-bets"></div>
+        </div>
+        <button id="btn-ready" class="btn">능력치 확인 완료 ✔</button>
+      </div>
+    </div>
+
+    <!-- 배팅 공개 오버레이 -->
+    <div id="overlay-reveal" class="game-overlay hidden">
+      <div class="overlay-inner">
+        <h2>👀 전체 배팅 공개!</h2>
+        <div id="reveal-list"></div>
+        <p class="muted center">잠시 후 경마가 시작됩니다...</p>
+      </div>
+    </div>
+
+    <!-- 라운드/최종 결과 오버레이 -->
+    <div id="overlay-result" class="game-overlay hidden">
+      <div class="overlay-inner" id="result-inner"></div>
+    </div>
+  </div>
+
+  <!-- 게임 방법 모달 -->
+  <div id="modal-howto" class="game-overlay hidden">
+    <div class="overlay-inner">
+      <h2>📖 게임 방법</h2>
+      <ol class="howto">
+        <li>방을 만들고 친구를 초대하세요 (같은 PC의 여러 브라우저 탭도 OK).</li>
+        <li>매 라운드 6마리 말의 능력치를 확인하고 결과에 코인을 배팅하세요. (보유 코인의 30%까지)</li>
+        <li>배팅이 끝나면 모두의 배팅이 공개됩니다. 누가 어떤 말을 미는지 확인!</li>
+        <li>경주 중 25% / 50% / 75% 지점에서 증강 카드 3장이 주어집니다. 1장을 골라 말을 강화하거나 방해하세요. <b>고르는 동안에도 경주는 계속됩니다!</b></li>
+        <li>모든 라운드가 끝나면 보유 코인이 가장 많은 사람이 우승!</li>
+      </ol>
+      <button id="btn-howto-close" class="btn">닫기</button>
+    </div>
+  </div>
+
+  <div id="rotate-hint"><div>📱 화면을 <b>가로로</b> 돌리면<br />더 편하게 플레이할 수 있어요!<br /><span style="font-size:34px">🔄</span></div></div>
+
+  <div id="toast-area"></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# 의존성 / 빌드 결과
+node_modules/
+dist/
+
+# 도구가 만드는 로컬 파일
+.forge/
+.impeccable/
+assets-src/h*/
+*.log
+
+# 환경 변수 / 비밀값 (키는 절대 커밋하지 않는다)
+.env
+.env.*
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

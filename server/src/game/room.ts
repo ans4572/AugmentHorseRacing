@@ -800,7 +800,7 @@ export class Room {
     const byBestNet = [...this.players.values()].sort((a, b) => b.bestRoundNet - a.bestRoundNet)[0];
     if (byBestNet && byBestNet.bestRoundNet > 0) {
       awards.push({
-        title: '💰 코인 대박상',
+        title: '코인 대박상',
         playerName: byBestNet.name,
         detail: `한 라운드 최대 순이익 +${byBestNet.bestRoundNet}`
       });
@@ -808,7 +808,7 @@ export class Room {
     const byHostile = [...this.players.values()].sort((a, b) => b.hostileUses - a.hostileUses)[0];
     if (byHostile && byHostile.hostileUses > 0) {
       awards.push({
-        title: '😈 최다 견제상',
+        title: '최다 견제상',
         playerName: byHostile.name,
         detail: `방해 증강 ${byHostile.hostileUses}회 사용`
       });
@@ -816,7 +816,7 @@ export class Room {
     const byHits = [...this.players.values()].sort((a, b) => b.hits - a.hits)[0];
     if (byHits && byHits.hits > 0) {
       awards.push({
-        title: '🎯 명예 예언가상',
+        title: '명예 예언가상',
         playerName: byHits.name,
         detail: `배팅 ${byHits.hits}회 적중`
       });

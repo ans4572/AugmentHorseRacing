@@ -10,6 +10,7 @@ import {
 import { HORSE_COLORS } from '../../shared/src/names';
 import { Race3DView } from './race3d';
 import { buy, equip, isOwned, setHorseName, stable } from './stable';
+import { icon } from './icons';
 
 // ============================================================
 // 마구간 화면 — 내 말 미리보기, 꾸미기 상점, 입어 보기
@@ -40,9 +41,9 @@ function shownLook(): HorseLook {
 export function horseSummary(): string {
   const s = stable();
   const parts = SLOT_ORDER.filter((k) => s.look[k] !== DEFAULT_LOOK[k]).map(
-    (k) => `${COSMETIC_BY_ID[s.look[k]].emoji} ${COSMETIC_BY_ID[s.look[k]].name}`
+    (k) => COSMETIC_BY_ID[s.look[k]].name
   );
-  return `⭐ ${s.name}${parts.length ? ' · ' + parts.join(' · ') : ''}`;
+  return `${s.name}${parts.length ? ` (${parts.join(', ')})` : ''}`;
 }
 
 function refreshPreview(): void {
@@ -88,11 +89,11 @@ function refreshPreview(): void {
 
 function render(): void {
   const s = stable();
-  el('stable-carrots').textContent = `🥕 ${s.carrots}`;
+  el('stable-carrots').innerHTML = `${icon('carrot')}${s.carrots}`;
   el('stable-stats').textContent =
     s.stats.races > 0
-      ? `출전 ${s.stats.races}회 · 우승 ${s.stats.wins}회 · 3위 안 ${s.stats.podiums}회 · 지금까지 번 당근 ${s.stats.earned}`
-      : '아직 출전 기록이 없습니다. "혼자 하기"에서 첫 경주를 뛰어 보세요!';
+      ? `출전 ${s.stats.races}회, 우승 ${s.stats.wins}회, 3위 안 ${s.stats.podiums}회. 지금까지 번 당근 ${s.stats.earned}개.`
+      : '아직 출전 기록이 없습니다. 혼자 하기에서 첫 경주를 뛰어 보세요.';
 
   el('stable-tabs').innerHTML = SLOT_ORDER.map(
     (k) => `<button class="stable-tab${k === slot ? ' active' : ''}" data-slot="${k}">${SLOT_LABELS[k]}</button>`
@@ -112,7 +113,7 @@ function render(): void {
       const owned = isOwned(c.id);
       const equipped = s.look[c.slot] === c.id;
       const trying = !owned && shown[c.slot] === c.id;
-      const stateText = equipped ? '착용 중' : owned ? '보유' : `🥕 ${c.price}`;
+      const stateText = equipped ? '착용 중' : owned ? '보유' : `${icon('carrot')}${c.price}`;
       const swatch = c.color ? `<span class="si-swatch" style="background:${c.color}"></span>` : '';
       return `<button class="stable-item${equipped ? ' equipped' : ''}${trying ? ' trying' : ''}${owned ? '' : ' locked'}" data-id="${c.id}">
         <span class="si-emoji">${c.emoji}${swatch}</span>
@@ -148,17 +149,17 @@ function render(): void {
     const item = COSMETIC_BY_ID[tryingId];
     const lack = item.price - s.carrots;
     bar.classList.remove('hidden');
-    bar.innerHTML = `<span>${item.emoji} <b>${esc(item.name)}</b> 입어 보는 중</span>
+    bar.innerHTML = `<span><b>${esc(item.name)}</b> 입어 보는 중</span>
       <button id="btn-stable-buy" class="btn small"${lack > 0 ? ' disabled' : ''}>${
-        lack > 0 ? `🥕 ${lack} 부족` : `🥕 ${item.price}에 구매`
+        lack > 0 ? `당근 ${lack}개 부족` : `당근 ${item.price}개로 사기`
       }</button>`;
     el<HTMLButtonElement>('btn-stable-buy').onclick = () => {
       const result = buy(tryingId);
       if (result === 'ok') {
         delete tryOn[item.slot];
-        notify(`${item.emoji} ${item.name} 구매 완료! 바로 착용했어요.`, false);
+        notify(`${item.name}을(를) 사서 바로 입혔습니다.`, false);
       } else if (result === 'poor') {
-        notify('당근이 부족합니다. 혼자 하기에서 당근을 모아 보세요!');
+        notify('당근이 부족합니다. 혼자 하기에서 모을 수 있습니다.');
       }
       render();
       refreshPreview();

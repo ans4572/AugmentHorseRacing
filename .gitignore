@@ -5,6 +5,7 @@ dist/
 # 도구가 만드는 로컬 파일
 .forge/
 .impeccable/
+.vite/
 assets-src/h*/
 *.log
 

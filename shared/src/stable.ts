@@ -18,12 +18,12 @@ export interface CosmeticItem {
 }
 
 export const SLOT_LABELS: Record<CosmeticSlot, string> = {
-  breed: '🐴 종류',
-  coat: '🎨 털 색',
-  hat: '🎩 모자',
-  neck: '🧣 목',
-  face: '🕶️ 얼굴',
-  trail: '💨 발자국'
+  breed: '종류',
+  coat: '털 색',
+  hat: '모자',
+  neck: '목',
+  face: '얼굴',
+  trail: '발자국'
 };
 
 export const SLOT_ORDER: CosmeticSlot[] = ['breed', 'coat', 'hat', 'neck', 'face', 'trail'];

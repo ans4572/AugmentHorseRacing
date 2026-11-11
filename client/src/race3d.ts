@@ -9,6 +9,7 @@ import type {
 import { COURSE_LENGTH } from '../../shared/src/constants';
 import { AUGMENT_BY_ID } from '../../shared/src/augments';
 import { COSMETIC_BY_ID } from '../../shared/src/stable';
+import { inkOn } from './icons';
 
 // ============================================================
 // 3D 경주 뷰 (Three.js)
@@ -261,7 +262,7 @@ export class Race3DView {
 
     this.minimap = document.createElement('div');
     this.minimap.className = 'r3d-minimap';
-    this.minimap.innerHTML = '<span class="r3d-minimap-flag">🏁</span>';
+    this.minimap.innerHTML = '<span class="r3d-minimap-flag"></span>';
     this.overlay.appendChild(this.minimap);
     if (this.preview) this.overlay.style.display = 'none';
 
@@ -851,6 +852,7 @@ export class Race3DView {
     dot.style.background = info.color;
     dot.textContent = String(info.id);
     if (info.ownerId) dot.classList.add('mine');
+    if (inkOn(info.color)) dot.classList.add('dk');
     this.minimap.appendChild(dot);
 
     return {
@@ -991,16 +993,18 @@ export class Race3DView {
     el.className = 'r3d-banner';
     const title = document.createElement('div');
     title.className = 'r3d-banner-title';
-    title.textContent = '🏁 경주 종료!';
+    title.textContent = '경주 종료';
     const sub = document.createElement('div');
     sub.className = 'r3d-banner-sub';
-    sub.textContent = rankings
-      .slice(0, 3)
-      .map((r) => {
-        const info = this.rigs.find((v) => v.info.id === r.horseId)?.info;
-        return `${['🥇', '🥈', '🥉'][r.rank - 1]} ${r.horseId}번 ${info?.name ?? ''}`;
-      })
-      .join('   ');
+    for (const r of rankings.slice(0, 3)) {
+      const info = this.rigs.find((v) => v.info.id === r.horseId)?.info;
+      const item = document.createElement('span');
+      const badge = document.createElement('span');
+      badge.className = `rank-badge r${r.rank}`;
+      badge.textContent = String(r.rank);
+      item.append(badge, document.createTextNode(`${r.horseId}번 ${info?.name ?? ''}`));
+      sub.appendChild(item);
+    }
     el.append(title, sub);
     this.overlay.appendChild(el);
     this.banner = el;
@@ -1438,7 +1442,6 @@ export class Race3DView {
     const w = this.container.clientWidth;
     const h = this.renderer.domElement.clientHeight || (w * 9) / 16;
     const v = new THREE.Vector3();
-    const leader = this.leaderRig();
     const followed = this.followedRig();
     const placements: { rig: Rig; sx: number; sy: number; scale: number; dist: number }[] = [];
 
@@ -1461,7 +1464,7 @@ export class Race3DView {
         fx.push(...snap.effects.map((e) => e.emoji));
       }
       const fxText = [...new Set(fx)].slice(0, 5).join('');
-      const rankText = snap ? `${snap.rank === 1 && r === leader ? '👑' : ''}${snap.rank}위` : '';
+      const rankText = snap ? `${snap.rank}위` : '';
       const text = `${rankText}|${fxText}`;
       if (text !== r.labelText) {
         r.labelText = text;
@@ -1475,7 +1478,7 @@ export class Race3DView {
         const n = document.createElement('div');
         n.className = 'r3d-label-name';
         n.style.borderColor = r.info.color;
-        n.textContent = `${rankText ? rankText + ' · ' : ''}${r.info.ownerId ? '⭐' : ''}${r.info.id} ${r.info.name}`;
+        n.textContent = `${rankText ? rankText + ' ' : ''}${r.info.id}번 ${r.info.name}`;
         n.classList.toggle('mine', !!r.info.ownerId);
         r.label.appendChild(n);
         r.labelW = 0; // 다음 표시 때 크기를 다시 잰다

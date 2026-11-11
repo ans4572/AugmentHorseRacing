@@ -42,8 +42,8 @@ export const BET_LIMIT_RATIO = 0.3;
 export const BET_TYPE_INFO: Record<BetType, { label: string; desc: string }> = {
   winner: { label: '우승마', desc: '해당 말이 1등' },
   last: { label: '꼴찌마', desc: '해당 말이 6등' },
-  top3: { label: 'TOP 3', desc: '해당 말이 1~3등' },
-  bottom3: { label: 'BOTTOM 3', desc: '해당 말이 4~6등' }
+  top3: { label: '3위 안', desc: '해당 말이 1~3등' },
+  bottom3: { label: '4위 밖', desc: '해당 말이 4~6등' }
 };
 
 /** 배당 범위 */

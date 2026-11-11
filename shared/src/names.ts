@@ -19,12 +19,12 @@ export const HORSE_NAMES = [
 
 /** NPC 이름과 성격 */
 export const NPC_PROFILES: { persona: import('./types').NpcPersona; name: string }[] = [
-  { persona: 'winner', name: '🤖 불꽃승부' },
-  { persona: 'saboteur', name: '🤖 심술쟁이' },
-  { persona: 'avenger', name: '🤖 복수의화신' },
-  { persona: 'gambler', name: '🤖 올인왕' },
-  { persona: 'angel', name: '🤖 하늘천사' },
-  { persona: 'chaos', name: '🤖 혼돈대마왕' }
+  { persona: 'winner', name: '불꽃승부' },
+  { persona: 'saboteur', name: '심술쟁이' },
+  { persona: 'avenger', name: '복수의화신' },
+  { persona: 'gambler', name: '올인왕' },
+  { persona: 'angel', name: '하늘천사' },
+  { persona: 'chaos', name: '혼돈대마왕' }
 ];
 
 export const EMOTES = ['😂', '😱', '🔥', '👏', '😭', '🤬', '🙏', '🎉'];

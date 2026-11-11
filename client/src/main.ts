@@ -33,6 +33,7 @@ import { Net, loadToken, saveToken } from './net';
 import { Race3DView, type CameraTarget } from './race3d';
 import { claimGameBonus, claimRoundPrize, myHorseEntry, stable } from './stable';
 import { closeStable, horseSummary, initStableUi, openStable } from './stableUi';
+import { bib, icon, inkOn, mountIcons, rankBadge } from './icons';
 
 // ============ 전역 상태 ============
 
@@ -92,6 +93,7 @@ function showScreen(id: string): void {
     if (s === id) show(s);
     else hide(s);
   }
+  document.body.dataset.screen = id;
   if (id !== 'scr-stable') closeStable();
   refreshStableBadges();
   // 모바일 세로 화면에서는 게임 중에만 가로 모드 안내를 띄운다
@@ -122,8 +124,8 @@ function addLog(html: string, cls = ''): void {
 
 /** 메인·혼자 하기 화면의 당근과 내 말 요약을 최신 값으로 맞춘다 */
 function refreshStableBadges(): void {
-  $('main-carrots').textContent = `🥕 ${stable().carrots}`;
-  $('solo-horse-summary').textContent = horseSummary();
+  $('main-carrots').innerHTML = `${icon('carrot')}${stable().carrots}`;
+  $('solo-horse-summary').innerHTML = `${icon('star')}${esc(horseSummary())}`;
 }
 
 function isMyHorse(h: HorseInfo | undefined): boolean {
@@ -132,8 +134,22 @@ function isMyHorse(h: HorseInfo | undefined): boolean {
 
 function horseName(id: number): string {
   const h = state.horses.find((x) => x.id === id);
-  return h ? `${id}번 ${isMyHorse(h) ? '⭐' : ''}${h.name}` : `${id}번`;
+  return h ? `${id}번 ${h.name}${isMyHorse(h) ? '(내 말)' : ''}` : `${id}번`;
 }
+
+/** 번호 안장 + 이름 (HTML) — 말을 가리키는 곳은 모두 이 모양으로 쓴다 */
+function horseChip(id: number): string {
+  const h = state.horses.find((x) => x.id === id);
+  if (!h) return `${id}번`;
+  const mine = isMyHorse(h) ? `<span class="tag mine">${icon('star')}내 말</span>` : '';
+  return `<span class="horse-chip">${bib(id, h.color, 'sm')}<span>${esc(h.name)}</span>${mine}</span>`;
+}
+
+function coinHtml(amount: number | string): string {
+  return `<span class="coin">${icon('coin')}${amount}</span>`;
+}
+
+const NPC_TAG = `<span class="tag npc">${icon('robot')}NPC</span>`;
 
 function horseColor(id: number): string {
   return state.horses.find((x) => x.id === id)?.color ?? '#888';
@@ -182,15 +198,21 @@ function renderCameraSelect(): void {
   }
   el.classList.remove('hidden');
   el.innerHTML =
-    `<span class="cam-label">📷</span>` +
-    `<button class="cam-leader${state.cameraSel === 'leader' ? ' active' : ''}" data-cam="leader" title="선두 따라가기">👑</button>` +
+    `<span class="cam-label" title="따라갈 말">${icon('camera')}</span>` +
+    `<button class="cam-leader${state.cameraSel === 'leader' ? ' active' : ''}" data-cam="leader" title="선두 따라가기" aria-label="선두 따라가기">${icon('crown')}</button>` +
     state.horses
-      .map(
-        (h) =>
-          `<button style="background:${h.color}" class="${state.cameraSel === h.id ? 'active' : ''}${isMyHorse(h) ? ' mine' : ''}" data-cam="${h.id}" title="${esc(h.name)}${isMyHorse(h) ? ' (내 말)' : ''}">${isMyHorse(h) ? '⭐' : ''}${h.id}</button>`
-      )
+      .map((h) => {
+        const cls = [
+          state.cameraSel === h.id ? 'active' : '',
+          isMyHorse(h) ? 'mine' : '',
+          inkOn(h.color) ? 'dk' : ''
+        ]
+          .filter(Boolean)
+          .join(' ');
+        return `<button style="background:${h.color}" class="${cls}" data-cam="${h.id}" title="${esc(h.name)}${isMyHorse(h) ? ' (내 말)' : ''}">${h.id}</button>`;
+      })
       .join('') +
-    `<button class="cam-mode" data-act="mode" title="카메라 시점 바꾸기">🎥 ${view?.viewModeLabel() ?? '중계'}</button>`;
+    `<button class="cam-mode" data-act="mode" title="카메라 시점 바꾸기">${view?.viewModeLabel() ?? '중계'} 시점</button>`;
   el.querySelectorAll<HTMLElement>('button').forEach((b) => {
     b.onclick = () => {
       if (b.dataset.act === 'mode') {
@@ -209,27 +231,25 @@ function renderCameraSelect(): void {
 
 function renderLobby(): void {
   if (!state.settings) return;
-  $('lobby-title').textContent = `🏠 ${state.settings.roomName}`;
+  $('lobby-title').textContent = state.settings.roomName;
   const codeEl = $('lobby-code');
-  if (state.settings.isPrivate && state.roomId) {
-    codeEl.textContent = `초대 코드: ${state.roomId}`;
-    codeEl.classList.remove('hidden');
-  } else if (state.roomId) {
-    codeEl.textContent = `방 코드: ${state.roomId}`;
+  if (state.roomId) {
+    codeEl.innerHTML = `${state.settings.isPrivate ? '초대 코드' : '방 코드'} <b class="code">${esc(state.roomId)}</b>`;
     codeEl.classList.remove('hidden');
   }
   $('lobby-settings').innerHTML = `
     <span class="chip">최대 ${state.settings.maxPlayers}명</span>
     <span class="chip">${state.settings.totalRounds}라운드</span>
     <span class="chip">시작 코인 ${ROUND_COINS[state.settings.totalRounds]}</span>
-    <span class="chip">${state.settings.isPrivate ? '🔒 비공개' : '🌐 공개'}</span>
-    ${state.settings.blindBets ? '<span class="chip">🙈 블라인드 배팅</span>' : ''}`;
+    <span class="chip">${state.settings.isPrivate ? icon('lock') + '비공개' : '공개'}</span>
+    ${state.settings.blindBets ? `<span class="chip">${icon('blind')}블라인드 배팅</span>` : ''}`;
   $('lobby-players').innerHTML = state.players
     .map(
       (p) => `
     <div class="lobby-player${p.isHost ? ' host' : ''}">
       <span class="dot${p.connected || p.isNpc ? '' : ' off'}"></span>
-      <span>${p.isHost ? '👑 ' : ''}${esc(p.name)}${p.id === state.myId ? ' (나)' : ''}</span>
+      <span>${esc(p.name)}${p.id === state.myId ? ' (나)' : ''}</span>
+      ${p.isHost ? icon('crown') : ''}${p.isNpc ? NPC_TAG : ''}
     </div>`
     )
     .join('');
@@ -244,8 +264,8 @@ function renderSidebar(): void {
     .map((p) => {
       const off = !p.connected && !p.isNpc;
       return `<div class="side-player${p.id === state.myId ? ' me' : ''}">
-        <span class="${off ? 'off' : ''}">${p.isHost ? '👑' : ''}${esc(p.name)}${off ? ' (연결 끊김)' : ''}</span>
-        <b>💰${p.coins}</b>
+        <span class="${off ? 'off' : ''}">${esc(p.name)}${off ? ' (연결 끊김)' : ''} ${p.isHost ? icon('crown') : ''}</span>
+        <b>${icon('coin')}${p.coins}</b>
       </div>`;
     })
     .join('');
@@ -258,18 +278,18 @@ function betsHidden(): boolean {
 
 function renderSideBets(): void {
   const blindNote = betsHidden()
-    ? '<p class="muted">🙈 블라인드 배팅 — 다른 사람의 배팅은 라운드 결과에서 공개됩니다.</p>'
+    ? '<p class="muted">블라인드 방입니다. 다른 사람의 배팅은 라운드 결과에서 공개됩니다.</p>'
     : '';
   if (state.revealed.length === 0) {
-    $('side-bets').innerHTML = blindNote || '<p class="muted">아직 공개 전</p>';
+    $('side-bets').innerHTML = blindNote || '<p class="muted">배팅이 끝나면 여기에 나옵니다.</p>';
     return;
   }
   $('side-bets').innerHTML = blindNote + state.revealed
     .map(
       (b) => `<div class="side-bet">
-        <b>${esc(b.playerName)}</b> — ${BET_TYPE_INFO[b.type].label}
-        <span style="color:${horseColor(b.horseId)}">●</span>${esc(horseName(b.horseId))}
-        <br/>💰${b.amount} (배당 ×${b.odds.toFixed(2)})
+        <b>${esc(b.playerName)}</b><br/>
+        ${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId)}<br/>
+        ${coinHtml(b.amount)} <span class="muted">배당 ×${b.odds.toFixed(2)}</span>
       </div>`
     )
     .join('');
@@ -280,8 +300,8 @@ function renderSideBets(): void {
 function renderBettingOverlay(): void {
   const isBetting = state.phase === 'betting';
   $('betting-title').textContent = isBetting
-    ? `💰 배팅 시간! (라운드 ${state.round}/${state.totalRounds})`
-    : `🐎 출전마 확인 (라운드 ${state.round}/${state.totalRounds})`;
+    ? `${state.round}라운드 배팅`
+    : `${state.round}라운드 출마표`;
 
   renderHorseCards();
   renderBetTabs();
@@ -294,10 +314,10 @@ function renderBettingOverlay(): void {
   const btn = $<HTMLButtonElement>('btn-ready');
   btn.disabled = state.readySent;
   btn.textContent = state.readySent
-    ? '다른 플레이어를 기다리는 중...'
+    ? '다른 사람을 기다리는 중입니다'
     : isBetting
-      ? '배팅 마감 ✔ (모두 완료 시 바로 시작)'
-      : '능력치 확인 완료 ✔';
+      ? '배팅 마감하기'
+      : '능력치 확인 완료';
   show('overlay-betting');
 }
 
@@ -313,17 +333,18 @@ function renderHorseCards(): void {
   $('horse-cards').innerHTML = state.horses
     .map((h) => {
       const odds = state.odds[h.id];
-      return `<div class="horse-card${state.selHorse === h.id ? ' selected' : ''}${isMyHorse(h) ? ' mine' : ''}" data-horse="${h.id}">
+      const mine = isMyHorse(h);
+      return `<div class="horse-card${state.selHorse === h.id ? ' selected' : ''}${mine ? ' mine' : ''}" data-horse="${h.id}">
         <div class="hc-head">
-          <span class="hc-chip" style="background:${h.color}"></span>
-          <b>${h.id}번 ${esc(h.name)}</b>
-          ${isMyHorse(h) ? '<span class="hc-mine">⭐ 내 말</span>' : ''}
-          ${h.breed && h.breed !== 'horse' ? `<span class="hc-breed">${BREED_INFO[h.breed].emoji} ${BREED_INFO[h.breed].label}</span>` : ''}
+          ${bib(h.id, h.color, 'lg')}
+          <span class="hc-name">${esc(h.name)}</span>
+          ${mine ? `<span class="tag mine">${icon('star')}내 말</span>` : ''}
+          ${h.breed && h.breed !== 'horse' ? `<span class="tag">${BREED_INFO[h.breed].label}</span>` : ''}
         </div>
-        ${statBar('속력', h.stats.speed, '#ef4565')}
-        ${statBar('가속', h.stats.accel, '#ff8906')}
-        ${statBar('지구력', h.stats.stamina, '#2cb67d')}
-        <div class="hc-extra">⚖️ ${h.stats.weight}kg &nbsp; 🍀 행운 ${h.stats.luck}</div>
+        ${statBar('속력', h.stats.speed, '#d92b22')}
+        ${statBar('가속', h.stats.accel, '#2447d6')}
+        ${statBar('지구력', h.stats.stamina, '#0f7a50')}
+        <div class="hc-extra">몸무게 ${h.stats.weight}kg, 행운 ${h.stats.luck}</div>
         <div class="hc-odds">
           <span>${BET_TYPE_INFO[state.selBetType].label} 배당</span>
           <b>×${odds ? odds[state.selBetType].toFixed(2) : '-'}</b>
@@ -344,8 +365,8 @@ function renderBetTabs(): void {
   $('bet-type-tabs').innerHTML = (Object.keys(BET_TYPE_INFO) as BetType[])
     .map(
       (t) =>
-        `<button class="bet-tab${state.selBetType === t ? ' active' : ''}" data-type="${t}">
-          ${BET_TYPE_INFO[t].label}<span style="font-size:11px"> · ${BET_TYPE_INFO[t].desc}</span>
+        `<button class="bet-tab${state.selBetType === t ? ' active' : ''}" data-type="${t}" aria-pressed="${state.selBetType === t}">
+          <span class="omr"></span>${BET_TYPE_INFO[t].label}<span class="bt-desc">${BET_TYPE_INFO[t].desc}</span>
         </button>`
     )
     .join('');
@@ -369,25 +390,25 @@ function betLimitNow(): { limit: number; used: number } {
 function updateBetSelInfo(): void {
   const { limit, used } = betLimitNow();
   $('bet-limit-info').textContent =
-    `라운드 배팅 한도: ${used} / ${limit} 코인 (보유 코인의 ${BET_LIMIT_RATIO * 100}%) · 최소 ${BET_MIN}코인 · 보유 💰${state.coins}`;
+    `이번 라운드에 ${limit}코인까지 걸 수 있습니다 (가진 코인의 ${BET_LIMIT_RATIO * 100}%). 지금까지 ${used}코인, 한 번에 최소 ${BET_MIN}코인.`;
   const info = $('bet-selected-info');
   if (state.selHorse == null) {
-    info.textContent = '말을 선택하세요';
+    info.textContent = '말을 고르세요';
   } else {
     const odds = state.odds[state.selHorse]?.[state.selBetType];
-    info.innerHTML = `<b>${BET_TYPE_INFO[state.selBetType].label}</b> · <b style="color:${horseColor(state.selHorse)}">${esc(horseName(state.selHorse))}</b> ×${odds?.toFixed(2) ?? '-'}`;
+    info.innerHTML = `${BET_TYPE_INFO[state.selBetType].label} ${horseChip(state.selHorse)} <span class="odds">×${odds?.toFixed(2) ?? '-'}</span>`;
   }
 }
 
 function renderMyBets(): void {
   if (state.myBets.length === 0) {
-    $('my-bets').innerHTML = '<p class="muted">아직 배팅하지 않았습니다.</p>';
+    $('my-bets').innerHTML = '<p class="muted">아직 건 마권이 없습니다.</p>';
     return;
   }
   $('my-bets').innerHTML = state.myBets
     .map(
       (b) => `<div class="my-bet-item">
-        <span>${BET_TYPE_INFO[b.type].label} · ${esc(horseName(b.horseId))} · 💰${b.amount} (×${b.odds.toFixed(2)})</span>
+        <span class="mb-main">${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId)} ${coinHtml(b.amount)} <span class="muted">배당 ×${b.odds.toFixed(2)}</span></span>
         ${state.phase === 'betting' ? `<button data-bet="${b.betId}">취소</button>` : ''}
       </div>`
     )
@@ -411,13 +432,13 @@ function renderAugmentBar(): void {
   bar.classList.remove('hidden');
 
   if (aug.used) {
-    bar.innerHTML = `<div class="augment-used-msg">✅ 증강 사용 완료! 경주를 지켜보세요...</div>`;
+    bar.innerHTML = `<div class="augment-used-msg">카드를 썼습니다. 경주를 지켜보세요.</div>`;
     return;
   }
 
   const tierInfo = TIER_INFO[aug.tier];
   const head = `<div class="augment-head">
-      <b>⚡ ${aug.phase}차 증강 · <span class="aug-tier-chip" style="background:${tierInfo.color}">${tierInfo.emoji} ${tierInfo.label}</span> 카드 1장을 고르세요 (경주는 계속됩니다!)</b>
+      <b>${aug.phase}차 증강 <span class="aug-tier-chip" style="background:${tierInfo.color}">${icon('gem')}${tierInfo.label}</span> 카드 한 장을 고르세요. 경주는 멈추지 않습니다.</b>
       <span id="augment-remain"></span>
     </div>
     <div class="augment-timebar"><div id="augment-timefill" style="width:100%"></div></div>`;
@@ -433,18 +454,18 @@ function renderAugmentBar(): void {
         pickRow = `<div class="augment-pickhorse">${state.horses
           .map(
             (h) =>
-              `<button class="btn small" style="background:${h.color};color:#fff" data-pick="${h.id}" data-key="${c.cardKey}">${h.id}번</button>`
+              `<button class="pick${inkOn(h.color) ? ' dk' : ''}" style="background:${h.color}" data-pick="${h.id}" data-key="${c.cardKey}" title="${esc(h.name)}">${h.id}</button>`
           )
           .join('')}</div>`;
       } else if (selected) {
-        pickRow = `<div class="augment-pickhorse"><button class="btn small" data-confirm="${c.cardKey}">사용 확정!</button></div>`;
+        pickRow = `<div class="augment-pickhorse"><button class="btn small" data-confirm="${c.cardKey}">이 카드 쓰기</button></div>`;
       }
       return `<div class="augment-card${selected ? ' selected' : ''}" data-card="${c.cardKey}" style="border-color:${rar.color};${aug.pending ? 'opacity:0.5;pointer-events:none' : ''}">
-        <span class="aug-rarity" style="background:${rar.color}">${rar.emoji} ${rar.label}</span>
+        
         <div class="aug-emoji">${def.emoji}</div>
         <div class="aug-name">${esc(def.name)}</div>
         <div class="aug-desc">${esc(def.description)}</div>
-        <div class="aug-target">🎯 ${TARGET_TYPE_LABELS[def.targetType] ?? ''}</div>
+        <div class="aug-target">${icon('target')}${TARGET_TYPE_LABELS[def.targetType] ?? ''}</div>
         ${pickRow}
       </div>`;
     })
@@ -491,18 +512,22 @@ function renderRoundResult(data: {
   // 내 말의 순위 상금 (당근) — 같은 상금은 한 번만 받는다
   const prize = data.ownerPrize && data.ownerPrize.playerId === state.myId ? data.ownerPrize : null;
   if (prize && claimRoundPrize(prize)) {
-    toast(`🥕 내 말 ${prize.rank}위! 당근 +${prize.carrots}`, false);
+    toast(`내 말 ${prize.rank}위, 당근 +${prize.carrots}`, false);
   }
   const prizeHtml = prize
-    ? `<div class="carrot-row">⭐ 내 말 <b>${esc(prize.horseName)}</b> ${prize.rank}위 — 상금 <b>🥕 +${prize.carrots}</b> <span class="muted">(보유 🥕 ${stable().carrots})</span></div>`
+    ? `<div class="carrot-row">${icon('star')}<span>내 말 <b>${esc(prize.horseName)}</b> ${prize.rank}위</span>
+        <b class="carrot-chip">${icon('carrot')}+${prize.carrots}</b>
+        <span class="muted">지금 ${stable().carrots}개</span></div>`
     : '';
+
   const rankingHtml = (state.rankings ?? [])
     .map((r) => {
+      const h = state.horses.find((x) => x.id === r.horseId);
       return `<div class="result-horse${r.rank === 1 ? ' first' : ''}">
-        <div style="font-size:22px">${r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : `${r.rank}위`}</div>
-        <div style="color:${horseColor(r.horseId)}">●</div>
-        <div>${esc(horseName(r.horseId))}</div>
-        <div class="muted">${(r.timeMs / 1000).toFixed(2)}초</div>
+        ${rankBadge(r.rank)}
+        ${bib(r.horseId, h?.color ?? '#888')}
+        <span class="rh-name">${esc(h?.name ?? '')}${isMyHorse(h) ? ' (내 말)' : ''}</span>
+        <span class="muted">${(r.timeMs / 1000).toFixed(2)}초</span>
       </div>`;
     })
     .join('');
@@ -511,16 +536,16 @@ function renderRoundResult(data: {
     .flatMap((res) => {
       if (res.bets.length === 0) {
         return [
-          `<tr><td>${esc(res.playerName)}</td><td colspan="3" class="muted">배팅 없음</td><td>${res.coins}</td></tr>`
+          `<tr><td>${esc(res.playerName)}</td><td colspan="3" class="muted">배팅 없음</td><td class="num">${res.coins}</td></tr>`
         ];
       }
       return res.bets.map(
         (b, i) => `<tr>
           <td>${i === 0 ? esc(res.playerName) : ''}</td>
-          <td>${BET_TYPE_INFO[b.type].label} · ${esc(horseName(b.horseId))} · ${b.amount}</td>
-          <td>${b.hit ? '✅ 적중' : '❌ 실패'}</td>
-          <td class="${b.payout - b.amount >= 0 ? 'pos' : 'neg'}">${b.hit ? `+${b.payout - b.amount}` : `-${b.amount}`}</td>
-          <td>${i === 0 ? res.coins : ''}</td>
+          <td><span class="rp-bet">${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId)} ${coinHtml(b.amount)}</span></td>
+          <td>${b.hit ? '<span class="stamp sm">적중</span>' : '<span class="miss">빗나감</span>'}</td>
+          <td class="num ${b.hit ? 'pos' : 'neg'}">${b.hit ? `+${b.payout - b.amount}` : `-${b.amount}`}</td>
+          <td class="num">${i === 0 ? res.coins : ''}</td>
         </tr>`
       );
     })
@@ -528,80 +553,86 @@ function renderRoundResult(data: {
 
   const standingsHtml = data.standings
     .map(
-      (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}${s.rank === 1 ? ' first' : ''}">
-        <span>${s.rank}위 ${esc(s.name)}</span><b>💰${s.coins}</b>
+      (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}">
+        <span class="sr-main">${rankBadge(s.rank)}${esc(s.name)}${s.isNpc ? NPC_TAG : ''}</span><b>${icon('coin')}${s.coins}</b>
       </div>`
     )
     .join('');
 
   const hostBtn = isHost()
-    ? `<button id="btn-next-round" class="btn big">${data.isFinal ? '🏆 최종 결과 보기' : '▶ 다음 라운드'}</button>`
-    : '<p class="muted center">방장이 진행하길 기다리는 중...</p>';
+    ? `<button id="btn-next-round" class="btn big">${data.isFinal ? '최종 결과 보기' : '다음 라운드'}</button>`
+    : '<p class="muted">방장이 넘기면 이어집니다.</p>';
 
   $('result-inner').innerHTML = `
-    <h2>🏁 라운드 ${data.round} 결과</h2>
+    <div class="result-title"><h2>${data.round}라운드 결과</h2><span class="stamp">확정</span></div>
     <div class="result-rankings">${rankingHtml}</div>
     ${prizeHtml}
     <h3>배팅 정산</h3>
     <table class="result-table">
-      <tr><th>플레이어</th><th>배팅</th><th>결과</th><th>손익</th><th>보유</th></tr>
+      <tr><th>플레이어</th><th>배팅</th><th>결과</th><th class="num">손익</th><th class="num">코인</th></tr>
       ${rows}
     </table>
     <h3>현재 순위</h3>
-    ${standingsHtml}
-    <div class="center">${hostBtn}</div>`;
+    <div>${standingsHtml}</div>
+    <div class="btn-row" style="justify-content:flex-end">${hostBtn}</div>`;
   show('overlay-result');
   const btn = document.getElementById('btn-next-round');
   if (btn) btn.onclick = () => net.send({ type: 'NEXT_ROUND' });
 }
 
 function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus }): void {
-  const medals = ['🥇', '🥈', '🥉'];
   // 게임 종료 당근 보너스 — 한 번만 받는다
   const bonus = data.ownerBonus && data.ownerBonus.playerId === state.myId ? data.ownerBonus : null;
   if (bonus && claimGameBonus(bonus)) {
-    toast(`🥕 게임 보너스! 당근 +${bonus.placementCarrots + bonus.profitCarrots}`, false);
+    toast(`게임 보너스, 당근 +${bonus.placementCarrots + bonus.profitCarrots}`, false);
   }
+  const carrots = (n: number): string => `<b>${icon('carrot')}+${n}</b>`;
   const bonusHtml = bonus
-    ? `<h3>🥕 당근 정산</h3>
+    ? `<h3>당근 정산</h3>
       <div class="carrot-box">
-        <div><span>내 말 순위 상금 (라운드 합계)</span><b>+${bonus.roundCarrots}</b></div>
-        <div><span>최종 ${bonus.placement}위 보너스</span><b>+${bonus.placementCarrots}</b></div>
-        <div><span>배팅 순이익 보너스 (순이익의 10%)</span><b>+${bonus.profitCarrots}</b></div>
-        <div class="carrot-total"><span>이번 게임에서 번 당근</span><b>🥕 +${
+        <div><span>내 말 순위 상금 (라운드 합계)</span>${carrots(bonus.roundCarrots)}</div>
+        <div><span>최종 ${bonus.placement}위 보너스</span>${carrots(bonus.placementCarrots)}</div>
+        <div><span>배팅 순이익 보너스 (순이익의 10%)</span>${carrots(bonus.profitCarrots)}</div>
+        <div class="carrot-total"><span>이번 게임에서 번 당근</span>${carrots(
           bonus.roundCarrots + bonus.placementCarrots + bonus.profitCarrots
-        }</b></div>
-        <div class="muted">지금 보유: 🥕 ${stable().carrots}</div>
-      </div>`
+        )}</div>
+      </div>
+      <p class="muted">지금 당근 ${stable().carrots}개</p>`
     : '';
+
   const standingsHtml = data.standings
     .map(
-      (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}${s.rank === 1 ? ' first' : ''}">
-        <span>${s.rank <= 3 ? medals[s.rank - 1] : `${s.rank}위`} ${esc(s.name)}
-        <span class="muted">적중 ${s.hits}회 · 순손익 ${s.netProfit >= 0 ? '+' : ''}${s.netProfit}</span></span>
-        <b>💰${s.coins}</b>
+      (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}">
+        <span class="sr-main">${rankBadge(s.rank)}${esc(s.name)}${s.isNpc ? NPC_TAG : ''}
+        <span class="muted">적중 ${s.hits}회, 순손익 ${s.netProfit >= 0 ? '+' : ''}${s.netProfit}</span></span>
+        <b>${icon('coin')}${s.coins}</b>
       </div>`
     )
     .join('');
   const awardsHtml = data.awards
     .map(
       (a) =>
-        `<div class="award-row"><b>${esc(a.title)}</b> — ${esc(a.playerName)} <span class="muted">(${esc(a.detail)})</span></div>`
+        `<div class="award-row"><b>${esc(a.title)}</b> ${esc(a.playerName)} <span class="muted">${esc(a.detail)}</span></div>`
     )
     .join('');
   const hostBtn = isHost()
-    ? '<button id="btn-restart" class="btn big">🔄 같은 방에서 다시 하기</button>'
-    : '<p class="muted center">방장이 다시 시작할 수 있습니다.</p>';
+    ? '<button id="btn-restart" class="btn big">같은 방에서 다시 하기</button>'
+    : '<p class="muted">방장이 다시 시작할 수 있습니다.</p>';
+  const winner = data.standings.find((s) => s.rank === 1);
 
   $('result-inner').innerHTML = `
-    <h2>🏆 최종 결과</h2>
-    ${standingsHtml}
+    <div class="result-title"><h2>최종 결과</h2>${
+      winner ? `<span class="stamp">${icon('trophy')} ${esc(winner.name)} 우승</span>` : ''
+    }</div>
+    <div>${standingsHtml}</div>
     ${bonusHtml}
-    ${data.awards.length ? '<h3>🎖 재미있는 기록</h3>' + awardsHtml : ''}
-    <div class="btn-row center" style="justify-content:center">
-      ${hostBtn}
-      ${bonus ? '<button id="btn-to-stable" class="btn big stable">🐴 마구간 가기</button>' : ''}
-      <button id="btn-to-main" class="btn big ghost">🚪 나가기</button>
+    ${data.awards.length ? '<h3>이번 판의 기록</h3>' + awardsHtml : ''}
+    <div class="btn-row">
+      <button id="btn-to-main" class="btn ghost">나가기</button>
+      <span class="btn-row">
+        ${bonus ? '<button id="btn-to-stable" class="btn big alt">마구간 가기</button>' : ''}
+        ${hostBtn}
+      </span>
     </div>`;
   show('overlay-result');
   const restart = document.getElementById('btn-restart');
@@ -650,19 +681,19 @@ function leaveToMain(): void {
 
 const PHASE_LABELS: Record<RoomPhase, string> = {
   lobby: '대기 중',
-  preview: '🐎 출전마 확인',
-  betting: '💰 배팅 중',
-  reveal: '👀 배팅 공개',
-  countdown: '🚦 곧 출발!',
-  racing: '🏇 경주 중!',
-  roundResult: '🏁 라운드 결과',
-  gameResult: '🏆 최종 결과'
+  preview: '출마표 확인',
+  betting: '배팅 중',
+  reveal: '배팅 공개',
+  countdown: '출발 준비',
+  racing: '경주 중',
+  roundResult: '라운드 결과',
+  gameResult: '최종 결과'
 };
 
 function updateTopbar(): void {
-  $('top-round').textContent = state.round > 0 ? `라운드 ${state.round}/${state.totalRounds}` : '';
+  $('top-round').textContent = state.round > 0 ? `${state.round}/${state.totalRounds} 라운드` : '';
   $('top-phase').textContent = PHASE_LABELS[state.phase];
-  $('top-coins').textContent = `💰 ${state.coins}`;
+  $('top-coins').innerHTML = `${icon('coin')}${state.coins}`;
 }
 
 function enterGameScreen(): void {
@@ -745,26 +776,30 @@ function applySnapshot(snap: RoomSnapshot): void {
 function renderRevealOverlay(): void {
   const blind = betsHidden();
   const title = document.querySelector('#overlay-reveal h2');
-  if (title) title.textContent = blind ? '🙈 블라인드 배팅 — 내용은 비밀!' : '👀 전체 배팅 공개!';
+  if (title) title.textContent = blind ? '블라인드 배팅' : '배팅 공개';
   $('reveal-list').innerHTML = state.players
     .map((p) => {
       const bets = state.revealed.filter((b) => b.playerId === p.id);
-      const name = p.name + (p.id === state.myId ? ' (나)' : '');
+      const name = esc(p.name) + (p.id === state.myId ? ' (나)' : '');
       const count = state.betCounts.find((c) => c.playerId === p.id)?.count ?? bets.length;
       const hiddenFromMe = blind && p.id !== state.myId;
-      const betsHtml = hiddenFromMe
-        ? count === 0
-          ? '<span class="muted">배팅 없음</span>'
-          : `🙈 배팅 ${count}건 <span class="muted">(결과 발표 때 공개)</span>`
-        : bets.length === 0
-          ? '<span class="muted">배팅 없음 (소심한가 봐요)</span>'
-          : bets
-              .map(
-                (b) =>
-                  `${BET_TYPE_INFO[b.type].label} <b style="color:${horseColor(b.horseId)}">${esc(horseName(b.horseId))}</b> 💰${b.amount} (×${b.odds.toFixed(2)})`
-              )
-              .join(' · ');
-      return `<div class="reveal-player"><div class="rp-name">🎫 ${esc(name)}</div><div class="rp-bets">${betsHtml}</div></div>`;
+      let betsHtml: string;
+      if (hiddenFromMe) {
+        betsHtml =
+          count === 0
+            ? '<span class="muted">배팅 없음</span>'
+            : `<span class="rp-bet">${icon('blind')}마권 ${count}장 <span class="muted">결과가 나오면 공개됩니다</span></span>`;
+      } else if (bets.length === 0) {
+        betsHtml = '<span class="muted">배팅 없음</span>';
+      } else {
+        betsHtml = bets
+          .map(
+            (b) =>
+              `<span class="rp-bet">${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId)} ${coinHtml(b.amount)} <span class="muted">배당 ×${b.odds.toFixed(2)}</span></span>`
+          )
+          .join('');
+      }
+      return `<div class="reveal-player"><div class="rp-name">${name}</div><div class="rp-bets">${betsHtml}</div></div>`;
     })
     .join('');
   show('overlay-reveal');
@@ -800,12 +835,12 @@ net.on((msg: S2C) => {
     case 'ROOM_LIST': {
       const list = $('room-list');
       if (msg.rooms.length === 0) {
-        list.innerHTML = '<p class="muted">공개 방이 없습니다. 직접 만들어 보세요!</p>';
+        list.innerHTML = '<p class="muted">열려 있는 공개 방이 없습니다. 방을 직접 만들어 보세요.</p>';
       } else {
         list.innerHTML = msg.rooms
           .map(
             (r) => `<div class="room-item">
-              <span><b>${esc(r.name)}</b> <span class="muted">${r.players}/${r.maxPlayers}명 · ${r.totalRounds}라운드</span></span>
+              <span><b>${esc(r.name)}</b> <span class="muted">${r.players}/${r.maxPlayers}명, ${r.totalRounds}라운드</span></span>
               <button class="btn small" data-room="${r.id}">참가</button>
             </div>`
           )
@@ -856,7 +891,7 @@ net.on((msg: S2C) => {
     case 'GAME_START': {
       state.totalRounds = msg.totalRounds;
       state.coins = msg.startCoins;
-      addLog(`🎮 게임 시작! ${msg.totalRounds}라운드 · 시작 코인 ${msg.startCoins}`);
+      addLog(`게임 시작. ${msg.totalRounds}라운드, 시작 코인 ${msg.startCoins}`, 'log-head');
       break;
     }
 
@@ -885,13 +920,13 @@ net.on((msg: S2C) => {
       renderCameraSelect();
       renderBettingOverlay();
       renderSideBets();
-      addLog(`🐎 라운드 ${msg.round} 시작! 출전마가 공개되었습니다.`);
+      addLog(`${msg.round}라운드 출마표가 나왔습니다.`, 'log-head');
       const myHorse = msg.horses.find((h) => isMyHorse(h));
       if (myHorse) {
-        addLog(`⭐ 내 말 <b>${esc(myHorse.name)}</b> — 이번에는 ${myHorse.id}번으로 출전!`, 'log-good');
+        addLog(`내 말 <b>${esc(myHorse.name)}</b>, 이번에는 ${myHorse.id}번으로 뜁니다.`, 'log-good');
       }
       for (const t of msg.topUps) {
-        addLog(`💝 ${esc(t.playerName)} 코인 부족 구제 +${t.amount}`, 'log-good');
+        addLog(`${esc(t.playerName)} 코인이 바닥나 ${t.amount} 보충`, 'log-good');
       }
       updateTopbar();
       break;
@@ -949,8 +984,8 @@ net.on((msg: S2C) => {
     case 'RACE_START': {
       state.phase = 'racing';
       hide('overlay-countdown');
-      addLog('🏇 경주 시작!');
-      view?.announce('🏇 출발!!');
+      addLog('출발!', 'log-head');
+      view?.announce('출발!');
       updateTopbar();
       break;
     }
@@ -974,15 +1009,15 @@ net.on((msg: S2C) => {
       {
         const tierInfo = TIER_INFO[msg.tier];
         const tierColor = { silver: '#dee2e6', gold: '#ffd43b', platinum: '#66d9e8' }[msg.tier];
-        view?.announce(`⚡ ${msg.phase}차 증강 — ${tierInfo.emoji} ${tierInfo.label}!`, tierColor);
-        addLog(`⚡ ${msg.phase}차 증강: <b>${tierInfo.emoji} ${tierInfo.label}</b> 등급 (모두 같은 등급, 카드는 각자 다름)`, 'log-augment');
+        view?.announce(`${msg.phase}차 증강 ${tierInfo.label}`, tierColor);
+        addLog(`${msg.phase}차 증강은 <b>${tierInfo.label}</b> 등급입니다. 카드는 사람마다 다릅니다.`, 'log-augment');
       }
       break;
     }
 
     case 'AUGMENT_CLOSED': {
       if (state.augment && !state.augment.used) {
-        addLog('⏰ 증강 선택 시간이 끝났습니다.', 'log-augment');
+        addLog('증강 선택 시간이 끝났습니다.', 'log-augment');
       }
       state.augment = null;
       renderAugmentBar();
@@ -1008,9 +1043,9 @@ net.on((msg: S2C) => {
       if (!def) break;
       const targetNames = msg.targets.map((id) => horseName(id)).join(', ');
       const blockedNames = msg.blocked.map((id) => horseName(id)).join(', ');
-      let line = `${def.emoji} <b>${esc(msg.playerName)}</b> ▶ <b>${esc(def.name)}</b>`;
-      if (targetNames) line += ` → ${esc(targetNames)}`;
-      if (blockedNames) line += ` <span class="log-bad">(${esc(blockedNames)} 방어!)</span>`;
+      let line = `${def.emoji} <b>${esc(msg.playerName)}</b> <b>${esc(def.name)}</b>`;
+      if (targetNames) line += `, 대상 ${esc(targetNames)}`;
+      if (blockedNames) line += ` <span class="log-bad">(${esc(blockedNames)} 방어막으로 막음)</span>`;
       addLog(line, def.hostile ? 'log-bad' : 'log-good');
       view?.announce(`${def.emoji} ${msg.playerName}: ${def.name}!`, def.hostile ? '#ef4565' : '#2cb67d');
       view?.flashHorses(msg.targets, !def.hostile);
@@ -1023,7 +1058,7 @@ net.on((msg: S2C) => {
       renderAugmentBar();
       view?.showFinish(msg.rankings);
       const first = msg.rankings.find((r) => r.rank === 1);
-      if (first) addLog(`🏁 경주 종료! 우승: <b>${esc(horseName(first.horseId))}</b>`);
+      if (first) addLog(`경주 종료. 우승 <b>${esc(horseName(first.horseId))}</b>`, 'log-head');
       break;
     }
 
@@ -1074,13 +1109,13 @@ setInterval(() => {
   const sec = Math.ceil(remain / 1000);
 
   if (['preview', 'betting', 'reveal', 'countdown'].includes(state.phase)) {
-    $('top-timer').textContent = `⏱ ${sec}초`;
+    $('top-timer').textContent = `${sec}초`;
   } else {
     $('top-timer').textContent = '';
   }
 
   if (state.phase === 'preview' || state.phase === 'betting') {
-    $('betting-timer').textContent = `⏱ ${sec}초`;
+    $('betting-timer').textContent = `${sec}초`;
   }
 
   if (state.phase === 'countdown') {
@@ -1104,6 +1139,7 @@ setInterval(() => {
 // ============ 버튼 바인딩 ============
 
 function bindUI(): void {
+  mountIcons();
   const savedName = localStorage.getItem('augment-derby-name');
   if (savedName) $<HTMLInputElement>('main-name').value = savedName;
 
@@ -1210,7 +1246,7 @@ function bindUI(): void {
 
   // 배팅
   $('btn-place-bet').onclick = () => {
-    if (state.selHorse == null) return toast('말을 먼저 선택하세요!');
+    if (state.selHorse == null) return toast('말을 먼저 고르세요.');
     const amount = Number($<HTMLInputElement>('bet-amount').value);
     net.send({ type: 'PLACE_BET', betType: state.selBetType, horseId: state.selHorse, amount });
   };
@@ -1237,12 +1273,12 @@ function bindUI(): void {
   const resetLeave = () => {
     if (leaveArmed !== null) window.clearTimeout(leaveArmed);
     leaveArmed = null;
-    leaveBtn.textContent = '🚪 나가기';
+    leaveBtn.textContent = '나가기';
     leaveBtn.classList.remove('danger');
   };
   leaveBtn.onclick = () => {
     if (leaveArmed === null) {
-      leaveBtn.textContent = '정말 나갈까요? 한 번 더!';
+      leaveBtn.textContent = '한 번 더 누르면 나갑니다';
       leaveBtn.classList.add('danger');
       leaveArmed = window.setTimeout(resetLeave, 3000);
       return;

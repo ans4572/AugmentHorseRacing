@@ -23,7 +23,7 @@ export function startShowcase(): void {
   for (const id of ['sidebar', 'bottom-bar', 'camera-select', 'btn-game-leave']) {
     document.getElementById(id)?.classList.add('hidden');
   }
-  document.getElementById('top-round')!.textContent = '🎬 쇼케이스';
+  document.getElementById('top-round')!.textContent = '쇼케이스';
   const phaseEl = document.getElementById('top-phase')!;
   document.getElementById('top-coins')!.textContent = '';
 

@@ -45,10 +45,10 @@ export const PLAYER_COLORS = ['#d92b22', '#2447d6', '#b85c00', '#7a3fc4', '#0b7f
 export const NPC_BET_RATIO = 0.3;
 
 export const BET_TYPE_INFO: Record<BetType, { label: string; desc: string }> = {
-  winner: { label: '우승마', desc: '해당 말이 1등' },
-  last: { label: '꼴찌마', desc: '해당 말이 6등' },
-  top3: { label: '1~3위', desc: '해당 말이 1, 2, 3등 중 하나' },
-  bottom3: { label: '4~6위', desc: '해당 말이 4, 5, 6등 중 하나' }
+  winner: { label: '우승마', desc: '고른 말이 1등' },
+  last: { label: '꼴찌마', desc: '고른 말이 6등' },
+  top3: { label: '1~3위', desc: '고른 말이 1, 2, 3등 중 하나' },
+  bottom3: { label: '4~6위', desc: '고른 말이 4, 5, 6등 중 하나' }
 };
 
 /** 배당 범위 */

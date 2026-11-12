@@ -17,14 +17,14 @@ export function validateBet(
   currentCoins: number
 ): string | null {
   if (!Number.isInteger(amount) || amount < BET_MIN) {
-    return `최소 배팅 금액은 ${BET_MIN}코인입니다.`;
+    return `${BET_MIN}코인부터 걸 수 있습니다.`;
   }
   const limit = betLimit(coinsAtBettingStart);
   if (existingTotal + amount > limit) {
-    return `라운드 총 배팅 한도(${limit}코인)를 초과합니다.`;
+    return `이번 라운드에는 ${limit}코인까지만 걸 수 있습니다.`;
   }
   if (amount > currentCoins) {
-    return '보유 코인이 부족합니다.';
+    return '코인이 모자랍니다.';
   }
   return null;
 }

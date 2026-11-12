@@ -346,14 +346,14 @@ export class RaceSim {
   ): ApplyResult {
     const targetIds = this.resolveTargets(def, opts);
     if (targetIds.length === 0) {
-      return { ok: false, targets: [], blocked: [], message: '유효한 대상이 없습니다.' };
+      return { ok: false, targets: [], blocked: [], message: '카드를 쓸 수 있는 말이 없습니다.' };
     }
 
     // 위치 교환은 별도 처리
     if (def.effectType === 'swapPositions') {
       const a = this.horse(targetIds[0]);
       const b = this.horse(targetIds[targetIds.length - 1]);
-      if (a === b) return { ok: false, targets: [], blocked: [], message: '유효한 대상이 없습니다.' };
+      if (a === b) return { ok: false, targets: [], blocked: [], message: '카드를 쓸 수 있는 말이 없습니다.' };
       // 비행/방어막은 교환도 방해로 간주하여 차단
       const blocked: number[] = [];
       for (const h of [a, b]) {
@@ -364,7 +364,7 @@ export class RaceSim {
         }
       }
       if (blocked.length > 0) {
-        return { ok: true, targets: [], blocked, message: '방어 효과로 교환이 무효화되었습니다.' };
+        return { ok: true, targets: [], blocked, message: '방어막 때문에 자리를 바꾸지 못했습니다.' };
       }
       const tmp = a.pos;
       a.pos = b.pos;
@@ -475,7 +475,7 @@ export class RaceSim {
         ok: false,
         targets: [],
         blocked: [],
-        message: capped > 0 ? '이미 같은 효과가 최대로 걸려 있습니다.' : '유효한 대상이 없습니다.'
+        message: capped > 0 ? '같은 효과가 이미 최대로 걸려 있습니다.' : '카드를 쓸 수 있는 말이 없습니다.'
       };
     }
     return { ok: true, targets: applied, blocked };

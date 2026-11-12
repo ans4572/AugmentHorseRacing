@@ -1969,7 +1969,7 @@ export class Race3DView {
         }
         r.lsx = sx;
         r.lsy = sy;
-        r.lscale = Math.max(0.55, Math.min(1.1, 24 / dist));
+        r.lscale = Math.max(0.7, Math.min(1.1, 24 / dist)); // 멀리 있는 말의 이름표도 읽을 수 있는 크기까지만 줄인다
         r.ldist = dist;
         order.push(r);
       }

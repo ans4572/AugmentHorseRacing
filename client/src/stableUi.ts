@@ -56,7 +56,7 @@ function refreshPreview(): void {
     } catch (err) {
       previewFailed = true;
       console.error('미리보기 초기화 실패', err);
-      box.innerHTML = '<p class="r3d-unsupported">이 기기에서는 3D 미리보기를 표시할 수 없습니다.</p>';
+      box.innerHTML = '<p class="r3d-unsupported">이 기기에서는 3D 미리보기가 나오지 않습니다.</p>';
       return;
     }
   }
@@ -160,7 +160,7 @@ function render(): void {
       if (result === 'ok') {
         delete tryOn[item.slot];
         sfx('buy');
-        notify(`${item.name}을(를) 사서 바로 입혔습니다.`, false);
+        notify(`${item.name}${objectParticle(item.name)} 사서 바로 입혔습니다.`, false);
       } else if (result === 'poor') {
         notify('당근이 부족합니다. 혼자 하기에서 모을 수 있습니다.');
       }
@@ -203,4 +203,11 @@ export function closeStable(): void {
     preview = null;
     el('stable-preview').innerHTML = '';
   }
+}
+
+/** 이름 끝 글자에 받침이 있으면 '을', 없으면 '를' */
+function objectParticle(word: string): string {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return '을(를)';
+  return code % 28 === 0 ? '를' : '을';
 }

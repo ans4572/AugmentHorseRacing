@@ -50,7 +50,7 @@ export class GameHub {
           this.handle(session, msg, send, sendRaw);
         } catch (err) {
           console.error('메시지 처리 오류:', err);
-          send({ type: 'ERROR', message: '서버 처리 중 오류가 발생했습니다.' });
+          send({ type: 'ERROR', message: '서버에서 문제가 생겼습니다. 잠시 뒤 다시 해 보세요.' });
         }
       },
       close: () => {
@@ -176,10 +176,10 @@ export class GameHub {
 
       case 'RECONNECT': {
         const room = rooms.get((msg.roomId ?? '').toUpperCase());
-        if (!room) return sendError('방이 더 이상 존재하지 않습니다.');
+        if (!room) return sendError('방이 없어졌습니다.');
         const player = room.players.get(msg.playerId);
         if (!player || player.secret !== msg.secret) {
-          return sendError('재접속 정보가 올바르지 않습니다.');
+          return sendError('다시 접속하는 데 필요한 정보가 맞지 않습니다.');
         }
         session.playerId = player.id;
         session.secret = player.secret;
@@ -213,8 +213,8 @@ export class GameHub {
       case 'REMOVE_NPC': {
         const room = currentRoom();
         if (!room) return;
-        if (session.playerId !== room.hostId) return sendError('방장만 NPC를 제거할 수 있습니다.');
-        if (room.phase !== 'lobby') return sendError('로비에서만 NPC를 제거할 수 있습니다.');
+        if (session.playerId !== room.hostId) return sendError('방장만 NPC를 뺄 수 있습니다.');
+        if (room.phase !== 'lobby') return sendError('로비에서만 NPC를 뺄 수 있습니다.');
         room.removeNpc();
         break;
       }

@@ -29,7 +29,7 @@ import {
   AUGMENT_PHASES,
   PLAYER_COLORS
 } from '../../shared/src/constants';
-import { AUGMENT_BY_ID, TARGET_TYPE_LABELS } from '../../shared/src/augments';
+import { AUGMENT_BY_ID, AUGMENTS, TARGET_TYPE_LABELS } from '../../shared/src/augments';
 import { BREED_INFO, EMOTES } from '../../shared/src/names';
 import { Net, loadToken, saveToken } from './net';
 import { Race3DView, type CameraTarget } from './race3d';
@@ -280,7 +280,7 @@ function ensureGame(): void {
     viewFailed = true;
     console.error('3D 초기화 실패', err);
     $('race-canvas').innerHTML =
-      '<p class="r3d-unsupported">이 기기 또는 브라우저는 3D 그래픽(WebGL)을 지원하지 않아 경주 화면을 표시할 수 없습니다.</p>';
+      '<p class="r3d-unsupported">이 기기나 브라우저에서는 3D 화면이 나오지 않아 경주를 보여 드릴 수 없습니다.</p>';
   }
 }
 
@@ -458,7 +458,7 @@ function renderRankBoard(snaps: { id: number; rank: number; finished: boolean }[
         .filter((b) => b.horseId === s.id)
         .map(
           (b) =>
-            `<span class="rb-bet${betHits(b.type, s.rank, order.length) ? ' hit' : ''}${b.playerId === state.myId ? ' me' : ''}" style="background:${playerColor(b.playerId)}" title="${esc(b.playerName)} ${BET_TYPE_INFO[b.type].label} ${b.amount}코인">${BET_SHORT[b.type]}</span>`
+            `<span class="rb-bet${betHits(b.type, s.rank, order.length) ? ' hit' : ''}${b.playerId === state.myId ? ' me' : ''}" style="--pc:${playerColor(b.playerId)}" title="${esc(b.playerName)} ${BET_TYPE_INFO[b.type].label} ${b.amount}코인">${BET_SHORT[b.type]}</span>`
         )
         .join('');
       // 노란 줄은 내가 건 말
@@ -903,6 +903,8 @@ const PHASE_LABELS: Record<RoomPhase, string> = {
 function updateTopbar(): void {
   $('top-round').textContent = state.round > 0 ? `${state.round}/${state.totalRounds} 라운드` : '';
   $('top-phase').textContent = PHASE_LABELS[state.phase];
+  // 화면 단계에 따라 CSS가 달라지는 곳(상단 바의 남은 시간 등)에서 쓴다
+  $('scr-game').dataset.phase = state.phase;
   $('top-coins').innerHTML = `${icon('coin')}${state.coins}`;
 }
 
@@ -1138,7 +1140,7 @@ net.on((msg: S2C) => {
       sfx('reveal');
       // 기록 칸에는 증강 사용만 남긴다. 코인 보충은 잠깐 알림으로만 알린다
       for (const t of msg.topUps) {
-        if (t.playerId === state.myId) toast(`코인이 바닥나 ${t.amount}코인을 보충받았습니다.`, false);
+        if (t.playerId === state.myId) toast(`코인이 바닥나서 ${t.amount}코인을 받았습니다.`, false);
       }
       updateTopbar();
       break;
@@ -1278,7 +1280,7 @@ net.on((msg: S2C) => {
         state.augment.pending = false;
         state.augment.selectedKey = null;
         state.augment.queuedKey = null;
-        toast(msg.message ?? '카드를 사용할 수 없습니다. 다른 카드를 선택하세요.');
+        toast(msg.message ?? '이 카드는 쓸 수 없습니다. 다른 카드를 고르세요.');
       }
       renderAugmentBar();
       break;
@@ -1359,7 +1361,7 @@ net.on((msg: S2C) => {
     }
 
     case 'ROOM_CLOSED': {
-      toast(`방이 닫혔습니다: ${msg.reason}`);
+      toast(`방이 닫혔습니다. ${msg.reason}`);
       leaveToMain();
       break;
     }
@@ -1458,6 +1460,12 @@ function bindUI(): void {
     };
   }
   initAudio();
+  // 한글 웹 글꼴은 글자 묶음별로 나뉘어 있어, 처음 보는 글자가 나오면 그때 내려받느라 잠깐 다른 글꼴로 보인다.
+  // 경주 중에 뜨는 카드 이름과 설명의 글자를 미리 받아 둔다
+  if (document.fonts?.load) {
+    const cardText = AUGMENTS.map((a) => a.name + a.description).join('');
+    for (const weight of [500, 800]) void document.fonts.load(`${weight} 16px "Gothic A1"`, cardText).catch(() => undefined);
+  }
   bindSoundButtons();
   const savedName = localStorage.getItem('augment-derby-name');
   if (savedName) $<HTMLInputElement>('main-name').value = savedName;
@@ -1584,7 +1592,7 @@ function bindUI(): void {
     const seats = Number(maxInput.value) - npc;
     $('create-npc-label').textContent = npc === 0 ? '없음' : `${npc}명`;
     $('create-npc-max').textContent = `${npcInput.max}명`;
-    $('create-seats').textContent = `사람이 앉을 자리는 나를 포함해 ${seats}명입니다.`;
+    $('create-seats').textContent = `사람은 나까지 ${seats}명 들어올 수 있습니다.`;
     remember('rounds', roundsInput.value);
     remember('max', maxInput.value);
     remember('npc', npcInput.value);
@@ -1700,7 +1708,7 @@ function bindUI(): void {
 
 net.onConnectionChange = (connected) => {
   $('conn-banner').classList.toggle('hidden', connected);
-  $('conn-banner').textContent = '서버 연결이 끊어졌습니다. 재연결 중...';
+  $('conn-banner').textContent = '서버와 연결이 끊겼습니다. 다시 연결하는 중입니다.';
 };
 
 if (new URLSearchParams(location.search).has('showcase')) {

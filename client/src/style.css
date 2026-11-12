@@ -199,7 +199,7 @@ label > span { font-weight: 800; }
 .btn.danger { background: var(--stamp); color: #fff; }
 /* 메뉴 버튼: 왼쪽에 이름, 오른쪽에 보조 설명 */
 .btn.menu { justify-content: space-between; text-align: left; width: 100%; }
-.btn .btn-note { font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+.btn .btn-note { font-size: 14px; font-weight: 700; color: var(--ink-soft); }
 
 :focus-visible { outline: 3px solid var(--pen); outline-offset: 2px; }
 
@@ -346,11 +346,6 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
   position: absolute; top: 7px; right: 9px; font-size: 12px; font-weight: 800;
   display: inline-flex; align-items: center; gap: 3px;
   background: none !important;
-}
-/* 카드 그림은 종이에 붙인 스티커처럼 */
-.augment-card .aug-emoji {
-  display: inline-block; font-size: 28px; line-height: 1.15; transform: rotate(-7deg);
-  text-shadow: 2px 0 0 #fff, -2px 0 0 #fff, 0 2px 0 #fff, 0 -2px 0 #fff, 2px 3px 0 rgba(26, 33, 80, 0.18);
 }
 .augment-card .aug-name { font-family: var(--display); font-size: 18px; line-height: 1.2; }
 .augment-card .aug-desc { font-size: 14px; color: var(--ink-soft); }
@@ -662,7 +657,6 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
   #emotes button { font-size: 16px; }
   .augment-card .aug-desc { font-size: 12px; }
   .augment-card .aug-name { font-size: 16px; }
-  .augment-card .aug-emoji { font-size: 22px; }
   .augment-card { padding: 6px 8px 7px; }
   #camera-select { top: 36px; right: 6px; padding: 3px 5px; }
   #camera-select button { width: 32px; height: 32px; }
@@ -691,7 +685,6 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
   .btn.big { font-size: 16px; padding: 11px 14px; }
   .augment-cards { flex-direction: column; gap: 6px; }
   .augment-card .aug-desc { display: inline; margin-left: 4px; }
-  .augment-card .aug-emoji { margin-right: 4px; }
   .augment-card .aug-name { display: inline; }
   .result-table { font-size: 12px; }
   .result-horse { padding: 5px 3px; font-size: 12px; }
@@ -867,7 +860,7 @@ input[type='range']::-moz-range-thumb { width: 22px; height: 22px; border-radius
 input[type='range']:focus-visible { outline: none; }
 input[type='range']:focus-visible::-webkit-slider-thumb { outline: 3px solid var(--pen); outline-offset: 2px; }
 input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--pen); outline-offset: 2px; }
-.range-ends { flex-basis: 100%; display: flex; justify-content: space-between; font-family: var(--body) !important; font-size: 12px !important; font-weight: 600 !important; color: var(--ink-soft); }
+.range-ends { flex-basis: 100%; display: flex; justify-content: space-between; font-family: var(--body) !important; font-size: 12px !important; font-weight: 700 !important; color: var(--ink-soft); }
 .range-ends i { font-style: normal; }
 .info-chip .muted { margin-left: 6px; }
 /* 폰: 긴 설정 종이가 오른쪽 위 소리 버튼 밑으로 들어가지 않게 위를 띄운다 */
@@ -977,7 +970,6 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 }
 /* 창 안의 카드는 세워 놓은 카드 모양 */
 #augment-bar .augment-card { padding: 12px 12px 12px; min-height: 150px; }
-#augment-bar .augment-card .aug-emoji { font-size: 34px; }
 /* 접었거나 이미 쓴 뒤: 아래쪽 작은 띠만 남는다 */
 #augment-bar.folded {
   top: auto; bottom: 10px; transform: translateX(-50%); width: auto; max-width: calc(100% - 20px);
@@ -996,7 +988,6 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 @media (prefers-reduced-motion: reduce) { #augment-bar { animation: none; } }
 @media (max-width: 900px) {
   #augment-bar .augment-card { min-height: 0; padding: 8px 10px; }
-  #augment-bar .augment-card .aug-emoji { font-size: 24px; }
 }
 /* 폰 세로: 경주 화면이 작으므로 화면 전체의 가운데에 띄운다 */
 @media (max-width: 640px) and (orientation: portrait) {
@@ -1148,3 +1139,56 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 }
 /* 게임 방법이 길어 스크롤이 생겨도 닫기 단추는 항상 아래에 보인다 */
 #modal-howto .btn-row { position: sticky; bottom: -22px; background: var(--paper); padding: 10px 0 12px; margin-top: 12px; box-shadow: 0 -2px 0 var(--ink); }
+
+/* ================= 글꼴과 크기 정리 ================= */
+/* 제목용 글꼴(Black Han Sans)은 획이 굵어 작게 쓰면 글자 속이 메워진다.
+   22px 이상과 숫자에만 쓰고, 그보다 작은 제목은 본문 글꼴의 굵은 체로 쓴다 */
+.augment-card .aug-name, #augment-bar .augment-card .aug-name,
+.howto h3, .howto-sub, #top-round {
+  font-family: var(--body); font-weight: 800; letter-spacing: -0.01em;
+}
+#augment-bar .augment-card .aug-name { font-size: 22px; line-height: 1.2; }
+.howto h3, .howto-sub { font-size: 18px; }
+/* 여러 줄로 읽는 설명은 줄 간격을 넉넉하게 */
+.howto p, .howto-lead, .field-help, .aug-desc .fl, .slip p, .howto-legend { line-height: 1.6; }
+/* 초가 바뀔 때 숫자 폭이 흔들리지 않게 */
+#top-timer, .phase-timer, #augment-remain, .result-table .num, .standing-row b, #top-coins { font-variant-numeric: tabular-nums; }
+/* 폰: 읽어야 하는 글자는 14px 아래로 내려가지 않는다 (12px는 딱지에만) */
+@media (max-width: 900px) {
+  .statbar, .result-table, .result-horse, .lg-horse, .rb-row, .r3d-label-name, .r3d-label-note, .r3d-banner-sub { font-size: 14px; }
+  #augment-bar .augment-card .aug-name { font-size: 18px; }
+}
+@media (max-width: 640px) {
+  .augment-card .aug-target, .hc-odds, .side-bet { font-size: 14px; }
+}
+
+/* ================= 화면 정리 ================= */
+/* 등수표: 지금 순위로 맞지 않는 배팅은 흐리게 하지 않고, 사람 색 테두리만 남긴다 */
+.rb-bet, .rb-row.mine .rb-bet { background: var(--pc); opacity: 1; box-shadow: none; }
+.rb-bet:not(.hit) { background: rgba(26, 33, 80, 0.55); box-shadow: inset 0 0 0 2px var(--pc); color: #fff; }
+.rb-row.mine .rb-bet:not(.hit) { background: #fff8cf; box-shadow: inset 0 0 0 2px var(--pc); color: var(--ink); }
+.rb-bet.hit { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85); }
+.rb-bet.me, .rb-row.mine .rb-bet.me { outline: 2px solid var(--hl); outline-offset: 1px; }
+.rb-row.mine .rb-bet.me { outline-color: var(--ink); }
+/* 배팅 중에는 창 안에 남은 시간이 크게 나오므로 상단 바의 시간은 숨긴다 */
+#scr-game[data-phase='preview'] #top-timer, #scr-game[data-phase='betting'] #top-timer { display: none; }
+/* 배팅 화면(넓은 화면): 말 카드는 왼쪽, 거는 칸과 내 마권은 오른쪽에 두어 한 화면에 다 보이게 한다 */
+@media (min-width: 1100px) {
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) {
+    width: min(1180px, 96vw);
+    display: grid; grid-template-columns: minmax(0, 1fr) 320px; column-gap: 20px; align-items: start;
+  }
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) > .row-between,
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) > .ready-row { grid-column: 1 / -1; }
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #bet-controls { margin-top: 0; }
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) .bet-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) .bet-amount-row { flex-wrap: wrap; }
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #bet-limit-info { flex-basis: 100%; }
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #my-bets { max-height: 190px; overflow-y: auto; }
+}
+/* 맞고 있는 배팅 딱지: 사람 색 바탕에 흰 글자 (예전의 흰 바탕 규칙보다 뒤에 둔다) */
+.rb-bet.hit, .rb-row.mine .rb-bet.hit { background: var(--pc); color: #fff; }
+/* 능력치 이름과 취소 단추는 줄을 바꾸지 않는다 */
+.statbar .sb-label { white-space: nowrap; }
+@media (max-width: 900px) { .statbar .sb-label { width: 46px; } }
+#my-bets button { white-space: nowrap; flex-shrink: 0; }

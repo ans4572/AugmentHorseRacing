@@ -311,14 +311,14 @@ export class Room {
 
     // 남아 있는 사람이 전부 스스로 나갔다면 돌아올 사람이 없으므로 바로 정리한다
     if (this.humanPlayers().every((p) => p.left)) {
-      this.destroy('모든 플레이어가 나갔습니다.');
+      this.destroy('모두 나갔습니다.');
       return;
     }
 
     // 연결만 끊긴 사람이 있으면 재접속을 기다리며 2분 후 방 정리
     if (this.connectedHumans().length === 0) {
       this.setTimer(() => {
-        if (this.connectedHumans().length === 0) this.destroy('모든 플레이어가 나갔습니다.');
+        if (this.connectedHumans().length === 0) this.destroy('모두 나갔습니다.');
       }, 120000);
     } else {
       this.checkEarlySkip();
@@ -345,7 +345,7 @@ export class Room {
     if (byPlayerId !== this.hostId) return '방장만 게임을 시작할 수 있습니다.';
     if (this.phase !== 'lobby') return '이미 게임이 진행 중입니다.';
     if (this.players.size < MIN_PLAYERS_TO_START) {
-      return `최소 ${MIN_PLAYERS_TO_START}명(NPC 포함)이 필요합니다.`;
+      return `NPC를 포함해 ${MIN_PLAYERS_TO_START}명은 있어야 시작할 수 있습니다.`;
     }
     const startCoins = ROUND_COINS[this.settings.totalRounds];
     for (const p of this.players.values()) {
@@ -546,7 +546,7 @@ export class Room {
     const player = this.players.get(playerId);
     if (!player) return '플레이어를 찾을 수 없습니다.';
     const horse = this.horses.find((h) => h.id === horseId);
-    if (!horse) return '존재하지 않는 말입니다.';
+    if (!horse) return '없는 말입니다.';
     const odds = this.odds[horseId]?.[betType];
     if (!odds) return '배당 정보를 찾을 수 없습니다.';
 
@@ -566,7 +566,7 @@ export class Room {
   cancelBet(playerId: string, betId: string): string | null {
     if (this.phase !== 'betting') return '배팅 시간이 끝나 취소할 수 없습니다.';
     const idx = this.bets.findIndex((b) => b.betId === betId && b.playerId === playerId);
-    if (idx < 0) return '해당 배팅을 찾을 수 없습니다.';
+    if (idx < 0) return '그 배팅을 찾을 수 없습니다.';
     const [bet] = this.bets.splice(idx, 1);
     const player = this.players.get(playerId)!;
     player.coins += bet.amount;
@@ -750,13 +750,13 @@ export class Room {
     const fail = (message: string) => {
       if (player) this.send(player, { type: 'AUGMENT_RESULT', ok: false, message });
     };
-    if (!player || !aug || !sim) return fail('증강을 바꿀 수 없습니다.');
-    if (aug.closed || (aug.live && Date.now() >= aug.endsAt)) return fail('증강 선택 시간이 지났습니다.');
-    if (aug.used.has(playerId)) return fail('이미 카드를 사용했습니다.');
+    if (!player || !aug || !sim) return fail('지금은 카드를 바꿀 수 없습니다.');
+    if (aug.closed || (aug.live && Date.now() >= aug.endsAt)) return fail('카드를 고를 시간이 지났습니다.');
+    if (aug.used.has(playerId)) return fail('이미 카드를 썼습니다.');
     const hand = aug.hands.get(playerId) ?? [];
     const slot = hand.find((c) => c.cardKey === cardKey);
-    if (!slot) return fail('손패에 없는 카드입니다.');
-    if (aug.rerolled.has(cardKey)) return fail('이 카드는 이미 새로고침했습니다.');
+    if (!slot) return fail('받은 카드 중에 없는 카드입니다.');
+    if (aug.rerolled.has(cardKey)) return fail('이 카드는 이미 한 번 바꿨습니다.');
 
     // 지금 손에 든 카드와 겹치지 않는 카드를 같은 등급에서 뽑는다
     const held = new Set(hand.map((c) => c.def.id));
@@ -781,14 +781,14 @@ export class Room {
       if (player) this.send(player, { type: 'AUGMENT_RESULT', ok: false, message });
     };
 
-    if (!player || !aug || !sim) return fail('증강을 사용할 수 없습니다.');
-    if (aug.closed || (aug.live && Date.now() >= aug.endsAt)) return fail('증강 선택 시간이 지났습니다.');
+    if (!player || !aug || !sim) return fail('지금은 카드를 쓸 수 없습니다.');
+    if (aug.closed || (aug.live && Date.now() >= aug.endsAt)) return fail('카드를 고를 시간이 지났습니다.');
     if (sim.allFinished()) return fail('경주가 이미 끝났습니다.');
-    if (aug.used.has(playerId)) return fail('이번 구간에서는 이미 카드를 사용했습니다.');
+    if (aug.used.has(playerId)) return fail('이번 구간에서는 이미 카드를 썼습니다.');
 
     const hand = aug.hands.get(playerId) ?? [];
     const card = hand.find((c) => c.cardKey === cardKey);
-    if (!card) return fail('손패에 없는 카드입니다.');
+    if (!card) return fail('받은 카드 중에 없는 카드입니다.');
 
     // 미리 고르기 단계: 예약만 해 둔다 (다시 골라 바꿀 수 있다). 발동은 증강 지점에서 한다.
     if (!aug.live) {
@@ -803,7 +803,7 @@ export class Room {
     const result = sim.applyAugment(card.def, { targetHorseId, bets: this.betTotals() });
     if (!result.ok) {
       // 카드를 소모하지 않음 — 다른 카드를 선택할 수 있다
-      return fail(result.message ?? '카드를 사용할 수 없습니다.');
+      return fail(result.message ?? '이 카드는 쓸 수 없습니다.');
     }
 
     aug.used.add(playerId);

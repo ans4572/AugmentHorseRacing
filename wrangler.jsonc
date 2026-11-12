@@ -1,7 +1,7 @@
 {
   // Cloudflare Workers 배포 설정 — `npm run deploy`
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "augment-derby",
+  "name": "augmenthorseracing",
   "main": "worker/src/index.ts",
   "compatibility_date": "2025-10-01",
   // 클라이언트 빌드 결과를 정적 파일로 함께 올린다

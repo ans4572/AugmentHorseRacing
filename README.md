@@ -104,7 +104,7 @@ npm run start:server
 
 ```bash
 npx wrangler login     # 처음 한 번: 브라우저에서 Cloudflare 계정 승인
-npm run deploy         # 빌드 후 배포. 끝나면 https://augment-derby.<계정>.workers.dev 주소가 나옵니다
+npm run deploy         # 빌드 후 배포. 끝나면 https://augmenthorseracing.<계정>.workers.dev 주소가 나옵니다
 npm run cf:dev         # 배포 전에 로컬에서 Cloudflare 방식으로 실행 (http://localhost:8787)
 ```
 

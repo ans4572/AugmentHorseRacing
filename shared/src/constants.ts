@@ -38,6 +38,9 @@ export const TOP_UP_AMOUNT = 100;
 export const BET_MIN = 10;
 /** 라운드당 총 배팅금 한도: 배팅 시작 시 보유 코인의 30% */
 export const BET_LIMIT_RATIO = 1;
+
+/** 참가자 색. 방 안에서 한 사람이 한 색을 쓴다 (흰 글자가 읽히는 진한 색만) */
+export const PLAYER_COLORS = ['#d92b22', '#2447d6', '#b85c00', '#7a3fc4', '#0b7f72', '#c22a7e', '#5f6d00', '#5a4632'];
 /** NPC가 한 라운드에 거는 금액의 상한 (가진 코인 대비). 사람은 올인도 할 수 있다 */
 export const NPC_BET_RATIO = 0.3;
 

@@ -240,6 +240,8 @@ export interface PlayerPublic {
   connected: boolean;
   coins: number;
   isHost: boolean;
+  /** PLAYER_COLORS의 몇 번째 색을 쓰는지 */
+  color: number;
   /** 지금 단계(출마표 확인·배팅)에서 준비 완료를 눌렀는지. NPC는 항상 true */
   ready?: boolean;
 }
@@ -341,6 +343,7 @@ export type C2S =
   | { type: 'ADD_NPC' }
   | { type: 'REMOVE_NPC' }
   | { type: 'START_GAME' }
+  | { type: 'SET_COLOR'; color: number }
   | { type: 'READY'; phase: 'preview' | 'betting'; /** false면 준비 완료를 취소한다 (기본 true) */ ready?: boolean }
   | { type: 'PLACE_BET'; betType: BetType; horseId: number; amount: number }
   | { type: 'CANCEL_BET'; betId: string }
@@ -373,7 +376,7 @@ export type S2C =
   | { type: 'AUGMENT_LIVE'; phase: number; endsAt: number }
   | { type: 'AUGMENT_REROLLED'; cardKey: string; defId: string }
   | { type: 'AUGMENT_CLOSED'; phase: number }
-  | { type: 'AUGMENT_USED'; playerName: string; defId: string; targets: number[]; blocked: number[] }
+  | { type: 'AUGMENT_USED'; playerId: string; playerName: string; defId: string; targets: number[]; blocked: number[] }
   | { type: 'AUGMENT_RESULT'; ok: boolean; message?: string; cardKey?: string; /** 미리 고르기로 예약만 된 상태 */ queued?: boolean }
   | { type: 'RACE_FINISH'; rankings: RankingEntry[] }
   | { type: 'ROUND_RESULT'; round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize }

@@ -33,7 +33,7 @@ import {
   ROUND_COINS,
   TICK_MS,
   TIMINGS,
-  TOP_UP_AMOUNT
+  TOP_UP_AMOUNT, PLAYER_COLORS
 } from '../../../shared/src/constants';
 import { NPC_PROFILES } from '../../../shared/src/names';
 import {
@@ -70,6 +70,8 @@ export interface Player {
   netProfit: number;
   hostileUses: number;
   bestRoundNet: number;
+  /** PLAYER_COLORS의 몇 번째 색인지. 방에 들어올 때 빈 색을 받는다 */
+  color?: number;
   /** 게임 도중 스스로 나간 플레이어 (연결이 잠깐 끊긴 것과 구분) */
   left?: boolean;
 }
@@ -189,6 +191,7 @@ export class Room {
       connected: p.connected,
       coins: p.coins,
       isHost: p.id === this.hostId,
+      color: p.color ?? 0,
       ready: p.isNpc || (this.phase === 'preview' ? p.readyPreview : this.phase === 'betting' ? p.readyBetting : false)
     }));
   }
@@ -207,7 +210,30 @@ export class Room {
 
   // ---------------- 참가 / 퇴장 ----------------
 
+  /** 아직 아무도 쓰지 않는 가장 앞 색 */
+  private freeColor(): number {
+    const taken = new Set([...this.players.values()].map((p) => p.color));
+    for (let i = 0; i < PLAYER_COLORS.length; i++) if (!taken.has(i)) return i;
+    return this.players.size % PLAYER_COLORS.length;
+  }
+
+  /** 색을 바꾼다. 다른 사람이 쓰는 색은 고를 수 없다 */
+  setColor(playerId: string, color: number): string | null {
+    const player = this.players.get(playerId);
+    if (!player) return null;
+    if (!Number.isInteger(color) || color < 0 || color >= PLAYER_COLORS.length) return '고를 수 없는 색입니다.';
+    if (player.color === color) return null;
+    const holder = [...this.players.values()].find((p) => p.id !== playerId && p.color === color);
+    if (holder && !holder.isNpc) return '다른 사람이 쓰고 있는 색입니다.';
+    // NPC가 쓰던 색이면 서로 맞바꾼다
+    if (holder) holder.color = player.color;
+    player.color = color;
+    this.broadcastRoomUpdate();
+    return null;
+  }
+
   addPlayer(player: Player): void {
+    player.color = this.freeColor();
     this.players.set(player.id, player);
     this.broadcastRoomUpdate();
   }
@@ -234,6 +260,7 @@ export class Room {
       hostileUses: 0,
       bestRoundNet: 0
     };
+    npc.color = this.freeColor();
     this.players.set(npc.id, npc);
     this.broadcastRoomUpdate();
     return null;
@@ -783,6 +810,7 @@ export class Room {
     if (card.def.hostile) player.hostileUses++;
     this.broadcast({
       type: 'AUGMENT_USED',
+      playerId: player.id,
       playerName: player.name,
       defId: card.def.id,
       targets: result.targets,

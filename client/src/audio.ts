@@ -588,7 +588,11 @@ export function initAudio(): void {
     applyMusic();
   };
   window.addEventListener('pointerdown', unlock, { capture: true });
+  window.addEventListener('touchstart', unlock, { capture: true, passive: true });
   window.addEventListener('keydown', unlock, { capture: true });
+  // 화면이 열리자마자 한 번 시도한다. 브라우저가 자동 재생을 허용하면 바로 음악이 나오고,
+  // 막으면 소리 장치가 멈춘 채로 기다리다가 위의 첫 조작에서 이어서 켜진다
+  unlock();
   // 버튼처럼 누를 수 있는 것은 모두 같은 딸깍 소리
   document.addEventListener('click', (e) => {
     const el = (e.target as Element | null)?.closest?.('button, .horse-card, .bet-tab');

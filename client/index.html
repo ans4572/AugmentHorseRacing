@@ -166,6 +166,11 @@
       <div id="lobby-code" class="info-chip hidden"></div>
       <div id="lobby-settings" class="lobby-settings"></div>
       <div id="lobby-players" class="lobby-players"></div>
+      <div class="field">
+        <span class="field-name" id="lobby-colors-name">내 색</span>
+        <div id="lobby-colors" class="swatches" role="radiogroup" aria-labelledby="lobby-colors-name"></div>
+        <p class="field-help">경주 중 내 배팅과 내가 쓴 증강이 이 색으로 표시됩니다.</p>
+      </div>
       <p id="lobby-wait-msg" class="muted">방장이 게임을 시작하면 바로 넘어갑니다.</p>
       <div class="tear"></div>
       <div class="btn-row">
@@ -201,6 +206,7 @@
       <div id="game-left">
         <div id="race-wrap">
           <div id="race-canvas"></div>
+          <div id="rank-board" class="hidden" aria-label="현재 순위"></div>
           <div id="camera-select" class="hidden"></div>
           <div id="overlay-countdown" class="hidden"></div>
           <div id="augment-bar" class="hidden"></div>

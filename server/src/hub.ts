@@ -227,6 +227,14 @@ export class GameHub {
         break;
       }
 
+      case 'SET_COLOR': {
+        const room = currentRoom();
+        if (!room) return;
+        const err = room.setColor(session.playerId, Math.floor(msg.color));
+        if (err) sendError(err);
+        break;
+      }
+
       case 'READY': {
         const room = currentRoom();
         if (room) room.setReady(session.playerId, msg.phase, msg.ready !== false);

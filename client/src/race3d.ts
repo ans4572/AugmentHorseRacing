@@ -130,7 +130,7 @@ interface Rig {
   shadow: THREE.Mesh;
   label: HTMLDivElement;
   /** 머리 위에 잠깐 붙는 증강 안내 (무엇을 / 누가) */
-  note: { text: string; by: string; hostile: boolean; until: number } | null;
+  note: { text: string; by: string; byColor: string; hostile: boolean; until: number } | null;
   labelText: string;
   labelW: number;
   labelH: number;
@@ -575,8 +575,13 @@ export class Race3DView {
     const neckItem = look && look.neck !== 'neck_none' ? COSMETIC_BY_ID[look.neck] : undefined;
     const faceItem = look && look.face !== 'face_none' ? COSMETIC_BY_ID[look.face] : undefined;
     const hatId = look?.hat ?? 'hat_none';
+    // 얼룩말과 젖소는 흰 바탕에 레인 색을 옅게 입혀, 같은 종류가 여럿 나와도 색으로 구분된다
     const tint = (c: number): THREE.Color =>
-      customCoat ? customCoat.clone().lerp(new THREE.Color(0xffffff), 0.25) : new THREE.Color(c);
+      customCoat
+        ? customCoat.clone().lerp(new THREE.Color(0xffffff), 0.25)
+        : c === 0xffffff
+          ? lane.clone().lerp(new THREE.Color(0xffffff), 0.42)
+          : new THREE.Color(c);
     const breed = info.breed ?? 'horse';
     const white = new THREE.MeshToonMaterial({ color: 0xfff8ee });
 
@@ -593,7 +598,7 @@ export class Race3DView {
       saddleColor = lane.clone();
     } else if (breed === 'cow') {
       coat = new THREE.MeshToonMaterial({ color: tint(0xffffff), map: cowTexture() });
-      legMat = customCoat ? new THREE.MeshToonMaterial({ color: tint(0xffffff) }) : white;
+      legMat = new THREE.MeshToonMaterial({ color: tint(0xffffff) });
       dark = new THREE.MeshToonMaterial({ color: 0x26262b });
       muzzleMat = new THREE.MeshToonMaterial({ color: 0xffc9d6 });
       saddleColor = lane.clone();
@@ -1049,10 +1054,10 @@ export class Race3DView {
   }
 
   /** 증강을 맞은 말 머리 위에 카드 이름과 쓴 사람을 몇 초간 붙여 둔다 */
-  showAugmentNote(ids: number[], text: string, by: string, hostile: boolean, seconds = 4.5): void {
+  showAugmentNote(ids: number[], text: string, by: string, hostile: boolean, byColor = '', seconds = 4.5): void {
     for (const id of ids) {
       const rig = this.rigs.find((v) => v.info.id === id);
-      if (rig) rig.note = { text, by, hostile, until: this.elapsed + seconds };
+      if (rig) rig.note = { text, by, byColor, hostile, until: this.elapsed + seconds };
     }
   }
 
@@ -1142,7 +1147,7 @@ export class Race3DView {
     // 모바일 가로처럼 화면이 낮으면 상단 바를 뺀 높이에 맞춘다 (잘리지 않게)
     if (window.innerHeight < 560) h = Math.max(180, Math.min(h, window.innerHeight - 58));
     // 넓은 화면에서도 상단 바와 기록 칸이 함께 보이도록 높이를 화면에 맞춘다
-    else if (!portraitPhone) h = Math.min(h, Math.max(260, window.innerHeight - 190));
+    else if (!portraitPhone) h = Math.min(h, Math.max(260, window.innerHeight - 236));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -1792,7 +1797,8 @@ export class Race3DView {
         fx.push(...snap.effects.map((e) => e.emoji));
       }
       const fxText = [...new Set(fx)].slice(0, 5).join('');
-      const rankText = snap ? `${snap.rank}위` : '';
+      // 순위는 화면 왼쪽 위 등수표에서 보여 주므로 이름표에는 넣지 않는다
+      const rankText = '';
       if (r.note && this.elapsed > r.note.until) r.note = null;
       const text = `${rankText}|${fxText}|${r.note ? r.note.text + r.note.by : ''}`;
       if (text !== r.labelText) {
@@ -1803,7 +1809,14 @@ export class Race3DView {
           nt.className = `r3d-label-note${r.note.hostile ? ' hostile' : ''}`;
           nt.textContent = r.note.text;
           const who = document.createElement('small');
-          who.textContent = r.note.by;
+          if (r.note.byColor) {
+            // 쓴 사람의 색 표식 — 등수표와 기록 칸의 표식과 같은 색
+            const dot = document.createElement('i');
+            dot.className = 'r3d-who-dot';
+            dot.style.background = r.note.byColor;
+            who.appendChild(dot);
+          }
+          who.appendChild(document.createTextNode(r.note.by));
           nt.appendChild(who);
           r.label.appendChild(nt);
         }

@@ -26,7 +26,8 @@ import {
   TIER_INFO,
   TIER_OF_RARITY,
   ROUND_COINS,
-  AUGMENT_PHASES
+  AUGMENT_PHASES,
+  PLAYER_COLORS
 } from '../../shared/src/constants';
 import { AUGMENT_BY_ID, TARGET_TYPE_LABELS } from '../../shared/src/augments';
 import { BREED_INFO, EMOTES } from '../../shared/src/names';
@@ -145,6 +146,54 @@ function esc(s: string): string {
   return div.innerHTML;
 }
 
+// ============ 참가자 색 표식 ============
+// 사람마다 색과 한 글자를 정해 두고 배팅, 증강 안내, 기록에 같은 표식을 쓴다.
+// 흰 글자가 읽히는 진한 색만 쓴다 (말 번호 안장은 네모, 사람 표식은 동그라미)
+// 색은 서버가 방 안에서 겹치지 않게 나눠 주고, 대기 로비에서 각자 바꿀 수 있다
+const playerSlot = new Map<string, number>();
+const COLOR_KEY = 'augment-derby-color';
+/** 이번 방에서 내가 좋아하는 색을 이미 요청했는지 */
+let colorWished = false;
+
+function playerColor(id: string): string {
+  const known = state.players.find((p) => p.id === id);
+  if (known) return PLAYER_COLORS[known.color % PLAYER_COLORS.length];
+  let slot = playerSlot.get(id);
+  if (slot === undefined) {
+    // 방에 들어온 순서대로 빈 색을 준다. 한 번 받은 색은 방을 나갈 때까지 그대로다
+    const taken = new Set(playerSlot.values());
+    slot = 0;
+    while (taken.has(slot)) slot++;
+    playerSlot.set(id, slot);
+  }
+  return PLAYER_COLORS[slot % PLAYER_COLORS.length];
+}
+
+function playerMark(id: string, name: string): string {
+  const letter = [...name.trim()][0] ?? '?';
+  return `<span class="pmark" style="background:${playerColor(id)}" title="${esc(name)}">${esc(letter)}</span>`;
+}
+
+/** 표식 + 이름 */
+function playerChip(id: string, name: string): string {
+  return `<span class="pchip">${playerMark(id, name)}<span class="pchip-name">${esc(name)}</span></span>`;
+}
+
+const BET_SHORT: Record<BetType, string> = { winner: '우승', last: '꼴찌', top3: '1~3', bottom3: '4~6' };
+
+/** 지금 순위대로 끝나면 맞는 배팅인지 */
+function betHits(type: BetType, rank: number, total: number): boolean {
+  if (type === 'winner') return rank === 1;
+  if (type === 'last') return rank === total;
+  if (type === 'top3') return rank <= 3;
+  return rank > total - 3;
+}
+
+/** 경주 중 내가 볼 수 있는 배팅 — 블라인드 방에서는 내 것만 */
+function visibleBets(): RevealedBet[] {
+  return betsHidden() ? state.revealed.filter((b) => b.playerId === state.myId) : state.revealed;
+}
+
 function addLog(html: string, cls = ''): void {
   const el = document.createElement('div');
   if (cls) el.className = cls;
@@ -169,10 +218,10 @@ function horseName(id: number): string {
 }
 
 /** 번호 안장 + 이름 (HTML) — 말을 가리키는 곳은 모두 이 모양으로 쓴다 */
-function horseChip(id: number): string {
+function horseChip(id: number, showMine = true): string {
   const h = state.horses.find((x) => x.id === id);
   if (!h) return `${id}번`;
-  const mine = isMyHorse(h) ? `<span class="tag mine">${icon('star')}내 말</span>` : '';
+  const mine = showMine && isMyHorse(h) ? `<span class="tag mine">${icon('star')}내 말</span>` : '';
   return `<span class="horse-chip">${bib(id, h.color, 'sm')}<span>${esc(h.name)}</span>${mine}</span>`;
 }
 
@@ -278,11 +327,24 @@ function renderLobby(): void {
       (p) => `
     <div class="lobby-player${p.isHost ? ' host' : ''}">
       <span class="dot${p.connected || p.isNpc ? '' : ' off'}"></span>
-      <span>${esc(p.name)}${p.id === state.myId ? ' (나)' : ''}</span>
+      ${playerChip(p.id, p.name + (p.id === state.myId ? ' (나)' : ''))}
       ${p.isHost ? icon('crown') : ''}${p.isNpc ? NPC_TAG : ''}
     </div>`
     )
     .join('');
+  // 내 색 고르기: 다른 사람이 쓰는 색은 고를 수 없다
+  const me = state.players.find((p) => p.id === state.myId);
+  $('lobby-colors').innerHTML = PLAYER_COLORS.map((c, i) => {
+    const holder = state.players.find((p) => p.color === i && p.id !== state.myId && !p.isNpc);
+    const mine = me?.color === i;
+    return `<button type="button" class="swatch${mine ? ' active' : ''}" role="radio" aria-checked="${mine}" style="background:${c}" data-color="${i}" ${holder ? 'disabled' : ''} aria-label="${i + 1}번 색${holder ? `, ${esc(holder.name)} 사용 중` : ''}" title="${holder ? esc(holder.name) + ' 사용 중' : '이 색으로 바꾸기'}">${mine ? esc([...(me?.name ?? '').trim()][0] ?? '') : ''}</button>`;
+  }).join('');
+  $('lobby-colors').querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+    b.onclick = () => {
+      localStorage.setItem(COLOR_KEY, b.dataset.color!);
+      net.send({ type: 'SET_COLOR', color: Number(b.dataset.color) });
+    };
+  });
   const host = isHost();
   $('btn-lobby-start').classList.toggle('hidden', !host);
   $('lobby-npc-controls').classList.toggle('hidden', !host);
@@ -294,7 +356,7 @@ function renderSidebar(): void {
     .map((p) => {
       const off = !p.connected && !p.isNpc;
       return `<div class="side-player${p.id === state.myId ? ' me' : ''}">
-        <span class="${off ? 'off' : ''}">${esc(p.name)}${off ? ' (연결 끊김)' : ''} ${p.isHost ? icon('crown') : ''}</span>
+        <span class="${off ? 'off' : ''}">${playerChip(p.id, p.name)}${off ? ' (연결 끊김)' : ''} ${p.isHost ? icon('crown') : ''}</span>
         <b>${icon('coin')}${p.coins}</b>
       </div>`;
     })
@@ -351,6 +413,48 @@ function renderReadyCount(): void {
 }
 
 /** 능력치는 내부 값(1~100)을 10점 만점으로 줄여 보여 준다 */
+/** 경주 화면 왼쪽 위의 현재 등수표. 순서가 바뀔 때만 다시 그린다 */
+let rankBoardKey = '';
+function renderRankBoard(snaps: { id: number; rank: number; finished: boolean }[] | null): void {
+  const el = $('rank-board');
+  if (!snaps || snaps.length === 0) {
+    el.classList.add('hidden');
+    rankBoardKey = '';
+    return;
+  }
+  const order = [...snaps].sort((a, b) => a.rank - b.rank);
+  const bets = visibleBets();
+  const key =
+    order.map((s) => `${s.id}${s.finished ? 'f' : ''}`).join(',') +
+    '|' +
+    bets.map((b) => b.betId + playerColor(b.playerId)).join(',') +
+    '|' +
+    state.myBets.map((b) => b.horseId).join(',');
+  el.classList.remove('hidden');
+  if (key === rankBoardKey) return;
+  rankBoardKey = key;
+  el.innerHTML = order
+    .map((s) => {
+      const h = state.horses.find((x) => x.id === s.id);
+      if (!h) return '';
+      // 이 말에 누가 무엇을 걸었는지: 사람 표식 + 배팅 종류. 지금 순위로 맞고 있으면 밝게, 아니면 흐리게
+      const betHtml = bets
+        .filter((b) => b.horseId === s.id)
+        .map(
+          (b) =>
+            `<span class="rb-bet${betHits(b.type, s.rank, order.length) ? ' hit' : ''}${b.playerId === state.myId ? ' me' : ''}" style="background:${playerColor(b.playerId)}" title="${esc(b.playerName)} ${BET_TYPE_INFO[b.type].label} ${b.amount}코인">${BET_SHORT[b.type]}</span>`
+        )
+        .join('');
+      // 노란 줄은 내가 건 말
+      const myBet = state.myBets.some((b) => b.horseId === s.id);
+      return `<div class="rb-row${myBet ? ' mine' : ''}${s.finished ? ' done' : ''}">
+        <span class="rb-rank">${s.rank}</span>${bib(h.id, h.color, 'sm')}<span class="rb-name">${esc(h.name)}</span>
+        ${betHtml ? `<span class="rb-bets">${betHtml}</span>` : ''}
+      </div>`;
+    })
+    .join('');
+}
+
 function statBar(label: string, value: number, color: string): string {
   const shown = Math.max(1, Math.round(value / 10));
   return `<div class="statbar">
@@ -463,12 +567,22 @@ function renderMyBets(): void {
 
 // ============ 증강 UI ============
 
+/** 증강 창을 접어 두었는지. 접으면 아래쪽 작은 단추만 남고, 새 증강이 오면 다시 펼쳐진다 */
+let augFolded = false;
+let augFoldPhase = -1;
+
 function renderAugmentBar(): void {
   const aug = state.augment;
   const bar = $('augment-bar');
-  // 세로 화면에서는 카드가 경주 화면 아래에 따로 놓이므로 카메라를 올리지 않는다
-  view?.setBottomInset(!!aug && !aug.used && getComputedStyle(bar).position === 'absolute');
-  $('race-wrap').classList.toggle('augment-open', !!aug && !aug.used);
+  // 증강은 화면 가운데 창으로 뜨므로 카메라를 올릴 필요가 없다
+  view?.setBottomInset(false);
+  if (aug && aug.phase !== augFoldPhase) {
+    augFoldPhase = aug.phase;
+    augFolded = false;
+  }
+  const open = !!aug && !aug.used && !augFolded;
+  $('race-wrap').classList.toggle('augment-open', open);
+  bar.classList.toggle('folded', !!aug && !open);
   if (!aug) {
     bar.classList.add('hidden');
     return;
@@ -477,6 +591,15 @@ function renderAugmentBar(): void {
 
   if (aug.used) {
     bar.innerHTML = `<div class="augment-used-msg">카드를 썼습니다. 경주를 지켜보세요.</div>`;
+    return;
+  }
+  if (augFolded) {
+    // 접은 상태: 남은 시간만 보이는 단추. 누르면 다시 펼친다
+    bar.innerHTML = `<button class="aug-pill" data-unfold>${icon('gem')}${aug.phase}차 증강 카드 ${aug.queuedKey ? '바꾸기' : '고르기'} <span id="augment-remain">${aug.preview ? '미리보기' : ''}</span></button>`;
+    bar.querySelector<HTMLElement>('[data-unfold]')!.onclick = () => {
+      augFolded = false;
+      renderAugmentBar();
+    };
     return;
   }
 
@@ -489,7 +612,7 @@ function renderAugmentBar(): void {
     : '카드 한 장을 고르세요. 경주는 멈추지 않습니다.';
   const head = `<div class="augment-head">
       <b>${aug.phase}차 증강 <span class="aug-tier-chip" style="background:${tierInfo.color}">${icon('gem')}${tierInfo.label}</span> ${guide}</b>
-      <span id="augment-remain">${aug.preview ? '미리보기' : ''}</span>
+      <span class="augment-head-right"><span id="augment-remain">${aug.preview ? '미리보기' : ''}</span><button class="aug-fold" data-fold title="창을 접고 경주 보기">접기</button></span>
     </div>
     <div class="augment-timebar"><div id="augment-timefill" style="width:100%"></div></div>`;
 
@@ -540,6 +663,10 @@ function renderAugmentBar(): void {
       }
     };
   });
+  bar.querySelector<HTMLElement>('[data-fold]')!.onclick = () => {
+    augFolded = true;
+    renderAugmentBar();
+  };
   bar.querySelectorAll<HTMLElement>('[data-reroll]').forEach((el) => {
     el.onclick = () => net.send({ type: 'REROLL_AUGMENT', cardKey: el.dataset.reroll! });
   });
@@ -597,12 +724,12 @@ function renderRoundResult(data: {
     .flatMap((res) => {
       if (res.bets.length === 0) {
         return [
-          `<tr><td>${esc(res.playerName)}</td><td colspan="3" class="muted">배팅 없음</td><td class="num">${res.coins}</td></tr>`
+          `<tr><td>${playerChip(res.playerId, res.playerName)}</td><td colspan="3" class="muted">배팅 없음</td><td class="num">${res.coins}</td></tr>`
         ];
       }
       return res.bets.map(
         (b, i) => `<tr>
-          <td>${i === 0 ? esc(res.playerName) : ''}</td>
+          <td>${i === 0 ? playerChip(res.playerId, res.playerName) : ''}</td>
           <td><span class="rp-bet">${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId)} ${coinHtml(b.amount)}</span></td>
           <td>${b.hit ? '<span class="stamp sm">적중</span>' : '<span class="miss">빗나감</span>'}</td>
           <td class="num ${b.hit ? 'pos' : 'neg'}">${b.hit ? `+${b.payout - b.amount}` : `-${b.amount}`}</td>
@@ -615,7 +742,7 @@ function renderRoundResult(data: {
   const standingsHtml = data.standings
     .map(
       (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}">
-        <span class="sr-main">${rankBadge(s.rank)}${esc(s.name)}${s.isNpc ? NPC_TAG : ''}</span><b>${icon('coin')}${s.coins}</b>
+        <span class="sr-main">${rankBadge(s.rank)}${playerChip(s.playerId, s.name)}${s.isNpc ? NPC_TAG : ''}</span><b>${icon('coin')}${s.coins}</b>
       </div>`
     )
     .join('');
@@ -665,7 +792,7 @@ function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerB
   const standingsHtml = data.standings
     .map(
       (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}">
-        <span class="sr-main">${rankBadge(s.rank)}${esc(s.name)}${s.isNpc ? NPC_TAG : ''}
+        <span class="sr-main">${rankBadge(s.rank)}${playerChip(s.playerId, s.name)}${s.isNpc ? NPC_TAG : ''}
         <span class="muted">적중 ${s.hits}회, 순손익 ${s.netProfit >= 0 ? '+' : ''}${s.netProfit}</span></span>
         <b>${icon('coin')}${s.coins}</b>
       </div>`
@@ -715,6 +842,8 @@ function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerB
 }
 
 function leaveToMain(): void {
+  playerSlot.clear();
+  colorWished = false;
   state.roomId = null;
   state.phase = 'lobby';
   const tok = loadToken();
@@ -732,6 +861,7 @@ function leaveToMain(): void {
   state.revealed = [];
   state.rankings = null;
   $('augment-bar').classList.add('hidden');
+  renderRankBoard(null);
   $('race-wrap').classList.remove('augment-open');
   $('camera-select').classList.add('hidden');
   $('game-log').innerHTML = '';
@@ -850,7 +980,7 @@ function revealListHtml(): string {
   return state.players
     .map((p) => {
       const bets = state.revealed.filter((b) => b.playerId === p.id);
-      const name = esc(p.name) + (p.id === state.myId ? ' (나)' : '');
+      const name = playerChip(p.id, p.name + (p.id === state.myId ? ' (나)' : ''));
       const count = state.betCounts.find((c) => c.playerId === p.id)?.count ?? bets.length;
       const hiddenFromMe = blind && p.id !== state.myId;
       let betsHtml: string;
@@ -865,7 +995,7 @@ function revealListHtml(): string {
         betsHtml = bets
           .map(
             (b) =>
-              `<span class="rp-bet">${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId)} ${coinHtml(b.amount)} <span class="muted">배당 ×${b.odds.toFixed(2)}</span></span>`
+              `<span class="rp-bet">${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId, false)} ${coinHtml(b.amount)} <span class="muted">배당 ×${b.odds.toFixed(2)}</span></span>`
           )
           .join('');
       }
@@ -914,6 +1044,16 @@ net.on((msg: S2C) => {
     case 'ROOM_UPDATE': {
       state.players = msg.players;
       state.settings = msg.settings;
+      // 지난번에 고른 색이 비어 있으면 이번 방에서도 그 색을 쓴다 (방마다 한 번만 요청)
+      if (!colorWished) {
+        const me = msg.players.find((p) => p.id === state.myId);
+        if (me) {
+          colorWished = true;
+          const wish = Number(localStorage.getItem(COLOR_KEY) ?? NaN);
+          const free = !msg.players.some((p) => p.color === wish && p.id !== me.id && !p.isNpc);
+          if (Number.isInteger(wish) && wish !== me.color && free) net.send({ type: 'SET_COLOR', color: wish });
+        }
+      }
       if (state.phase === 'lobby') renderLobby();
       if (state.phase === 'preview' || state.phase === 'betting') renderReadyCount();
       renderSidebar();
@@ -974,6 +1114,7 @@ net.on((msg: S2C) => {
       enterGameScreen();
       view?.clearBanner();
       view?.setupRace(msg.horses);
+      renderRankBoard(null);
       view?.setCameraTarget('leader');
       renderCameraSelect();
       renderBettingOverlay();
@@ -1052,6 +1193,7 @@ net.on((msg: S2C) => {
 
     case 'RACE_STATE': {
       view?.pushState(msg.horses);
+      renderRankBoard(msg.horses);
       break;
     }
 
@@ -1129,14 +1271,25 @@ net.on((msg: S2C) => {
     case 'AUGMENT_USED': {
       const def = AUGMENT_BY_ID[msg.defId];
       if (!def) break;
-      const targetNames = msg.targets.map((id) => horseName(id)).join(', ');
-      const blockedNames = msg.blocked.map((id) => horseName(id)).join(', ');
-      let line = `${def.emoji} <b>${esc(msg.playerName)}</b> <b>${esc(def.name)}</b>`;
-      if (targetNames) line += `, 대상 ${esc(targetNames)}`;
-      if (blockedNames) line += ` <span class="log-bad">(${esc(blockedNames)} 방어막으로 막음)</span>`;
-      addLog(line, def.hostile ? 'log-bad' : 'log-good');
+      // 기록은 세 칸: 누가 / 무슨 카드 / 어느 말에게
+      const logBib = (id: number, blocked: boolean): string =>
+        `<span class="lg-horse${blocked ? ' blocked' : ''}">${bib(id, horseColor(id), 'sm')}<span>${esc(state.horses.find((x) => x.id === id)?.name ?? '')}</span>${blocked ? '<i>막음</i>' : ''}</span>`;
+      const hit = [...msg.targets, ...msg.blocked];
+      const targetsHtml =
+        msg.targets.map((id) => logBib(id, false)).join('') + msg.blocked.map((id) => logBib(id, true)).join('');
+      // 내 말이나 내가 건 말이 대상이면 줄을 강조한다
+      const myHorseHit = hit.some((id) => isMyHorse(state.horses.find((x) => x.id === id)));
+      const myBetHit = hit.some((id) => state.myBets.some((b) => b.horseId === id));
+      const flag = myBetHit ? '<span class="lg-flag">내 배팅</span>' : myHorseHit ? '<span class="lg-flag">내 말</span>' : '';
+      addLog(
+        `<span class="lg-who">${playerChip(msg.playerId, msg.playerName)}</span>` +
+          `<span class="lg-card"><span class="lg-emoji">${def.emoji}</span>${esc(def.name)}</span>` +
+          `<span class="lg-to">${targetsHtml || '<span class="muted">대상 없음</span>'}${flag}</span>`,
+        // 내가 건 말이 대상이면 줄에 색을 칠한다: 이로운 효과는 연두, 해로운 효과는 빨강
+        `log-row ${def.hostile ? 'log-bad' : 'log-good'}${myBetHit ? (def.hostile ? ' log-mybet-bad' : ' log-mybet-good') : ''}`
+      );
       // 누가 무엇을 썼는지는 맞은 말 머리 위에 몇 초간 붙여 둔다
-      view?.showAugmentNote(msg.targets, `${def.emoji} ${def.name}`, msg.playerName, def.hostile);
+      view?.showAugmentNote(msg.targets, `${def.emoji} ${def.name}`, msg.playerName, def.hostile, playerColor(msg.playerId));
       view?.showAugmentNote(msg.blocked, '방어 성공', def.name, false);
       view?.flashHorses(msg.targets, !def.hostile);
       // 카드마다 고유 효과음이 있고, 없는 카드만 공통 소리를 낸다

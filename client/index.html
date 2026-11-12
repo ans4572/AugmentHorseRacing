@@ -189,6 +189,10 @@
       <div id="top-timer"></div>
       <div id="top-coins"></div>
       <div class="sound-ctl">
+        <button type="button" id="btn-show-players" aria-label="참가자 보기" title="참가자"><i data-ic="users"></i></button>
+        <button type="button" id="btn-show-bets" aria-label="배팅 현황 보기" title="배팅 현황"><i data-ic="ticket"></i></button>
+      </div>
+      <div class="sound-ctl">
         <button type="button" data-snd="music" aria-label="배경음악" aria-pressed="true"><i data-ic="note"></i></button>
         <button type="button" data-snd="sfx" aria-label="효과음" aria-pressed="true"><i data-ic="speaker"></i></button>
       </div>
@@ -207,10 +211,18 @@
           <div id="game-log"></div>
         </div>
       </div>
-      <div id="sidebar">
-        <h3>참가자</h3>
+    </div>
+
+    <!-- 참가자 / 배팅 현황: 상단 버튼을 누르면 뜨는 창 -->
+    <div id="modal-players" class="game-overlay popup hidden">
+      <div class="overlay-inner narrow">
+        <div class="row-between"><h2>참가자</h2><button class="btn small ghost" data-close>닫기</button></div>
         <div id="side-players"></div>
-        <h3>배팅 현황</h3>
+      </div>
+    </div>
+    <div id="modal-bets" class="game-overlay popup hidden">
+      <div class="overlay-inner narrow">
+        <div class="row-between"><h2>배팅 현황</h2><button class="btn small ghost" data-close>닫기</button></div>
         <div id="side-bets"><p class="muted">배팅이 끝나면 여기에 나옵니다.</p></div>
       </div>
     </div>
@@ -276,7 +288,6 @@
     </div>
   </div>
 
-  <div id="rotate-hint"><div>화면을 <b>가로로</b> 돌리면<br />경주가 더 크게 보입니다</div></div>
 
   <div id="toast-area"></div>
 

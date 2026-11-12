@@ -164,7 +164,8 @@ export type EffectType =
   | 'staminaDrainPct'    // value: 현재 지구력 감소 %
   | 'shield'             // 방해 1회 무효
   | 'swapPositions'      // 위치 교환
-  | 'rankBasedSpeed';    // 순위 기반 속력 증가 (최후의 질주)
+  | 'rankBasedSpeed'     // 순위 기반 속력 증가 (최후의 질주)
+  | 'cosmetic';          // 연출 전용 표시 — 즉시 효과 카드의 모습을 잠깐 보여 준다 (능력치 영향 없음)
 
 export interface AugmentDefinition {
   id: string;
@@ -181,6 +182,8 @@ export interface AugmentDefinition {
   anim?: HorseAnim;
   /** 3D 화면에서 말의 모습을 바꾸는 연출 종류 */
   visual?: AugmentVisual;
+  /** 즉시 효과 카드(durationMs 0)의 연출을 보여 줄 시간 */
+  visualMs?: number;
 }
 
 export type AugmentVisual =
@@ -202,7 +205,18 @@ export type AugmentVisual =
   | 'wobble' // 비틀비틀 좌우로 흔들림
   | 'bighead' // 머리가 커짐 (대두)
   | 'pose' // 멈춰서 카메라를 보고 포즈
-  | 'eat'; // 멈춰서 고개를 숙이고 먹음
+  | 'eat' // 멈춰서 고개를 숙이고 먹음
+  | 'rocket' // 엉덩이가 들린 채 앞다리로만 달림
+  | 'nap' // 벌렁 드러누워 다리를 하늘로 뻗고 잠
+  | 'backpedal' // 머리만 뒤로 돌리고 뒷걸음질
+  | 'droop' // 목이 축 늘어져 머리를 끌고 감
+  | 'jitter' // 눈이 커지고 온몸을 덜덜 떨며 다리가 빨라짐
+  | 'poop' // 다리를 꼬고 종종걸음
+  | 'flip' // 공중제비 후 엉덩방아
+  | 'lowbat' // 뚝뚝 끊기다 고개를 떨굼
+  | 'warp' // 납작하게 눌렸다가 길게 늘어남
+  | 'siren' // 머리에 경광등
+  | 'swap'; // 하늘로 솟았다가 떨어짐
 
 export interface AugmentCardView {
   cardKey: string; // 이 제시(offer)에만 유효한 고유 키

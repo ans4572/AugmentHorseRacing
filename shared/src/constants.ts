@@ -51,6 +51,10 @@ export const ODDS_MIN = 1.05;
 export const ODDS_MAX = 30;
 /** 배당 계산 시 적용하는 환급률 */
 export const ODDS_HOUSE_FACTOR = 0.9;
+/** 배당 완만화: 우승·꼴찌 확률에 거는 지수 (1이면 시뮬레이션 그대로, 작을수록 고르게) */
+export const ODDS_TEMPER_SINGLE = 0.5;
+/** 배당 완만화: 3위 안·4위 밖 확률의 로짓에 곱하는 값 */
+export const ODDS_TEMPER_GROUP = 0.45;
 
 // ---------------- 단계별 시간 (ms) ----------------
 

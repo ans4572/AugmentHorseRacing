@@ -102,7 +102,6 @@ function showScreen(id: string): void {
   if (id !== 'scr-stable') closeStable();
   refreshStableBadges();
   // 모바일 세로 화면에서는 게임 중에만 가로 모드 안내를 띄운다
-  $('rotate-hint').classList.toggle('when-game', id === 'scr-game');
   syncMusic();
 }
 
@@ -356,11 +355,13 @@ function renderReadyCount(): void {
   $('ready-count').textContent = humans.length > 1 ? `준비 완료 ${ready}/${humans.length}명. ${hint}` : hint;
 }
 
+/** 능력치는 내부 값(1~100)을 10점 만점으로 줄여 보여 준다 */
 function statBar(label: string, value: number, color: string): string {
+  const shown = Math.max(1, Math.round(value / 10));
   return `<div class="statbar">
     <span class="sb-label">${label}</span>
-    <span class="sb-track"><span class="sb-fill" style="width:${value}%;background:${color}"></span></span>
-    <span class="sb-val">${value}</span>
+    <span class="sb-track"><span class="sb-fill" style="width:${shown * 10}%;background:${color}"></span></span>
+    <span class="sb-val">${shown}</span>
   </div>`;
 }
 
@@ -379,7 +380,7 @@ function renderHorseCards(): void {
         ${statBar('속력', h.stats.speed, '#d92b22')}
         ${statBar('가속', h.stats.accel, '#2447d6')}
         ${statBar('지구력', h.stats.stamina, '#0f7a50')}
-        <div class="hc-extra">몸무게 ${h.stats.weight}kg, 행운 ${h.stats.luck}</div>
+        <div class="hc-extra">몸무게 ${h.stats.weight}kg, 행운 ${Math.max(1, Math.round(h.stats.luck / 10))}</div>
         <div class="hc-odds">
           <span>${BET_TYPE_INFO[state.selBetType].label} 배당</span>
           <b>×${odds ? odds[state.selBetType].toFixed(2) : '-'}</b>
@@ -470,7 +471,8 @@ function renderMyBets(): void {
 function renderAugmentBar(): void {
   const aug = state.augment;
   const bar = $('augment-bar');
-  view?.setBottomInset(!!aug && !aug.used);
+  // 세로 화면에서는 카드가 경주 화면 아래에 따로 놓이므로 카메라를 올리지 않는다
+  view?.setBottomInset(!!aug && !aug.used && getComputedStyle(bar).position === 'absolute');
   $('race-wrap').classList.toggle('augment-open', !!aug && !aug.used);
   if (!aug) {
     bar.classList.add('hidden');
@@ -710,6 +712,8 @@ function leaveToMain(): void {
   hide('overlay-betting');
   hide('overlay-reveal');
   hide('overlay-countdown');
+  hide('modal-players');
+  hide('modal-bets');
   // 게임 도중에 나가는 경우를 위해 진행 중이던 화면 상태를 모두 비운다
   state.augment = null;
   state.horses = [];
@@ -941,7 +945,6 @@ net.on((msg: S2C) => {
     case 'GAME_START': {
       state.totalRounds = msg.totalRounds;
       state.coins = msg.startCoins;
-      addLog(`게임 시작. ${msg.totalRounds}라운드, 시작 코인 ${msg.startCoins}`, 'log-head');
       break;
     }
 
@@ -971,13 +974,9 @@ net.on((msg: S2C) => {
       renderBettingOverlay();
       renderSideBets();
       sfx('reveal');
-      addLog(`${msg.round}라운드 출마표가 나왔습니다.`, 'log-head');
-      const myHorse = msg.horses.find((h) => isMyHorse(h));
-      if (myHorse) {
-        addLog(`내 말 <b>${esc(myHorse.name)}</b>, 이번에는 ${myHorse.id}번으로 뜁니다.`, 'log-good');
-      }
+      // 기록 칸에는 증강 사용만 남긴다. 코인 보충은 잠깐 알림으로만 알린다
       for (const t of msg.topUps) {
-        addLog(`${esc(t.playerName)} 코인이 바닥나 ${t.amount} 보충`, 'log-good');
+        if (t.playerId === state.myId) toast(`코인이 바닥나 ${t.amount}코인을 보충받았습니다.`, false);
       }
       updateTopbar();
       break;
@@ -1040,7 +1039,6 @@ net.on((msg: S2C) => {
       state.phase = 'racing';
       hide('overlay-countdown');
       sfx('go');
-      addLog('출발!', 'log-head');
       view?.announce('출발!');
       updateTopbar();
       break;
@@ -1067,15 +1065,11 @@ net.on((msg: S2C) => {
         const tierInfo = TIER_INFO[msg.tier];
         const tierColor = { silver: '#dee2e6', gold: '#ffd43b', platinum: '#66d9e8' }[msg.tier];
         view?.announce(`${msg.phase}차 증강 ${tierInfo.label}`, tierColor);
-        addLog(`${msg.phase}차 증강은 <b>${tierInfo.label}</b> 등급입니다. 카드는 사람마다 다릅니다.`, 'log-augment');
       }
       break;
     }
 
     case 'AUGMENT_CLOSED': {
-      if (state.augment && !state.augment.used) {
-        addLog('증강 선택 시간이 끝났습니다.', 'log-augment');
-      }
       state.augment = null;
       renderAugmentBar();
       break;
@@ -1117,8 +1111,6 @@ net.on((msg: S2C) => {
       renderAugmentBar();
       view?.showFinish(msg.rankings);
       sfx('finish');
-      const first = msg.rankings.find((r) => r.rank === 1);
-      if (first) addLog(`경주 종료. 우승 <b>${esc(horseName(first.horseId))}</b>`, 'log-head');
       break;
     }
 
@@ -1154,7 +1146,6 @@ net.on((msg: S2C) => {
     case 'EMOTE': {
       view?.showEmote(msg.playerName, msg.emoji);
       sfx('pop');
-      addLog(`${msg.emoji} ${esc(msg.playerName)}`);
       break;
     }
 
@@ -1239,6 +1230,20 @@ function bindSoundButtons(): void {
 
 function bindUI(): void {
   mountIcons();
+
+  // 참가자 / 배팅 현황 창: 상단 버튼으로 열고, 닫기 버튼이나 바깥을 누르면 닫는다
+  for (const [btn, modal] of [['btn-show-players', 'modal-players'], ['btn-show-bets', 'modal-bets']]) {
+    $(btn).onclick = () => {
+      const opening = $(modal).classList.contains('hidden');
+      hide('modal-players');
+      hide('modal-bets');
+      if (opening) show(modal);
+    };
+    $(modal).onclick = (ev) => {
+      const t = ev.target as HTMLElement;
+      if (t === $(modal) || t.closest('[data-close]')) hide(modal);
+    };
+  }
   initAudio();
   bindSoundButtons();
   const savedName = localStorage.getItem('augment-derby-name');

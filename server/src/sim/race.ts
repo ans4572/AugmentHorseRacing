@@ -371,6 +371,7 @@ export class RaceSim {
       b.pos = tmp;
       a.prevPos = a.pos;
       b.prevPos = b.pos;
+      if (def.visualMs) for (const h of [a, b]) h.effects.push(this.makeCosmetic(def));
       return { ok: true, targets: [a.info.id, b.info.id], blocked: [] };
     }
 
@@ -411,17 +412,20 @@ export class RaceSim {
             h.anim = 'finished';
           } else {
             h.prevPos = h.pos;
+            if (def.visualMs) h.effects.push(this.makeCosmetic(def));
           }
           break;
         }
         case 'staminaRestorePct': {
           h.stamina = Math.min(h.staminaMax, h.stamina + (h.staminaMax * def.value) / 100);
           if (h.stamina > 0) h.fatigued = false;
+          if (def.visualMs) h.effects.push(this.makeCosmetic(def));
           break;
         }
         case 'staminaDrainPct': {
           h.stamina = Math.max(0, h.stamina * (1 - def.value / 100));
           if (h.stamina <= 0) h.fatigued = true;
+          if (def.visualMs) h.effects.push(this.makeCosmetic(def));
           break;
         }
         case 'shield': {
@@ -475,6 +479,11 @@ export class RaceSim {
       };
     }
     return { ok: true, targets: applied, blocked };
+  }
+
+  /** 능력치에 영향이 없는 연출 전용 표시 */
+  private makeCosmetic(def: AugmentDefinition): ActiveEffect {
+    return { ...this.makeEffect(def), effectType: 'cosmetic', value: 0, expiresAt: this.now + (def.visualMs ?? 0), anim: undefined };
   }
 
   private makeEffect(def: AugmentDefinition): ActiveEffect {

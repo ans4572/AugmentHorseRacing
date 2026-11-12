@@ -27,6 +27,8 @@
 }
 
 html, body { height: 100%; }
+/* 폰을 가로로 돌려도 브라우저가 글자를 멋대로 키우지 않게 한다 */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 body {
   font-family: var(--body);
@@ -368,7 +370,8 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
   background: var(--paper); border-radius: var(--r); padding: 8px 12px;
   min-height: 86px; max-height: 120px;
 }
-#emotes { display: flex; flex-direction: column; flex-wrap: wrap; gap: 4px; }
+/* 이모티콘은 3줄 격자 — 칸 너비를 스스로 차지해 로그와 겹치지 않는다 */
+#emotes { display: grid; grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 4px; align-content: start; flex-shrink: 0; }
 #emotes button {
   font-size: 18px; background: var(--paper-2); border: 0; border-radius: 3px;
   cursor: pointer; padding: 2px 6px;
@@ -638,17 +641,6 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
 .r3d-banner-sub span { display: inline-flex; align-items: center; gap: 6px; }
 .r3d-unsupported { padding: 40px 20px; text-align: center; color: var(--ink-soft); font-size: 15px; }
 
-/* 세로로 든 작은 화면: 가로 모드 권장 안내 */
-#rotate-hint {
-  position: fixed; inset: 0; z-index: 300;
-  background: rgba(26, 33, 80, 0.96); color: #fff;
-  display: none;
-  align-items: center; justify-content: center; text-align: center;
-  font-size: 18px; font-weight: 700; padding: 30px; line-height: 1.6;
-}
-@media (max-width: 600px) and (orientation: portrait) {
-  #rotate-hint.when-game { display: flex; }
-}
 
 /* ---------- 좁은 화면 ---------- */
 @media (max-width: 900px) {
@@ -713,3 +705,41 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
 @media (max-height: 560px) {
   #race-wrap.augment-open #camera-select { display: none; }
 }
+
+/* ---------- 폰 화면 정리 ---------- */
+@media (max-width: 900px) {
+  /* 관전 버튼은 경주 화면 위에 겹치지 않게 그 아래 한 줄로 내린다 */
+  #camera-select {
+    position: static; border-radius: 0; background: var(--ink);
+    justify-content: center; flex-wrap: wrap; padding: 5px 6px; gap: 6px;
+  }
+  #topbar { flex-wrap: wrap; row-gap: 4px; }
+  #game-log { font-size: 12.5px; }
+}
+@media (max-width: 640px) {
+  /* 오른쪽 위 소리 버튼과 번호 안장이 겹치지 않게 제목을 내린다 */
+  #scr-main { justify-content: flex-start; padding-top: 68px; }
+  #top-phase { display: none; }
+}
+/* 세로로 든 폰: 가로로 돌리지 않아도 되도록 위에서 아래로 쌓는다 */
+@media (max-width: 640px) and (orientation: portrait) {
+  #scr-game { min-height: 100svh; }
+  #game-body { flex-direction: column; }
+  #sidebar { display: flex; width: auto; }
+  /* 증강 카드는 경주 화면을 가리지 않고 그 아래에 놓인다 */
+  #augment-bar { position: static; }
+  #bottom-bar { max-height: 150px; }
+  .game-overlay { align-items: flex-start; padding: 8px; }
+  /* 상단 바가 두 줄이 되므로 창을 그만큼 내려 제목이 가리지 않게 한다 */
+  #scr-game .game-overlay { padding-top: 100px; }
+  .overlay-inner { max-height: calc(100svh - 108px); }
+  .bet-amount-row input { width: 100%; }
+  .ready-row .btn { width: 100%; }
+}
+
+/* ---------- 참가자 / 배팅 현황 창 ---------- */
+.overlay-inner.narrow { width: 440px; }
+.game-overlay.popup { z-index: 55; }
+#side-bets { max-height: 60vh; overflow-y: auto; }
+#bottom-bar { min-height: 70px; }
+#game-log:empty::before { content: '증강을 쓰면 여기에 기록됩니다.'; color: var(--ink-soft); font-size: 13px; align-self: flex-start; }

@@ -83,6 +83,8 @@ interface Rig {
   legs: THREE.Group[];
   knees: THREE.Group[];
   neck: THREE.Mesh;
+  /** 목 전체(목·갈기·목 장식)를 묶은 그룹 — 프로펠러 비행 때 통째로 돌린다 */
+  neckGroup: THREE.Group;
   /** 목 뒤 갈기 — 목 길이에 맞춰 위치를 옮긴다 */
   mane: { mesh: THREE.Mesh; frac: number }[];
   body: THREE.Mesh;
@@ -105,6 +107,20 @@ interface Rig {
   spin: number;
   bobY: number;
   headScale: number;
+  /** 목 프로펠러 비행: 진행도(0~1)와 회전각 */
+  heli: number;
+  heliAng: number;
+  /** 코믹 연출 진행도 (0~1): 엉덩이 로켓 / 뒤돌아보기 / 목 늘어짐 */
+  dive: number;
+  lookBack: number;
+  droop: number;
+  /** 다리 꼬기(급똥) / 앞다리 알통(득근) 진행도 */
+  cross: number;
+  buff: number;
+  /** 한 번 재생하는 연출(공중제비·워프·자리 바꾸기)의 시작 시각 */
+  fxStart: Record<string, number>;
+  bubbles: THREE.Group;
+  siren: THREE.Mesh;
   eyes: THREE.Object3D[];
   wings: THREE.Mesh[];
   flame: THREE.Mesh;
@@ -629,6 +645,8 @@ export class Race3DView {
     // 목 (가늘고 길게)
     const neckGroup = new THREE.Group();
     neckGroup.position.set(NECK_BASE_X, NECK_BASE_Y, 0);
+    // 기울인 뒤 세로축으로 돌릴 수 있게 회전 순서를 바꿔 둔다 (프로펠러 비행용)
+    neckGroup.rotation.order = 'YZX';
     neckGroup.rotation.z = -NECK_TILT;
     torso.add(neckGroup);
     const neck = part(GEO.sphere, coat, neckGroup, [0, NECK_HALF, 0], [0.3, NECK_HALF, 0.28]);
@@ -840,6 +858,28 @@ export class Race3DView {
     torso.add(flame);
 
     // 방어막
+    // 뽁뽁이 갑옷: 몸에 동글동글한 공기 방울이 덕지덕지 붙는다
+    const bubbles = new THREE.Group();
+    const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xd0ebff, transparent: true, opacity: 0.62 });
+    const brand = seeded(info.id * 31 + 7);
+    for (let i = 0; i < 26; i++) {
+      const a = brand() * Math.PI * 2;
+      const u = brand() * 2 - 1;
+      const rr = Math.sqrt(1 - u * u);
+      const bub = new THREE.Mesh(GEO.sphere, bubbleMat);
+      bub.position.set(Math.cos(a) * rr * 1.02, 1.15 + u * 0.58, Math.sin(a) * rr * 0.52);
+      bub.scale.setScalar(0.13 + brand() * 0.07);
+      bubbles.add(bub);
+    }
+    bubbles.visible = false;
+    torso.add(bubbles);
+    // 과속 단속: 머리 위 경광등
+    const siren = new THREE.Mesh(GEO.sphere, new THREE.MeshBasicMaterial({ color: 0xff2d2d }));
+    siren.scale.set(0.17, 0.2, 0.17);
+    siren.position.set(-0.02, 0.74, 0);
+    siren.visible = false;
+    head.add(siren);
+
     const shield = new THREE.Mesh(
       GEO.sphere,
       new THREE.MeshBasicMaterial({ color: 0x74c0fc, transparent: true, opacity: 0.28 })
@@ -883,6 +923,7 @@ export class Race3DView {
       legs,
       knees,
       neck,
+      neckGroup,
       mane,
       body,
       shades,
@@ -900,6 +941,16 @@ export class Race3DView {
       spin: 0,
       bobY: 0,
       headScale: 1,
+      heli: 0,
+      heliAng: 0,
+      dive: 0,
+      lookBack: 0,
+      droop: 0,
+      cross: 0,
+      buff: 0,
+      fxStart: {},
+      bubbles,
+      siren,
       eyes,
       wings,
       flame,
@@ -1070,10 +1121,14 @@ export class Race3DView {
       this.camera.updateProjectionMatrix();
       return;
     }
-    const w = Math.max(320, this.container.clientWidth);
-    let h = Math.round((w * 9) / 16);
+    const w = Math.max(280, this.container.clientWidth);
+    // 세로로 든 폰에서는 화면이 좁으므로 경주 화면을 조금 더 높게 잡는다
+    const portraitPhone = w < 640 && window.innerHeight > window.innerWidth;
+    let h = Math.round(portraitPhone ? w * 0.72 : (w * 9) / 16);
     // 모바일 가로처럼 화면이 낮으면 상단 바를 뺀 높이에 맞춘다 (잘리지 않게)
     if (window.innerHeight < 560) h = Math.max(180, Math.min(h, window.innerHeight - 58));
+    // 넓은 화면에서도 상단 바와 기록 칸이 함께 보이도록 높이를 화면에 맞춘다
+    else if (!portraitPhone) h = Math.min(h, Math.max(260, window.innerHeight - 190));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -1120,6 +1175,30 @@ export class Race3DView {
         if (v) vis.add(v);
       }
     }
+    // 한 번 재생하는 연출의 진행도(0~1). 서버 상태는 0.1초 단위라 시작 시각만 받아 직접 센다.
+    const oneShot = (v: AugmentVisual): number | null => {
+      const e = snap?.effects.find((x) => AUGMENT_BY_ID[x.defId]?.visual === v);
+      if (!e) {
+        delete r.fxStart[v];
+        return null;
+      }
+      const def = AUGMENT_BY_ID[e.defId];
+      const total = (def.visualMs || def.durationMs || 1000) / 1000;
+      if (r.fxStart[v] === undefined) r.fxStart[v] = t - Math.max(0, total - e.remainMs / 1000);
+      return Math.min(1, Math.max(0, (t - r.fxStart[v]) / total));
+    };
+    const flipK = oneShot('flip'); // 바나나 껍질: 앞 35%는 공중제비, 나머지는 엉덩방아
+    const FLIP_PART = 0.35;
+    const flipping = flipK != null && flipK < FLIP_PART;
+    const sitting = flipK != null && !flipping;
+    const warpK = oneShot('warp');
+    const swapK = oneShot('swap');
+    const lowbat = vis.has('lowbat');
+    const siren = vis.has('siren');
+    r.cross = ease(r.cross, vis.has('poop') ? 1 : 0, 8);
+    r.buff = ease(r.buff, vis.has('muscle') ? 1 : 0, 5);
+    // 득근 각성: 가끔 한쪽 앞다리를 들어 알통을 자랑한다
+    const flexing = r.buff > 0.5 && Math.sin(t * 2.4) > 0.55;
     const disco = vis.has('disco');
     const hop = vis.has('hop');
     const pose = vis.has('pose');
@@ -1132,6 +1211,16 @@ export class Race3DView {
     const frozen = (anim === 'stunned' && !disco) || anim === 'fallen' || anim === 'idle';
     const runAmt = frozen || disco ? 0 : Math.min(1, Math.abs(r.speed) / 12);
     r.phase += dt * (2.5 + speedNorm * 13);
+    const rocket = vis.has('rocket') && anim !== 'fallen' && anim !== 'stunned';
+    const nap = vis.has('nap') && anim === 'stunned';
+    const backpedal = vis.has('backpedal');
+    const jitter = vis.has('jitter');
+    // 에너지 드링크: 다리가 두 배로 빨리 돈다
+    if (jitter) r.phase += dt * (2.5 + speedNorm * 13);
+    r.dive = ease(r.dive, rocket ? 1 : 0, 7);
+    r.lookBack = ease(r.lookBack, backpedal ? 1 : 0, 9);
+    r.droop = ease(r.droop, vis.has('droop') && !flying ? 1 : 0, 5);
+    const diveAng = -0.52 * r.dive; // 엉덩이를 들어 올린 각도
 
     // 변신 수치 (부드럽게 변하도록 보간)
     r.rear = ease(r.rear, vis.has('bipedal') ? 1 : 0, 7);
@@ -1147,7 +1236,26 @@ export class Race3DView {
       const knee = r.knees[i];
       const front = i < 2;
       leg.scale.y = r.legScale;
-      if (anim === 'fallen') {
+      // 급똥: 다리를 안쪽으로 꼰다 / 득근: 앞다리만 굵어진다
+      leg.rotation.x = (i % 2 === 0 ? 1 : -1) * 0.34 * r.cross;
+      leg.scale.x = leg.scale.z = front ? 1 + 0.85 * r.buff : 1;
+      if (flipping) {
+        // 공중제비: 다리를 몸 쪽으로 접는다
+        leg.rotation.z = 0.6;
+        knee.rotation.z = -1.5;
+      } else if (sitting) {
+        // 엉덩방아: 뒷다리를 앞으로 뻗고 주저앉는다
+        leg.rotation.z = front ? 0.35 + Math.sin(t * 9 + i) * 0.12 : 1.35;
+        knee.rotation.z = front ? -0.5 : -0.08;
+      } else if (nap) {
+        // 벌렁 누워 하늘로 뻗은 다리가 가끔 움찔한다
+        leg.rotation.z = Math.sin(t * 2.2 + i * 1.7) * 0.14;
+        knee.rotation.z = -0.12 - Math.max(0, Math.sin(t * 1.3 + i * 2.1)) * 0.5;
+      } else if (rocket && !front) {
+        // 엉덩이 로켓: 뒷다리는 공중에서 허우적거린다
+        leg.rotation.z = -0.85 - diveAng + Math.sin(t * 19 + i * 2.4) * 0.3;
+        knee.rotation.z = -0.5 - Math.sin(t * 17 + i) * 0.35;
+      } else if (anim === 'fallen') {
         leg.rotation.z = Math.sin(t * 11 + i * 1.3) * 0.5;
         knee.rotation.z = -0.6 - Math.sin(t * 9 + i) * 0.4;
       } else if (flying) {
@@ -1168,8 +1276,11 @@ export class Race3DView {
         knee.rotation.z = -Math.max(0, -s) * 0.9 * runAmt;
       } else {
         // 갤럽: 다리를 앞으로 가져올 때 무릎을 접는다
-        let swing = Math.sin(r.phase + offsets[i]) * 0.75 * runAmt;
-        let bend = -Math.max(0, Math.sin(r.phase + offsets[i] + 1.1)) * 1.05 * runAmt;
+        // 배터리 1%: 동작이 뚝뚝 끊긴다 / 급똥: 보폭이 줄어 종종걸음이 된다
+        const ph = lowbat ? Math.floor(r.phase / 0.9) * 0.9 : r.phase;
+        const stride = 1 - 0.6 * r.cross;
+        let swing = Math.sin(ph + offsets[i]) * 0.75 * runAmt * stride;
+        let bend = -Math.max(0, Math.sin(ph + offsets[i] + 1.1)) * 1.05 * runAmt * stride;
         if (theta > 0.01) {
           if (front) {
             // 이족보행: 앞다리는 팔처럼 허우적거린다
@@ -1179,6 +1290,12 @@ export class Race3DView {
             // 뒷다리는 몸이 서도 땅을 딛도록 되돌린다
             swing -= theta;
           }
+        }
+        // 엉덩이 로켓: 몸이 앞으로 쏠려도 앞다리는 땅을 딛는다
+        if (front && r.dive > 0.01) swing -= diveAng;
+        if (i === 0 && flexing) {
+          swing = 1.25;
+          bend = -1.75;
         }
         leg.rotation.z = swing;
         knee.rotation.z = bend;
@@ -1205,6 +1322,39 @@ export class Race3DView {
       y += r.inflate * (1.3 + Math.sin(t * 2.5) * 0.2);
       roll += Math.sin(t * 1.8) * 0.12 * r.inflate;
     }
+    if (nap) {
+      // 식곤증: 배를 하늘로 하고 드러눕는다
+      y = 2.25;
+      pitch = 0;
+      roll = Math.PI;
+    }
+    if (jitter) {
+      // 에너지 드링크: 온몸이 덜덜 떨린다
+      y += Math.sin(t * 61) * 0.05;
+      pitch += Math.sin(t * 47) * 0.05;
+      roll += Math.sin(t * 53) * 0.06;
+    }
+    let flipAng = 0;
+    if (flipK != null) {
+      roll = 0;
+      if (flipping) {
+        // 바나나 껍질: 제자리에서 한 바퀴 돈다
+        const k = flipK / FLIP_PART;
+        y = Math.sin(Math.PI * k) * 1.5;
+        pitch = 0;
+        flipAng = -k * Math.PI * 2;
+      } else {
+        // 엉덩방아
+        y = -0.58;
+        pitch = 0.5;
+      }
+    }
+    if (swapK != null) {
+      // 인생 역전: 하늘로 솟아 한 바퀴 구르고 떨어진다
+      y += Math.sin(Math.PI * swapK) * 3.2;
+      flipAng = swapK * Math.PI * 2;
+    }
+    if (lowbat) y = 0;
     // 비틀비틀: 몸이 좌우로 기우뚱거린다
     if (vis.has('wobble') && anim !== 'fallen') roll += Math.sin(t * 9) * 0.26;
     r.bobY = ease(r.bobY, y, 12);
@@ -1218,7 +1368,9 @@ export class Race3DView {
     else if (vis.has('muscle')) scaleTarget = 1.12;
     r.bodyScale = ease(r.bodyScale, scaleTarget, 6);
     const s = r.bodyScale;
-    r.inner.scale.set(s, s, s * (1 - 0.88 * r.flat)); // 종이 말은 옆으로 납작해진다
+    // 칼퇴 워프: 납작하게 눌렸다가 앞뒤로 길게 늘어난다
+    const warp = warpK != null ? Math.sin(Math.PI * warpK) : 0;
+    r.inner.scale.set(s * (1 + 1.3 * warp), s * (1 - 0.5 * warp), s * (1 - 0.88 * r.flat)); // 종이 말은 옆으로 납작해진다
 
     // 조랑말: 다리가 짧아진 만큼 몸을 내린다
     const legDrop = (1 - r.legScale) * HIP_Y * s;
@@ -1227,15 +1379,22 @@ export class Race3DView {
     const py = HIP_Y;
     const rotX = px * Math.cos(theta) - py * Math.sin(theta);
     const rotY = px * Math.sin(theta) + py * Math.cos(theta);
-    r.inner.position.x = (px - rotX) * s;
-    r.inner.position.y = r.bobY - legDrop + (py - rotY) * s;
-    r.inner.rotation.z = pitch + theta;
+    // 엉덩이 로켓: 앞다리 어깨 관절을 축으로 엉덩이를 들어 올린다
+    const fx = 0.6;
+    const diveX = fx - (fx * Math.cos(diveAng) - py * Math.sin(diveAng));
+    const diveY = py - (fx * Math.sin(diveAng) + py * Math.cos(diveAng));
+    // 공중제비는 몸 한가운데를 축으로 돈다
+    const cy = 1.8;
+    r.inner.position.x = (px - rotX + diveX + cy * Math.sin(flipAng)) * s + (jitter ? Math.sin(t * 71) * 0.04 : 0);
+    r.inner.position.y = r.bobY - legDrop + (py - rotY + diveY + cy * (1 - Math.cos(flipAng))) * s;
+    r.inner.rotation.z = pitch + theta + diveAng + flipAng;
     r.inner.rotation.x = ease(r.inner.rotation.x, roll, 10);
     // 옆으로 누울 때 몸이 옆 레인으로 넘어가지 않게 당겨 준다
     r.inner.position.z = -Math.sin(r.inner.rotation.x) * 1.6;
 
     // 방향: 역주행·문워크는 뒤돌고, 빙글빙글은 계속 돈다
-    const backwards = anim === 'reverse' || vis.has('moonwalk');
+    // 뒷걸음질(가스불 안 껐다)은 몸은 앞을 본 채 머리만 뒤로 돌린다
+    const backwards = (anim === 'reverse' && !backpedal) || vis.has('moonwalk');
     // 포즈: 옆(카메라 쪽)을 보고 선다
     r.facing = ease(r.facing, pose ? -Math.PI / 2 : backwards ? Math.PI : 0, 12);
     if (vis.has('spin')) {
@@ -1252,6 +1411,8 @@ export class Race3DView {
     if (anim === 'tired' || anim === 'slow') droop = -0.32;
     if (anim === 'stunned') droop = -0.6;
     if (anim === 'boost') droop = 0.12;
+    if (siren) droop = -0.55; // 딱지 끊기고 풀이 죽었다
+    if (lowbat) droop = -0.8;
     let headTarget = droop + Math.sin(r.phase + 0.8) * 0.08 * runAmt - theta * 0.75;
     if (disco) headTarget = Math.sin(t * 10) * 0.25;
     if (pose) headTarget = 0.22; // 턱을 든다
@@ -1263,8 +1424,26 @@ export class Race3DView {
     r.neck.scale.y = neckH;
     r.neck.position.y = neckH;
     for (const m of r.mane) m.mesh.position.y = m.frac * 2 * neckH;
-    r.head.position.x = NECK_BASE_X + Math.sin(NECK_TILT) * 2 * neckH + 0.12;
-    r.head.position.y = NECK_BASE_Y + Math.cos(NECK_TILT) * 2 * neckH - 0.18;
+    // 목 프로펠러 비행: 목을 옆으로 눕히고 어깨를 축으로 헬리콥터 날개처럼 돌린다.
+    // 머리는 목 끝에 매달려 함께 돈다.
+    r.heli = ease(r.heli, flying ? 1 : 0, 6);
+    if (flying) {
+      r.heliAng += dt * 24;
+    } else if (r.heliAng !== 0) {
+      // 끝나면 가까운 쪽으로 돌아 제자리에 선다
+      r.heliAng %= Math.PI * 2;
+      r.heliAng = ease(r.heliAng, r.heliAng > Math.PI ? Math.PI * 2 : 0, 10);
+      if (r.heliAng < 0.02 || Math.PI * 2 - r.heliAng < 0.02) r.heliAng = 0;
+    }
+    // 목 늘어짐(월요병): 목이 앞으로 꺾여 머리가 땅에 끌린다
+    const tilt = NECK_TILT + (1.12 - NECK_TILT) * r.heli + (2.2 - NECK_TILT) * r.droop * (1 - r.heli);
+    const reach = Math.sin(tilt) * 2 * neckH + 0.12;
+    r.neckGroup.rotation.z = -tilt;
+    r.neckGroup.rotation.y = r.heliAng;
+    r.head.position.x = NECK_BASE_X + Math.cos(r.heliAng) * reach;
+    r.head.position.z = -Math.sin(r.heliAng) * reach;
+    r.head.position.y = NECK_BASE_Y + Math.cos(tilt) * 2 * neckH - 0.18 * (1 - r.heli);
+    r.head.rotation.y = r.heliAng + r.lookBack * 2.75;
 
     // 풍선: 몸통이 둥글게 부푼다
     r.body.scale.set(1.0 + 0.15 * r.inflate, 0.56 + 0.5 * r.inflate, 0.5 + 0.5 * r.inflate);
@@ -1276,12 +1455,15 @@ export class Race3DView {
     let eyeScale = 1;
     if (anim === 'stunned' && !awake) eyeScale = 0.12;
     else if (anim === 'tired' || anim === 'slow') eyeScale = 0.55;
+    if (jitter) eyeScale = 1.55; // 카페인으로 눈이 번쩍
+    if (lowbat) eyeScale = 0.28;
     for (const eye of r.eyes) eye.scale.y = ease(eye.scale.y, eyeScale, 14);
 
     // 날개, 선글라스
     r.wings.forEach((w, i) => {
-      w.visible = flying;
-      if (flying) w.rotation.x = (i === 0 ? 1 : -1) * Math.sin(t * 16) * 0.6;
+      // 날개는 쓰지 않는다 — 비행은 목 프로펠러로 한다
+      w.visible = false;
+      void i;
     });
     r.shades.visible = vis.has('shades') || pose || r.alwaysShades;
     if (r.propeller) r.propeller.rotation.y += dt * (6 + speedNorm * 22);
@@ -1303,7 +1485,11 @@ export class Race3DView {
     const fart = vis.has('fart');
     r.flame.visible = boosting && !fart;
     if (r.flame.visible) r.flame.scale.set(0.3, 1.2 + Math.sin(t * 40) * 0.35, 0.3);
-    r.shield.visible = (snap?.shield ?? 0) > 0;
+    // 방어막은 큰 구 대신 뽁뽁이로 보여 준다
+    r.shield.visible = false;
+    r.bubbles.visible = (snap?.shield ?? 0) > 0;
+    r.siren.visible = siren;
+    if (siren) (r.siren.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 14) > 0 ? 0xff2d2d : 0x2f6bff);
     const airborne = flying || r.inflate > 0.5;
     const shadowScale = (airborne ? 0.7 : 1) * s;
     r.shadow.scale.set(1.25 * shadowScale, 0.8 * shadowScale, 1);

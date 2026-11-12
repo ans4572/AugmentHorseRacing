@@ -9,10 +9,12 @@ import { Race3DView } from './race3d';
  */
 const BREEDS: HorseBreed[] = ['horse', 'zebra', 'unicorn', 'donkey', 'cow', 'zebra'];
 const CARDS = [
+  'banana_peel', 'poop_signal', 'stamina_sap', 'teleport', 'muscle_awakening', 'catch_fast', 'extreme_swap', 'shield',
+  'rocket_booster', 'sudden_sleep', 'reverse_instinct', 'stamina_steal', 'energy_drink', 'angel_wings',
   'bipedal', 'pony_morph', 'giraffe_neck', 'balloon_horse', 'giant_horse', 'paper_horse',
   'moonwalk', 'dizzy_spin', 'disco_time', 'cool_shades', 'bunny_hop', 'fart_boost',
-  'bulk_up', 'feather_body', 'angel_wings', 'banana_peel', 'sudden_sleep', 'rocket_booster',
-  'first_suffering', 'mukbang', 'leg_tangle', 'popular_tragedy', 'light_feather', 'reverse_instinct'
+  'bulk_up', 'feather_body',
+  'first_suffering', 'mukbang', 'leg_tangle', 'popular_tragedy', 'light_feather'
 ];
 const STEP_MS = 3200;
 
@@ -71,8 +73,14 @@ export function startShowcase(): void {
         stamina: 80,
         staminaMax: 100,
         anim,
-        effects: [{ defId: def.id, emoji: def.emoji, hostile: def.hostile, remainMs: 1000 }],
-        shield: 0
+        // 한 번 재생하는 연출(공중제비·워프 등)은 실제처럼 남은 시간이 줄어든다
+        effects:
+          def.visualMs || def.visual === 'flip'
+            ? stepSec * 1000 < (def.visualMs || def.durationMs)
+              ? [{ defId: def.id, emoji: def.emoji, hostile: def.hostile, remainMs: (def.visualMs || def.durationMs) - stepSec * 1000 }]
+              : []
+            : [{ defId: def.id, emoji: def.emoji, hostile: def.hostile, remainMs: 1000 }],
+        shield: def.effectType === 'shield' ? 1 : 0
       };
     });
     phaseEl.textContent = names.join(' · ');

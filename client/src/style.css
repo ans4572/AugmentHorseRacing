@@ -334,7 +334,7 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
   border-radius: 3px; padding: 1px 8px; margin: 0 3px; white-space: nowrap; font-weight: 800;
 }
 .augment-timebar { height: 5px; background: rgba(255, 255, 255, 0.22); overflow: hidden; margin-bottom: 9px; }
-.augment-timebar > div { height: 100%; background: var(--hl); transition: width 0.2s linear; }
+.augment-timebar > div { height: 100%; width: 100%; background: var(--hl); transform-origin: left center; transition: transform 0.2s linear; will-change: transform; }
 .augment-cards { display: flex; gap: 9px; }
 .augment-card {
   flex: 1; min-width: 0; background: var(--paper); border-radius: var(--r);
@@ -605,7 +605,7 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
   box-shadow: 0 0 0 1px #fff;
 }
 .r3d-dot {
-  position: absolute; top: 2px; width: 18px; height: 18px; margin-left: -9px;
+  position: absolute; top: 2px; left: 0; width: 18px; height: 18px; margin-left: -9px; will-change: transform;
   border-radius: 3px; color: #fff; font-family: var(--display); font-size: 14px; line-height: 18px; text-align: center;
   text-shadow: 0 1px 0 rgba(26, 33, 80, 0.6);
 }
@@ -1080,3 +1080,71 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 /* 결과 표의 사람 이름에도 색 표식 */
 .result-table .pchip { font-weight: 700; }
 .standing-row .pchip { gap: 8px; }
+
+/* ---------- 증강 카드: 그림 대신 방해/도움 딱지와 색 입힌 효과 ---------- */
+.aug-kind {
+  display: inline-block; flex-shrink: 0; font-family: var(--body); font-size: 12px; font-weight: 800; line-height: 1;
+  color: #fff; padding: 4px 8px; border-radius: 3px; white-space: nowrap;
+}
+.aug-kind.bad { background: var(--stamp); }
+.aug-kind.good { background: #0b6b3a; }
+#augment-bar .augment-card { min-height: 0; padding: 10px 12px 12px; }
+#augment-bar .augment-card .aug-name { font-size: 20px; margin-top: 6px; }
+#augment-bar .augment-card .aug-desc { color: var(--ink); font-size: 14px; margin-top: 2px; }
+.aug-desc .fx { font-weight: 800; font-size: 16px; white-space: nowrap; }
+.augment-card.bad .aug-desc .fx { color: #c21d15; }
+.augment-card.good .aug-desc .fx { color: #0b6b3a; }
+.aug-desc .dur { font-weight: 800; white-space: nowrap; }
+/* 기록 칸의 카드 이름 앞에도 같은 딱지 */
+#game-log .log-row .aug-kind { padding: 3px 6px; }
+#game-log .log-row .lg-cardname { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+@media (max-width: 640px) {
+  #augment-bar .augment-card .aug-name { display: inline; font-size: 18px; margin-left: 6px; }
+  #augment-bar .augment-card .aug-desc { display: block; margin: 4px 0 0; }
+}
+
+/* 증강 카드 설명: 윗줄 소개, 아랫줄 효과 */
+.aug-desc .fl { display: block; font-size: 14px; color: var(--ink); }
+.aug-desc .fx { display: block; font-size: 18px; font-weight: 800; line-height: 1.3; margin-top: 3px; white-space: normal; }
+.aug-desc .fx-part { white-space: nowrap; }
+.augment-card.bad .aug-desc .fx { color: #c21d15; }
+.augment-card.good .aug-desc .fx { color: #0b6b3a; }
+
+/* ---------- 배팅 현황: 내 줄은 노란색 ---------- */
+.reveal-player.me, .reveal-player.me:nth-child(even) { background: var(--hl); }
+.reveal-player.me .muted { color: var(--ink); }
+
+/* ---------- 게임 방법: 네 단계 + 화면 읽는 법 ---------- */
+.howto-lead { font-size: 16px; font-weight: 700; max-width: 40em; margin-bottom: 14px; }
+.howto { list-style: none; padding-left: 0; counter-reset: howto; gap: 14px; max-width: 44em; }
+.howto > li { counter-increment: howto; position: relative; padding-left: 46px; }
+/* 번호는 순서가 있는 단계라서 붙인다 — 말 번호 안장과 같은 네모 */
+.howto > li::before {
+  content: counter(howto); position: absolute; left: 0; top: 0; width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center; border-radius: 3px;
+  background: var(--ink); color: #fff; font-family: var(--display); font-size: 22px; line-height: 1;
+}
+.howto h3 { font-family: var(--display); font-size: 18px; font-weight: 400; margin: 5px 0 4px; }
+.howto p { font-size: 14px; margin: 0; max-width: 38em; }
+.howto p + p, .howto div + p { margin-top: 6px; }
+.howto-bets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 2px; }
+.howto-bets > div { background: var(--paper-2); border-radius: 3px; padding: 6px 8px; display: flex; flex-direction: column; gap: 1px; }
+.howto-bets b { font-size: 14px; font-weight: 800; }
+.howto-bets span { font-size: 12px; }
+.howto-kinds { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 2px; }
+.howto-kinds > div { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.howto-sub { font-family: var(--display); font-size: 18px; font-weight: 400; margin: 18px 0 8px; padding-top: 14px; border-top: 2px dashed var(--ink-soft); }
+.howto-legend { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.howto-legend li { display: flex; align-items: center; gap: 10px; }
+.lg-sample { flex: 0 0 76px; text-align: center; font-size: 12px; font-weight: 800; padding: 4px 0; border-radius: 3px; color: var(--ink); }
+.lg-yellow { background: var(--hl); }
+.lg-green { background: #d3f0b5; }
+.lg-red { background: #ffd3cd; }
+.lg-tag { color: #fff; box-shadow: 0 0 0 2px var(--hl); }
+@media (max-width: 640px) {
+  .howto-bets { grid-template-columns: repeat(2, 1fr); }
+  .howto > li { padding-left: 40px; }
+  .howto > li::before { width: 30px; height: 30px; font-size: 18px; }
+}
+/* 게임 방법이 길어 스크롤이 생겨도 닫기 단추는 항상 아래에 보인다 */
+#modal-howto .btn-row { position: sticky; bottom: -22px; background: var(--paper); padding: 10px 0 12px; margin-top: 12px; box-shadow: 0 -2px 0 var(--ink); }

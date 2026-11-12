@@ -194,6 +194,20 @@ function visibleBets(): RevealedBet[] {
   return betsHidden() ? state.revealed.filter((b) => b.playerId === state.myId) : state.revealed;
 }
 
+/** 방해 카드는 빨강 '방해', 돕는 카드는 초록 '도움' 딱지 */
+function kindChip(hostile: boolean): string {
+  return `<span class="aug-kind ${hostile ? 'bad' : 'good'}">${hostile ? '방해' : '도움'}</span>`;
+}
+
+/** 카드 설명은 '소개\n효과' 두 줄이다. 효과 줄은 카드 색(방해 빨강, 도움 초록)으로 크게 보여 준다 */
+function effectHtml(description: string): string {
+  const [flavor, effect] = description.split('\n');
+  if (!effect) return `<span class="fx">${esc(flavor)}</span>`;
+  // 효과와 지속 시간은 쉼표 자리에서만 줄이 바뀌게 묶는다
+  const parts = effect.split(', ').map((x) => `<span class="fx-part">${esc(x)}</span>`).join(', ');
+  return `<span class="fl">${esc(flavor)}</span><span class="fx">${parts}</span>`;
+}
+
 function addLog(html: string, cls = ''): void {
   const el = document.createElement('div');
   if (cls) el.className = cls;
@@ -259,6 +273,8 @@ function ensureGame(): void {
   if (view || viewFailed) return;
   try {
     view = new Race3DView($('race-canvas'));
+    // 개발 중 성능을 잴 때만 쓰는 손잡이 (배포판에는 들어가지 않는다)
+    if (import.meta.env.DEV) (window as unknown as { __race3d?: Race3DView }).__race3d = view;
   } catch (err) {
     // WebGL을 쓸 수 없는 기기 — 경주 화면 없이 배팅·결과만 진행된다
     viewFailed = true;
@@ -614,7 +630,7 @@ function renderAugmentBar(): void {
       <b>${aug.phase}차 증강 <span class="aug-tier-chip" style="background:${tierInfo.color}">${icon('gem')}${tierInfo.label}</span> ${guide}</b>
       <span class="augment-head-right"><span id="augment-remain">${aug.preview ? '미리보기' : ''}</span><button class="aug-fold" data-fold title="창을 접고 경주 보기">접기</button></span>
     </div>
-    <div class="augment-timebar"><div id="augment-timefill" style="width:100%"></div></div>`;
+    <div class="augment-timebar"><div id="augment-timefill"></div></div>`;
 
   const cards = aug.cards
     .map((c) => {
@@ -634,7 +650,7 @@ function renderAugmentBar(): void {
         pickRow = `<div class="augment-pickhorse"><button class="btn small" data-confirm="${c.cardKey}">${aug.preview ? '이 카드 예약' : '이 카드 쓰기'}</button></div>`;
       }
       const queued = aug.queuedKey === c.cardKey;
-      return `<div class="augment-card${selected ? ' selected' : ''}${queued ? ' queued' : ''}" data-card="${c.cardKey}" style="border-color:${rar.color};${aug.pending ? 'opacity:0.5;pointer-events:none' : ''}">
+      return `<div class="augment-card ${def.hostile ? 'bad' : 'good'}${selected ? ' selected' : ''}${queued ? ' queued' : ''}" data-card="${c.cardKey}" style="border-color:${rar.color};${aug.pending ? 'opacity:0.5;pointer-events:none' : ''}">
         
         ${queued ? '<span class="aug-queued">예약됨</span>' : ''}
         ${
@@ -642,9 +658,9 @@ function renderAugmentBar(): void {
             ? ''
             : `<button class="aug-reroll" data-reroll="${c.cardKey}" title="다른 카드로 바꾸기 (한 번만)" aria-label="${esc(def.name)} 카드를 다른 카드로 바꾸기">${icon('refresh')}</button>`
         }
-        <div class="aug-emoji">${def.emoji}</div>
+        ${kindChip(def.hostile)}
         <div class="aug-name">${esc(def.name)}</div>
-        <div class="aug-desc">${esc(def.description)}</div>
+        <div class="aug-desc">${effectHtml(def.description)}</div>
         <div class="aug-target">${icon('target')}${TARGET_TYPE_LABELS[def.targetType] ?? ''}</div>
         ${pickRow}
       </div>`;
@@ -999,7 +1015,7 @@ function revealListHtml(): string {
           )
           .join('');
       }
-      return `<div class="reveal-player"><div class="rp-name">${name}</div><div class="rp-bets">${betsHtml}</div></div>`;
+      return `<div class="reveal-player${p.id === state.myId ? ' me' : ''}"><div class="rp-name">${name}</div><div class="rp-bets">${betsHtml}</div></div>`;
     })
     .join('');
 }
@@ -1283,7 +1299,7 @@ net.on((msg: S2C) => {
       const flag = myBetHit ? '<span class="lg-flag">내 배팅</span>' : myHorseHit ? '<span class="lg-flag">내 말</span>' : '';
       addLog(
         `<span class="lg-who">${playerChip(msg.playerId, msg.playerName)}</span>` +
-          `<span class="lg-card"><span class="lg-emoji">${def.emoji}</span>${esc(def.name)}</span>` +
+          `<span class="lg-card">${kindChip(def.hostile)}<span class="lg-cardname">${esc(def.name)}</span></span>` +
           `<span class="lg-to">${targetsHtml || '<span class="muted">대상 없음</span>'}${flag}</span>`,
         // 내가 건 말이 대상이면 줄에 색을 칠한다: 이로운 효과는 연두, 해로운 효과는 빨강
         `log-row ${def.hostile ? 'log-bad' : 'log-good'}${myBetHit ? (def.hostile ? ' log-mybet-bad' : ' log-mybet-good') : ''}`
@@ -1356,23 +1372,25 @@ net.on((msg: S2C) => {
 /** 마지막으로 똑딱 소리를 낸 초 (같은 초에 두 번 울리지 않게) */
 let lastTick = -1;
 
+/** 글자가 실제로 바뀔 때만 쓴다. 같은 글자를 다시 써도 브라우저는 화면을 다시 계산하기 때문이다 */
+function setText(el: HTMLElement | null, text: string): void {
+  if (el && el.textContent !== text) el.textContent = text;
+}
+
 setInterval(() => {
   const remain = Math.max(0, state.phaseEndsAt - Date.now());
   const sec = Math.ceil(remain / 1000);
 
-  if (['preview', 'betting', 'reveal', 'countdown'].includes(state.phase)) {
-    $('top-timer').textContent = `${sec}초`;
-  } else {
-    $('top-timer').textContent = '';
-  }
+  const timed = state.phase === 'preview' || state.phase === 'betting' || state.phase === 'reveal' || state.phase === 'countdown';
+  setText($('top-timer'), timed ? `${sec}초` : '');
 
   if (state.phase === 'preview' || state.phase === 'betting') {
-    $('betting-timer').textContent = `${sec}초`;
+    setText($('betting-timer'), `${sec}초`);
   }
 
   if (state.phase === 'countdown') {
     const n = Math.ceil(remain / 1000);
-    $('overlay-countdown').textContent = n > 0 ? String(n) : 'GO!';
+    setText($('overlay-countdown'), n > 0 ? String(n) : 'GO!');
     if (n !== lastTick) {
       lastTick = n;
       if (n > 0) sfx('tick');
@@ -1391,11 +1409,12 @@ setInterval(() => {
   if (aug && !aug.used && !aug.preview) {
     const augRemain = Math.max(0, aug.endsAt - Date.now());
     const el = document.getElementById('augment-remain');
-    if (el) el.textContent = `${(augRemain / 1000).toFixed(1)}초`;
+    setText(el, `${(augRemain / 1000).toFixed(1)}초`);
     const fill = document.getElementById('augment-timefill');
     if (fill) {
       const total = AUGMENT_PHASES.find((p) => p.phase === aug.phase)?.durationMs ?? 6000;
-      fill.style.width = `${Math.max(0, (augRemain / total) * 100)}%`;
+      // 너비 대신 transform으로 줄여 레이아웃을 다시 하지 않게 한다
+      fill.style.transform = `scaleX(${Math.max(0, augRemain / total).toFixed(3)})`;
     }
   }
 }, 150);

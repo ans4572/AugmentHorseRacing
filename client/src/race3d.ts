@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type {
   AugmentVisual,
   HorseAnim,
@@ -44,6 +45,11 @@ const GEO = {
   cone: new THREE.ConeGeometry(1, 1, 12),
   disc: new THREE.CircleGeometry(1, 24),
   box: new THREE.BoxGeometry(1, 1, 1),
+  // 멀리 수백 개씩 깔리는 배경(관중·덤불·나무·울타리 기둥)과 먼지 알갱이는 면 수가 적은 도형을 쓴다.
+  // 배경은 트랙 전체가 한 묶음으로 그려지므로 여기서 줄인 면 수가 그대로 매 프레임 절약된다
+  sphereLo: new THREE.SphereGeometry(1, 10, 7),
+  cylLo: new THREE.CylinderGeometry(1, 1, 1, 7),
+  coneLo: new THREE.ConeGeometry(1, 1, 7),
 };
 
 /** 엉덩이 관절 높이 = 다리 전체 길이 */
@@ -134,6 +140,20 @@ interface Rig {
   labelText: string;
   labelW: number;
   labelH: number;
+  /** 아래 값들은 서버 상태가 올 때(pushState) 한 번 계산하고, 프레임에서는 읽기만 한다 */
+  vis: Set<AugmentVisual>;
+  fxText: string;
+  /** 화면에 마지막으로 쓴 값 — 같으면 DOM을 건드리지 않는다 */
+  labelShown: boolean;
+  labelTf: string;
+  dotPct: number;
+  dotFollowed: boolean;
+  /** 이름표 배치 계산용 (프레임마다 객체를 새로 만들지 않기 위해 여기에 둔다) */
+  lsx: number;
+  lsy: number;
+  lscale: number;
+  ldist: number;
+  lbottom: number;
   dot: HTMLDivElement;
   displayPos: number;
   targetPos: number;
@@ -145,7 +165,9 @@ interface Rig {
 }
 
 interface Particle {
-  mesh: THREE.Mesh;
+  x: number;
+  y: number;
+  z: number;
   life: number;
   maxLife: number;
   vx: number;
@@ -289,7 +311,8 @@ export class Race3DView {
     this.preview = !!opts.preview;
     this.backdrop = !!opts.backdrop;
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.backdrop ? 1.5 : 2));
+    this.pixelRatio = Math.min(window.devicePixelRatio || 1, this.backdrop ? 1.5 : 2);
+    this.renderer.setPixelRatio(this.pixelRatio);
     if (!this.backdrop) container.style.position = 'relative';
     container.appendChild(this.renderer.domElement);
 
@@ -403,6 +426,14 @@ export class Race3DView {
 
     this.buildFences(totalLen, midX);
     this.buildScenery(totalLen);
+
+    // 배경은 한 번 놓으면 움직이지 않는다. 위치 행렬을 지금 한 번만 계산해 두고 프레임마다 다시 계산하지 않게 한다
+    this.scene.traverse((o) => {
+      if (o === this.scene) return;
+      o.updateMatrix();
+      o.matrixAutoUpdate = false;
+    });
+    this.scene.updateMatrixWorld(true);
   }
 
   private addStripe(x: number, color: number, width: number, opacity: number): void {
@@ -448,7 +479,7 @@ export class Race3DView {
     const white = new THREE.MeshToonMaterial({ color: 0xffffff });
     const spacing = 4;
     const count = Math.floor(totalLen / spacing);
-    const posts = new THREE.InstancedMesh(GEO.cyl, white, count * 2);
+    const posts = new THREE.InstancedMesh(GEO.cylLo, white, count * 2);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     let i = 0;
@@ -476,9 +507,9 @@ export class Race3DView {
 
     // 나무 (먼 쪽) — 지나가는 나무들이 속도감을 더한다
     const treeCount = 90;
-    const trunks = new THREE.InstancedMesh(GEO.cyl, new THREE.MeshToonMaterial({ color: 0x8d6e4a }), treeCount);
-    const leavesA = new THREE.InstancedMesh(GEO.cone, new THREE.MeshToonMaterial({ color: 0x2f9e44 }), treeCount);
-    const leavesB = new THREE.InstancedMesh(GEO.cone, new THREE.MeshToonMaterial({ color: 0x40c057 }), treeCount);
+    const trunks = new THREE.InstancedMesh(GEO.cylLo, new THREE.MeshToonMaterial({ color: 0x8d6e4a }), treeCount);
+    const leavesA = new THREE.InstancedMesh(GEO.coneLo, new THREE.MeshToonMaterial({ color: 0x2f9e44 }), treeCount);
+    const leavesB = new THREE.InstancedMesh(GEO.coneLo, new THREE.MeshToonMaterial({ color: 0x40c057 }), treeCount);
     for (let i = 0; i < treeCount; i++) {
       const x = -50 + rnd() * (totalLen + 40);
       const z = -(HALF_W + 6) - rnd() * 34;
@@ -494,7 +525,7 @@ export class Race3DView {
 
     // 덤불 (양쪽, 낮게)
     const bushCount = 140;
-    const bushes = new THREE.InstancedMesh(GEO.sphere, new THREE.MeshToonMaterial({ color: 0x37b24d }), bushCount);
+    const bushes = new THREE.InstancedMesh(GEO.sphereLo, new THREE.MeshToonMaterial({ color: 0x37b24d }), bushCount);
     for (let i = 0; i < bushCount; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const x = -50 + rnd() * (totalLen + 40);
@@ -521,7 +552,7 @@ export class Race3DView {
     this.scene.add(roof);
 
     const crowdCount = 180;
-    const crowd = new THREE.InstancedMesh(GEO.sphere, new THREE.MeshToonMaterial({ color: 0xffffff }), crowdCount);
+    const crowd = new THREE.InstancedMesh(GEO.sphereLo, new THREE.MeshToonMaterial({ color: 0xffffff }), crowdCount);
     const palette = [0xff6b6b, 0xffd43b, 0x4dabf7, 0x69db7c, 0xda77f2, 0xffa94d, 0xffffff];
     const col = new THREE.Color();
     for (let i = 0; i < crowdCount; i++) {
@@ -876,13 +907,16 @@ export class Race3DView {
       const a = brand() * Math.PI * 2;
       const u = brand() * 2 - 1;
       const rr = Math.sqrt(1 - u * u);
-      const bub = new THREE.Mesh(GEO.sphere, bubbleMat);
+      const bub = new THREE.Mesh(GEO.sphereLo, bubbleMat);
       bub.position.set(Math.cos(a) * rr * 1.02, 1.15 + u * 0.58, Math.sin(a) * rr * 0.52);
       bub.scale.setScalar(0.13 + brand() * 0.07);
+      // 방울은 몸에 붙은 자리에서 움직이지 않으므로 자리 계산은 한 번만 한다
+      bub.updateMatrix();
+      bub.matrixAutoUpdate = false;
       bubbles.add(bub);
     }
-    bubbles.visible = false;
-    torso.add(bubbles);
+    // 방울 26개는 방어막이 있을 때만 몸에 붙인다. 숨겨 두기만 하면 보이지 않아도 매 프레임 위치를 계산한다
+    bubbles.userData.home = torso;
     // 과속 단속: 머리 위 경광등
     const siren = new THREE.Mesh(GEO.sphere, new THREE.MeshBasicMaterial({ color: 0xff2d2d }));
     siren.scale.set(0.17, 0.2, 0.17);
@@ -924,7 +958,7 @@ export class Race3DView {
     if (inkOn(info.color)) dot.classList.add('dk');
     this.minimap.appendChild(dot);
 
-    return {
+    const rig: Rig = {
       info,
       root,
       inner,
@@ -968,9 +1002,20 @@ export class Race3DView {
       shield,
       shadow,
       label,
-      labelText: '',
+      labelText: LABEL_UNDRAWN, // 아직 한 번도 그리지 않았다는 표시 (빈 문자열은 '아이콘 없음'과 구분되지 않는다)
       labelW: 0,
       labelH: 0,
+      vis: new Set(),
+      fxText: '',
+      labelShown: true,
+      labelTf: '',
+      dotPct: -1,
+      dotFollowed: false,
+      lsx: 0,
+      lsy: 0,
+      lscale: 1,
+      ldist: 0,
+      lbottom: 0,
       dot,
       displayPos: 0,
       targetPos: 0,
@@ -980,6 +1025,8 @@ export class Race3DView {
       facing: 0,
       snap: null
     };
+    mergeStaticParts(rig);
+    return rig;
   }
 
   // ---------------- RaceView 구현 ----------------
@@ -987,6 +1034,7 @@ export class Race3DView {
   setupRace(infos: HorseInfo[]): void {
     for (const r of this.rigs) {
       this.scene.remove(r.root);
+      disposeMerged(r);
       r.label.remove();
       r.dot.remove();
     }
@@ -1006,6 +1054,13 @@ export class Race3DView {
       r.targetPos = snap.pos;
       r.speed = snap.speed;
       r.snap = snap;
+      // 걸려 있는 증강의 연출 종류와 이름표 아이콘은 상태가 바뀔 때만 다시 계산한다 (1초에 10번)
+      r.vis.clear();
+      for (const e of snap.effects) {
+        const v = AUGMENT_BY_ID[e.defId]?.visual;
+        if (v) r.vis.add(v);
+      }
+      r.fxText = labelFxText(snap, r.vis);
     }
   }
 
@@ -1066,7 +1121,7 @@ export class Race3DView {
       const rig = this.rigs.find((v) => v.info.id === id);
       if (!rig) continue;
       const mesh = new THREE.Mesh(
-        new THREE.TorusGeometry(1.3, 0.13, 8, 32),
+        RING_GEO,
         new THREE.MeshBasicMaterial({ color: good ? 0x2cb67d : 0xef4565, transparent: true })
       );
       mesh.rotation.x = Math.PI / 2;
@@ -1120,10 +1175,45 @@ export class Race3DView {
 
   // ---------------- 프레임 루프 ----------------
 
+  /** 경주 화면의 CSS 크기. 크기가 바뀔 때만 다시 재고, 프레임에서는 이 값을 쓴다 (프레임마다 재면 강제 레이아웃이 생긴다) */
+  private viewW = 1;
+  private viewH = 1;
+  /** 지금 쓰는 화소 배율. 프레임이 계속 낮으면 단계적으로 낮춘다 */
+  private pixelRatio = 1;
+  private perfFrames = 0;
+  private perfTime = 0;
+  private perfSlow = 0;
+
+  /** 2초마다 프레임 수를 보고, 두 번 연속 40fps에 못 미치면 화소 배율을 한 단계 낮춘다 */
+  private watchPerformance(rawDt: number): void {
+    if (this.preview || this.pixelRatio <= 1) return;
+    if (rawDt > 0.25) {
+      // 탭이 가려졌다 돌아온 것이므로 이번 구간은 버린다
+      this.perfFrames = 0;
+      this.perfTime = 0;
+      return;
+    }
+    this.perfFrames++;
+    this.perfTime += rawDt;
+    if (this.perfTime < 2) return;
+    const fps = this.perfFrames / this.perfTime;
+    this.perfFrames = 0;
+    this.perfTime = 0;
+    this.perfSlow = fps < 40 ? this.perfSlow + 1 : 0;
+    if (this.perfSlow >= 2) {
+      this.perfSlow = 0;
+      this.pixelRatio = Math.max(1, this.pixelRatio - 0.5);
+      this.renderer.setPixelRatio(this.pixelRatio);
+      this.resize();
+    }
+  }
+
   private resize(): void {
     if (this.backdrop) {
       const bw = Math.max(1, this.container.clientWidth);
       const bh = Math.max(1, this.container.clientHeight);
+      this.viewW = bw;
+      this.viewH = bh;
       this.renderer.setSize(bw, bh, false);
       this.camera.aspect = bw / bh;
       // 넓은 화면에서는 말들이 오른쪽에 오도록 시야를 옮겨 왼쪽의 제목과 겹치지 않게 한다
@@ -1135,6 +1225,8 @@ export class Race3DView {
     if (this.preview) {
       const pw = Math.max(160, this.container.clientWidth);
       const ph = Math.round((pw * 3) / 4);
+      this.viewW = pw;
+      this.viewH = ph;
       this.renderer.setSize(pw, ph, false);
       this.camera.aspect = pw / ph;
       this.camera.updateProjectionMatrix();
@@ -1148,6 +1240,8 @@ export class Race3DView {
     if (window.innerHeight < 560) h = Math.max(180, Math.min(h, window.innerHeight - 58));
     // 넓은 화면에서도 상단 바와 기록 칸이 함께 보이도록 높이를 화면에 맞춘다
     else if (!portraitPhone) h = Math.min(h, Math.max(260, window.innerHeight - 236));
+    this.viewW = w;
+    this.viewH = h;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -1162,6 +1256,7 @@ export class Race3DView {
     const dt = Math.min(0.05, rawDt);
     this.lastTime = now;
     this.elapsed += dt;
+    this.watchPerformance(rawDt);
     this.update(dt, rawDt);
     this.renderer.render(this.scene, this.camera);
     this.updateLabels();
@@ -1188,13 +1283,7 @@ export class Race3DView {
       cur + (target - cur) * Math.min(1, dt * rate);
 
     // 지금 걸려 있는 증강들의 연출 종류
-    const vis = new Set<AugmentVisual>();
-    if (snap) {
-      for (const e of snap.effects) {
-        const v = AUGMENT_BY_ID[e.defId]?.visual;
-        if (v) vis.add(v);
-      }
-    }
+    const vis = r.vis;
     // 한 번 재생하는 연출의 진행도(0~1). 서버 상태는 0.1초 단위라 시작 시각만 받아 직접 센다.
     const oneShot = (v: AugmentVisual): number | null => {
       const e = snap?.effects.find((x) => AUGMENT_BY_ID[x.defId]?.visual === v);
@@ -1507,7 +1596,11 @@ export class Race3DView {
     if (r.flame.visible) r.flame.scale.set(0.3, 1.2 + Math.sin(t * 40) * 0.35, 0.3);
     // 방어막은 큰 구 대신 뽁뽁이로 보여 준다
     r.shield.visible = false;
-    r.bubbles.visible = (snap?.shield ?? 0) > 0;
+    const shielded = (snap?.shield ?? 0) > 0;
+    if (shielded !== (r.bubbles.parent !== null)) {
+      if (shielded) (r.bubbles.userData.home as THREE.Object3D).add(r.bubbles);
+      else r.bubbles.removeFromParent();
+    }
     r.siren.visible = false; // 예전 '과속 단속'의 경광등 — 지금은 쓰지 않는다
     const airborne = flying || r.inflate > 0.5;
     const shadowScale = (airborne ? 0.7 : 1) * s;
@@ -1635,40 +1728,74 @@ export class Race3DView {
     return mats[Math.floor(Math.random() * mats.length)];
   }
 
-  private spawnDust(x: number, y: number, z: number, big: boolean, mat: THREE.Material): void {
-    let p = this.particles.find((q) => q.life <= 0);
-    if (!p) {
-      if (this.particles.length >= 110) return;
-      const mesh = new THREE.Mesh(GEO.sphere, this.dustMat);
-      this.scene.add(mesh);
-      p = { mesh, life: 0, maxLife: 1, vx: 0, vy: 0, vz: 0, size: 0.2 };
-      this.particles.push(p);
+  /**
+   * 먼지 알갱이는 최대 110개를 한 번의 그리기 명령으로 그린다 (알갱이마다 따로 그리면 명령이 100번 넘게 나간다).
+   * 색은 알갱이마다 따로 줄 수 있고, 쓰지 않는 알갱이는 크기 0으로 둔다.
+   */
+  private dustMesh: THREE.InstancedMesh | null = null;
+  private static readonly DUST_MAX = 110;
+
+  private ensureDust(): THREE.InstancedMesh {
+    if (this.dustMesh) return this.dustMesh;
+    const mesh = new THREE.InstancedMesh(
+      GEO.sphereLo,
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.72, depthWrite: false }),
+      Race3DView.DUST_MAX
+    );
+    mesh.frustumCulled = false;
+    mesh.matrixAutoUpdate = false;
+    TMP_M.makeScale(0, 0, 0);
+    for (let i = 0; i < Race3DView.DUST_MAX; i++) {
+      mesh.setMatrixAt(i, TMP_M);
+      mesh.setColorAt(i, this.dustMat.color);
+      this.particles.push({ x: 0, y: 0, z: 0, life: 0, maxLife: 1, vx: 0, vy: 0, vz: 0, size: 0.2 });
     }
-    p.mesh.material = mat;
+    this.scene.add(mesh);
+    this.dustMesh = mesh;
+    return mesh;
+  }
+
+  private spawnDust(x: number, y: number, z: number, big: boolean, mat: THREE.Material): void {
+    const mesh = this.ensureDust();
+    const idx = this.particles.findIndex((q) => q.life <= 0);
+    if (idx < 0) return;
+    const p = this.particles[idx];
+    mesh.setColorAt(idx, (mat as THREE.MeshBasicMaterial).color);
+    mesh.instanceColor!.needsUpdate = true;
     p.maxLife = 0.55 + Math.random() * 0.3;
     p.life = p.maxLife;
     p.size = (big ? 0.34 : 0.22) + Math.random() * 0.12;
     p.vx = -1.5 - Math.random() * 1.5;
     p.vy = 0.9 + Math.random() * 0.8;
     p.vz = (Math.random() - 0.5) * 1.2;
-    p.mesh.position.set(x, y, z);
-    p.mesh.visible = true;
+    p.x = x;
+    p.y = y;
+    p.z = z;
   }
 
   private updateParticles(dt: number): void {
-    for (const p of this.particles) {
+    const mesh = this.dustMesh;
+    if (!mesh) return;
+    let changed = false;
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
       if (p.life <= 0) continue;
+      changed = true;
       p.life -= dt;
       if (p.life <= 0) {
-        p.mesh.visible = false;
+        TMP_M.makeScale(0, 0, 0);
+        mesh.setMatrixAt(i, TMP_M);
         continue;
       }
-      p.mesh.position.x += p.vx * dt;
-      p.mesh.position.y += p.vy * dt;
-      p.mesh.position.z += p.vz * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
       const k = p.life / p.maxLife;
-      p.mesh.scale.setScalar(p.size * (0.4 + (1 - k) * 1.1) * Math.min(1, k * 3));
+      const sc = p.size * (0.4 + (1 - k) * 1.1) * Math.min(1, k * 3);
+      TMP_M.makeScale(sc, sc, sc).setPosition(p.x, p.y, p.z);
+      mesh.setMatrixAt(i, TMP_M);
     }
+    if (changed) mesh.instanceMatrix.needsUpdate = true;
   }
 
   private updateRings(dt: number): void {
@@ -1676,7 +1803,6 @@ export class Race3DView {
       ring.life -= dt;
       if (ring.life <= 0) {
         this.scene.remove(ring.mesh);
-        ring.mesh.geometry.dispose();
         (ring.mesh.material as THREE.Material).dispose();
         return false;
       }
@@ -1710,8 +1836,8 @@ export class Race3DView {
       this.camera.lookAt(tx + 0.35, 2.15, tz);
       return;
     }
-    const pos = new THREE.Vector3();
-    const look = new THREE.Vector3();
+    const pos = TMP_A;
+    const look = TMP_B;
 
     const winner =
       this.winnerId != null ? this.rigs.find((r) => r.info.id === this.winnerId) : undefined;
@@ -1771,68 +1897,58 @@ export class Race3DView {
 
   // ---------------- DOM 라벨 / 미니맵 ----------------
 
+  /** 이름표 내용을 다시 그린다 (내용이 바뀔 때만 불린다) */
+  private renderLabel(r: Rig): void {
+    r.label.textContent = '';
+    if (r.note) {
+      const nt = document.createElement('div');
+      nt.className = `r3d-label-note${r.note.hostile ? ' hostile' : ''}`;
+      nt.textContent = r.note.text;
+      const who = document.createElement('small');
+      if (r.note.byColor) {
+        // 쓴 사람의 색 표식 — 등수표와 기록 칸의 표식과 같은 색
+        const dot = document.createElement('i');
+        dot.className = 'r3d-who-dot';
+        dot.style.background = r.note.byColor;
+        who.appendChild(dot);
+      }
+      who.appendChild(document.createTextNode(r.note.by));
+      nt.appendChild(who);
+      r.label.appendChild(nt);
+    }
+    if (r.fxText) {
+      const f = document.createElement('div');
+      f.className = 'r3d-label-fx';
+      f.textContent = r.fxText;
+      r.label.appendChild(f);
+    }
+    // 순위는 화면 왼쪽 위 등수표에서 보여 주므로 이름표에는 넣지 않는다
+    const n = document.createElement('div');
+    n.className = 'r3d-label-name';
+    n.style.borderColor = r.info.color;
+    n.textContent = `${r.info.id}번 ${r.info.name}`;
+    n.classList.toggle('mine', !!r.info.ownerId);
+    r.label.appendChild(n);
+    r.labelW = 0; // 다음 표시 때 크기를 다시 잰다
+  }
+
+  private labelOrder: Rig[] = [];
+
   private updateLabels(): void {
-    const w = this.container.clientWidth;
-    const h = this.renderer.domElement.clientHeight || (w * 9) / 16;
-    const v = new THREE.Vector3();
+    const w = this.viewW;
+    const h = this.viewH;
+    const v = TMP_A;
     const followed = this.followedRig();
-    const placements: { rig: Rig; sx: number; sy: number; scale: number; dist: number }[] = [];
+    const order = this.labelOrder;
+    order.length = 0;
 
     for (const r of this.rigs) {
-      const snap = r.snap;
-      const anim = snap?.anim ?? 'idle';
-
       // 라벨 내용 (바뀔 때만 DOM 갱신)
-      const fx: string[] = [];
-      if (snap) {
-        if (snap.shield > 0) fx.push('🛡️');
-        const awake = snap.effects.some((e) => {
-          const v = AUGMENT_BY_ID[e.defId]?.visual;
-          return v === 'disco' || v === 'pose' || v === 'eat';
-        });
-        if (anim === 'stunned' && !awake) fx.push('💤');
-        if (anim === 'tired') fx.push('💦');
-        if (anim === 'fallen') fx.push('💫');
-        if (anim === 'finished') fx.push('🏁');
-        fx.push(...snap.effects.map((e) => e.emoji));
-      }
-      const fxText = [...new Set(fx)].slice(0, 5).join('');
-      // 순위는 화면 왼쪽 위 등수표에서 보여 주므로 이름표에는 넣지 않는다
-      const rankText = '';
       if (r.note && this.elapsed > r.note.until) r.note = null;
-      const text = `${rankText}|${fxText}|${r.note ? r.note.text + r.note.by : ''}`;
+      const text = r.note ? `${r.fxText}|${r.note.text}${r.note.by}` : r.fxText;
       if (text !== r.labelText) {
         r.labelText = text;
-        r.label.innerHTML = '';
-        if (r.note) {
-          const nt = document.createElement('div');
-          nt.className = `r3d-label-note${r.note.hostile ? ' hostile' : ''}`;
-          nt.textContent = r.note.text;
-          const who = document.createElement('small');
-          if (r.note.byColor) {
-            // 쓴 사람의 색 표식 — 등수표와 기록 칸의 표식과 같은 색
-            const dot = document.createElement('i');
-            dot.className = 'r3d-who-dot';
-            dot.style.background = r.note.byColor;
-            who.appendChild(dot);
-          }
-          who.appendChild(document.createTextNode(r.note.by));
-          nt.appendChild(who);
-          r.label.appendChild(nt);
-        }
-        if (fxText) {
-          const f = document.createElement('div');
-          f.className = 'r3d-label-fx';
-          f.textContent = fxText;
-          r.label.appendChild(f);
-        }
-        const n = document.createElement('div');
-        n.className = 'r3d-label-name';
-        n.style.borderColor = r.info.color;
-        n.textContent = `${rankText ? rankText + ' ' : ''}${r.info.id}번 ${r.info.name}`;
-        n.classList.toggle('mine', !!r.info.ownerId);
-        r.label.appendChild(n);
-        r.labelW = 0; // 다음 표시 때 크기를 다시 잰다
+        this.renderLabel(r);
       }
 
       // 3D 위치 → 화면 좌표
@@ -1842,39 +1958,182 @@ export class Race3DView {
       const sx = (v.x * 0.5 + 0.5) * w;
       const sy = (-v.y * 0.5 + 0.5) * h;
       const visible = v.z < 1 && v.z > -1 && sx > -60 && sx < w + 60 && sy > -20 && sy < h + 40;
-      r.label.style.display = visible ? '' : 'none';
+      if (visible !== r.labelShown) {
+        r.labelShown = visible;
+        r.label.style.display = visible ? '' : 'none';
+      }
       if (visible) {
         if (r.labelW === 0) {
           r.labelW = r.label.offsetWidth || 110;
           r.labelH = r.label.offsetHeight || 24;
         }
-        placements.push({ rig: r, sx, sy, scale: Math.max(0.55, Math.min(1.1, 24 / dist)), dist });
+        r.lsx = sx;
+        r.lsy = sy;
+        r.lscale = Math.max(0.55, Math.min(1.1, 24 / dist));
+        r.ldist = dist;
+        order.push(r);
       }
 
-      // 미니맵 점
-      r.dot.style.left = `${(r.displayPos / COURSE_LENGTH) * 100}%`;
-      r.dot.classList.toggle('followed', r === followed);
+      // 미니맵 점: 반 픽셀 넘게 움직였을 때만, 레이아웃을 다시 하지 않는 transform으로 옮긴다
+      // (미니맵 너비는 CSS에서 화면의 68%)
+      const px = Math.round((r.displayPos / COURSE_LENGTH) * w * MINIMAP_WIDTH_RATIO * 2) / 2;
+      if (px !== r.dotPct) {
+        r.dotPct = px;
+        r.dot.style.transform = `translateX(${px}px)`;
+      }
+      const isFollowed = r === followed;
+      if (isFollowed !== r.dotFollowed) {
+        r.dotFollowed = isFollowed;
+        r.dot.classList.toggle('followed', isFollowed);
+      }
     }
 
     // 겹침 해소: 카메라에 가까운 말의 이름표를 먼저 놓고, 겹치는 것은 위로 밀어 올린다
-    placements.sort((a, b) => a.dist - b.dist);
-    const placed: { cx: number; bottom: number; w: number; h: number }[] = [];
-    for (const p of placements) {
-      const lw = p.rig.labelW * p.scale;
-      const lh = p.rig.labelH * p.scale;
-      let bottom = p.sy;
+    order.sort(byLabelDist);
+    for (let i = 0; i < order.length; i++) {
+      const p = order[i];
+      const lw = p.labelW * p.lscale;
+      const lh = p.labelH * p.lscale;
+      let bottom = p.lsy;
       for (let pass = 0; pass < 6; pass++) {
-        const hit = placed.find(
-          (o) =>
-            Math.abs(o.cx - p.sx) < (o.w + lw) / 2 + 4 &&
-            bottom > o.bottom - o.h - 2 &&
-            bottom - lh < o.bottom + 2
-        );
+        let hit: Rig | null = null;
+        for (let k = 0; k < i; k++) {
+          const o = order[k];
+          const ow = o.labelW * o.lscale;
+          const oh = o.labelH * o.lscale;
+          if (Math.abs(o.lsx - p.lsx) < (ow + lw) / 2 + 4 && bottom > o.lbottom - oh - 2 && bottom - lh < o.lbottom + 2) {
+            hit = o;
+            break;
+          }
+        }
         if (!hit) break;
-        bottom = hit.bottom - hit.h - 3;
+        bottom = hit.lbottom - hit.labelH * hit.lscale - 3;
       }
-      placed.push({ cx: p.sx, bottom, w: lw, h: lh });
-      p.rig.label.style.transform = `translate(${p.sx.toFixed(1)}px, ${bottom.toFixed(1)}px) translate(-50%, -100%) scale(${p.scale.toFixed(2)})`;
+      p.lbottom = bottom;
+      const tf = `translate(${p.lsx.toFixed(1)}px, ${bottom.toFixed(1)}px) translate(-50%, -100%) scale(${p.lscale.toFixed(2)})`;
+      if (tf !== p.labelTf) {
+        p.labelTf = tf;
+        p.label.style.transform = tf;
+      }
     }
   }
+}
+
+// ---------------- 프레임마다 다시 쓰는 것들 ----------------
+
+/** .r3d-minimap의 left 16% + right 16%를 뺀 너비 비율 */
+const MINIMAP_WIDTH_RATIO = 0.68;
+/** 이름표를 아직 한 번도 그리지 않았다는 표시 */
+const LABEL_UNDRAWN = '(undrawn)';
+const TMP_A = new THREE.Vector3();
+const TMP_M = new THREE.Matrix4();
+const TMP_B = new THREE.Vector3();
+/** 증강을 맞았을 때 번쩍이는 고리 — 모양은 하나만 만들어 함께 쓴다 */
+const RING_GEO = new THREE.TorusGeometry(1.3, 0.13, 8, 32);
+const byLabelDist = (a: Rig, b: Rig): number => a.ldist - b.ldist;
+
+/** 이름표에 붙는 상태 아이콘 (방어막, 기절, 지침, 걸린 증강 등). 겹치는 것은 한 번만, 5개까지 */
+function labelFxText(snap: HorseSnapshot, vis: Set<AugmentVisual>): string {
+  const fx: string[] = [];
+  const add = (e: string): void => {
+    if (fx.length < 5 && !fx.includes(e)) fx.push(e);
+  };
+  if (snap.shield > 0) add('🛡️');
+  // 춤추거나 포즈를 잡거나 먹느라 멈춘 말은 자는 표시를 붙이지 않는다
+  const awake = vis.has('disco') || vis.has('pose') || vis.has('eat');
+  if (snap.anim === 'stunned' && !awake) add('💤');
+  if (snap.anim === 'tired') add('💦');
+  if (snap.anim === 'fallen') add('💫');
+  if (snap.anim === 'finished') add('🏁');
+  for (const e of snap.effects) add(e.emoji);
+  return fx.join('');
+}
+
+// ---------------- 말 부품 합치기 ----------------
+
+/** Rig가 직접 가리키는 3D 물체들 — 애니메이션이 건드리는 것이므로 합치지 않고 그대로 둔다 */
+function animatedObjects(rig: Rig): Set<THREE.Object3D> {
+  const keep = new Set<THREE.Object3D>();
+  const visit = (v: unknown, depth: number): void => {
+    if (v instanceof THREE.Object3D) keep.add(v);
+    else if (depth < 2 && Array.isArray(v)) v.forEach((x) => visit(x, depth + 1));
+    else if (depth < 2 && v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype)
+      Object.values(v).forEach((x) => visit(x, depth + 1));
+  };
+  Object.values(rig).forEach((v) => visit(v, 0));
+  return keep;
+}
+
+/**
+ * 말 한 마리는 작은 부품 100개쯤으로 조립되고, 부품마다 그리기 명령이 한 번씩 나간다.
+ * 같은 묶음(머리, 다리 한 짝 등) 안에서 따로 움직이지 않는 부품은 재질별로 한 덩어리로 합쳐
+ * 그리기 명령 수를 줄인다. 모양과 움직임은 그대로다.
+ */
+function mergeStaticParts(rig: Rig): void {
+  const keep = animatedObjects(rig);
+  const isLeaf = (o: THREE.Object3D): o is THREE.Mesh =>
+    o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh) && o.children.length === 0 && !keep.has(o) && o.visible;
+  const groups: THREE.Object3D[] = [];
+  rig.root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) groups.push(o);
+  });
+  const m = new THREE.Matrix4();
+  for (const g of groups) {
+    // 합칠 수 있는 부품: 보이는 메시이고, 딸린 것이 있다면 외곽선 같은 단순 메시뿐인 것
+    const parts = g.children.filter(
+      (c): c is THREE.Mesh =>
+        c instanceof THREE.Mesh && !(c instanceof THREE.InstancedMesh) && c.visible && !keep.has(c) && c.children.every(isLeaf)
+    );
+    if (parts.length === 0) continue;
+    const byMat = new Map<THREE.Material, THREE.BufferGeometry[]>();
+    const push = (mesh: THREE.Mesh, matrix: THREE.Matrix4): void => {
+      if (Array.isArray(mesh.material)) return;
+      const geo = mesh.geometry.clone().applyMatrix4(matrix);
+      // 좌우를 뒤집어 붙인 부품은 면의 앞뒤가 바뀌므로 다시 돌려 놓는다
+      if (matrix.determinant() < 0 && geo.index) {
+        const idx = geo.index.array;
+        for (let i = 0; i < idx.length; i += 3) {
+          const t = idx[i];
+          idx[i] = idx[i + 2];
+          idx[i + 2] = t;
+        }
+      }
+      let list = byMat.get(mesh.material);
+      if (!list) byMat.set(mesh.material, (list = []));
+      list.push(geo);
+    };
+    let count = 0;
+    for (const c of parts) {
+      c.updateMatrix();
+      push(c, c.matrix);
+      count++;
+      for (const o of c.children as THREE.Mesh[]) {
+        o.updateMatrix();
+        push(o, m.multiplyMatrices(c.matrix, o.matrix));
+        count++;
+      }
+    }
+    // 합쳐도 줄어드는 것이 없으면 그대로 둔다
+    if (count <= byMat.size) {
+      for (const list of byMat.values()) list.forEach((x) => x.dispose());
+      continue;
+    }
+    for (const c of parts) g.remove(c);
+    for (const [mat, list] of byMat) {
+      const merged = mergeGeometries(list, false);
+      list.forEach((x) => x.dispose());
+      if (!merged) continue;
+      const mesh = new THREE.Mesh(merged, mat);
+      mesh.userData.merged = true;
+      mesh.matrixAutoUpdate = false;
+      g.add(mesh);
+    }
+  }
+}
+
+/** 합쳐서 만든 도형은 이 말만의 것이므로 말을 치울 때 함께 버린다 */
+function disposeMerged(rig: Rig): void {
+  rig.root.traverse((o) => {
+    if (o instanceof THREE.Mesh && o.userData.merged) o.geometry.dispose();
+  });
 }

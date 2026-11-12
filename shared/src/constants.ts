@@ -37,7 +37,9 @@ export const TOP_UP_AMOUNT = 100;
 
 export const BET_MIN = 10;
 /** 라운드당 총 배팅금 한도: 배팅 시작 시 보유 코인의 30% */
-export const BET_LIMIT_RATIO = 0.3;
+export const BET_LIMIT_RATIO = 1;
+/** NPC가 한 라운드에 거는 금액의 상한 (가진 코인 대비). 사람은 올인도 할 수 있다 */
+export const NPC_BET_RATIO = 0.3;
 
 export const BET_TYPE_INFO: Record<BetType, { label: string; desc: string }> = {
   winner: { label: '우승마', desc: '해당 말이 1등' },
@@ -76,11 +78,15 @@ export interface AugmentPhaseDef {
   durationMs: number;
 }
 
+/** 증강 지점보다 이만큼(코스 비율) 앞에서 카드를 미리 보여 주고 예약을 받는다 */
+export const AUGMENT_PREVIEW_LEAD = 0.05;
+
 export const AUGMENT_PHASES: AugmentPhaseDef[] = [
-  { phase: 1, at: 0.2, durationMs: 7000 },
-  { phase: 2, at: 0.4, durationMs: 6000 },
-  { phase: 3, at: 0.6, durationMs: 6000 },
-  { phase: 4, at: 0.8, durationMs: 5000 }
+  { phase: 1, at: 0.1, durationMs: 7000 },
+  { phase: 2, at: 0.3, durationMs: 6000 },
+  { phase: 3, at: 0.5, durationMs: 6000 },
+  { phase: 4, at: 0.7, durationMs: 5000 },
+  { phase: 5, at: 0.9, durationMs: 5000 }
 ];
 
 /** 같은 등급 안에서 희귀도별 가중치 (플래티넘 안에서 전설이 영웅보다 드물다) */
@@ -116,10 +122,11 @@ export const TIER_INFO: Record<AugmentTier, { label: string; emoji: string; colo
 
 /** 구간별 등급 등장 가중치 — 뒤 구간일수록 높은 등급이 잘 나온다 */
 export const PHASE_TIER_WEIGHTS: Record<number, Record<AugmentTier, number>> = {
-  1: { silver: 60, gold: 30, platinum: 10 },
-  2: { silver: 45, gold: 40, platinum: 15 },
-  3: { silver: 30, gold: 45, platinum: 25 },
-  4: { silver: 20, gold: 40, platinum: 40 }
+  1: { silver: 65, gold: 28, platinum: 7 },
+  2: { silver: 50, gold: 37, platinum: 13 },
+  3: { silver: 38, gold: 42, platinum: 20 },
+  4: { silver: 28, gold: 42, platinum: 30 },
+  5: { silver: 20, gold: 40, platinum: 40 }
 };
 
 /** 등급 안에 뽑을 카드가 모자랄 때 채워 넣는 순서 */

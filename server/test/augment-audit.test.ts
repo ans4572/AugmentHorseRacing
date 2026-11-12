@@ -52,10 +52,10 @@ describe('전체 증강 점검 — 모든 카드가 설명한 방향으로 실�
     }
   });
 
-  it('어느 등급이든 마지막(4차) 구간에서 3장을 채울 수 있다', () => {
+  it('어느 등급이든 마지막(5차) 구간에서 3장을 채울 수 있다', () => {
     for (const tier of ['silver', 'gold', 'platinum']) {
       const count = AUGMENTS.filter(
-        (a) => TIER_OF_RARITY[a.rarity] === tier && a.allowedPhases.includes(4)
+        (a) => TIER_OF_RARITY[a.rarity] === tier && a.allowedPhases.includes(5)
       ).length;
       expect(count, tier).toBeGreaterThanOrEqual(6);
     }
@@ -131,14 +131,18 @@ describe('증강 동작 세부', () => {
     expect(h.speed).toBeLessThanOrEqual(baseMax * 2.0 * 1.12);
   });
 
-  it('지구력이 줄수록 서서히 느려지고, 회복 카드를 쓰면 다시 빨라진다', () => {
-    const sim = cruising();
-    const h = sim.horse(3);
-    h.stamina = h.staminaMax * 0.1;
-    for (let i = 0; i < 40; i++) sim.tick(50);
-    const tired = h.speed;
-    sim.applyAugment(AUGMENT_BY_ID['infinite_stamina'], { targetHorseId: 3 });
-    for (let i = 0; i < 40; i++) sim.tick(50);
-    expect(h.speed).toBeGreaterThan(tired * 1.1);
+  it('지구력이 바닥난 말에게 회복 카드를 쓰면 안 쓴 경우보다 빨라진다', () => {
+    // 같은 조건의 두 경주를 나란히 돌려 카드를 쓴 쪽과 안 쓴 쪽을 비교한다
+    const run = (useCard: boolean): number => {
+      const sim = cruising();
+      const h = sim.horse(3);
+      h.stamina = h.staminaMax * 0.1;
+      for (let i = 0; i < 40; i++) sim.tick(50);
+      if (useCard) sim.applyAugment(AUGMENT_BY_ID['infinite_stamina'], { targetHorseId: 3 });
+      const from = h.pos;
+      for (let i = 0; i < 80; i++) sim.tick(50);
+      return h.pos - from;
+    };
+    expect(run(true)).toBeGreaterThan(run(false) * 1.02);
   });
 });

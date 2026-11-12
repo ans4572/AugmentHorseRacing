@@ -30,13 +30,13 @@ describe('배팅 검증', () => {
     expect(validateBet(10, 0, 1000, 1000)).toBeNull();
   });
 
-  it('라운드 총 배팅은 배팅 시작 시 보유 코인의 30%를 넘지 못한다', () => {
-    expect(betLimit(1000)).toBe(300);
-    expect(validateBet(300, 0, 1000, 1000)).toBeNull();
-    expect(validateBet(301, 0, 1000, 1000)).not.toBeNull();
-    // 복수 배팅 합산 한도
-    expect(validateBet(200, 150, 1000, 850)).not.toBeNull();
-    expect(validateBet(150, 150, 1000, 850)).toBeNull();
+  it('가진 코인 전부를 걸 수 있고(올인), 그 이상은 걸 수 없다', () => {
+    expect(betLimit(1000)).toBe(1000);
+    expect(validateBet(1000, 0, 1000, 1000)).toBeNull();
+    expect(validateBet(1001, 0, 1000, 1000)).not.toBeNull();
+    // 여러 번 나눠 걸어도 합계가 가진 코인을 넘지 못한다
+    expect(validateBet(200, 850, 1000, 150)).not.toBeNull();
+    expect(validateBet(150, 850, 1000, 150)).toBeNull();
   });
 
   it('보유 코인을 초과할 수 없다', () => {

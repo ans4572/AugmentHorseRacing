@@ -25,6 +25,7 @@ import type {
 } from '../../../shared/src/types';
 import {
   AUGMENT_PHASES,
+  AUGMENT_PREVIEW_LEAD,
   BROADCAST_EVERY_TICKS,
   COURSE_LENGTH,
   LOW_COIN_THRESHOLD,
@@ -82,6 +83,12 @@ interface AugmentPhaseState {
   hands: Map<string, { cardKey: string; def: AugmentDefinition }[]>;
   used: Set<string>;
   closed: boolean;
+  /** false면 미리 고르기 단계 — 고른 카드는 예약만 되고 증강 지점에서 발동한다 */
+  live: boolean;
+  /** 발동 지점 (코스 진행 비율) */
+  liveAt: number;
+  durationMs: number;
+  queued: Map<string, { cardKey: string; targetHorseId?: number }>;
 }
 
 let idCounter = 0;
@@ -482,11 +489,13 @@ export class Room {
 
   // ---------------- 준비(스킵) ----------------
 
-  setReady(playerId: string, phase: 'preview' | 'betting'): void {
+  setReady(playerId: string, phase: 'preview' | 'betting', ready = true): void {
     const p = this.players.get(playerId);
     if (!p) return;
-    if (phase === 'preview') p.readyPreview = true;
-    else p.readyBetting = true;
+    // 지금 단계가 아닌 준비 신호는 무시한다 (늦게 도착한 취소가 다음 단계에 영향을 주지 않게)
+    if (phase !== this.phase) return;
+    if (phase === 'preview') p.readyPreview = ready;
+    else p.readyBetting = ready;
     this.broadcastRoomUpdate();
     this.checkEarlySkip();
   }
@@ -569,15 +578,19 @@ export class Room {
       const leaderProgress = sim.leaderPos() / COURSE_LENGTH;
       for (const phaseDef of AUGMENT_PHASES) {
         if (this.triggeredPhases.has(phaseDef.phase)) continue;
-        if (leaderProgress >= phaseDef.at) {
-          this.triggerAugmentPhase(phaseDef.phase, phaseDef.durationMs);
+        // 증강 지점보다 조금 앞에서 카드를 미리 보여 준다
+        if (leaderProgress >= phaseDef.at - AUGMENT_PREVIEW_LEAD) {
+          this.triggerAugmentPhase(phaseDef.phase, phaseDef.durationMs, phaseDef.at);
           break; // 한 틱에 하나씩
         }
       }
+      // 선두가 증강 지점에 닿으면 예약된 카드를 발동하고 선택 시간을 잰다
+      const aug = this.augment;
+      if (aug && !aug.closed && !aug.live && leaderProgress >= aug.liveAt) this.goLiveAugment();
     }
 
     // 열린 증강 구간의 시간 만료 처리
-    if (this.augment && !this.augment.closed && Date.now() >= this.augment.endsAt) {
+    if (this.augment && !this.augment.closed && this.augment.live && Date.now() >= this.augment.endsAt) {
       this.closeAugmentPhase();
     }
 
@@ -599,7 +612,11 @@ export class Room {
 
   // ---------------- 증강 ----------------
 
-  private triggerAugmentPhase(phase: number, durationMs: number): void {
+  /**
+   * 증강 구간을 연다. liveAt(코스 비율)을 주면 그 지점까지는 미리 고르기 단계이고,
+   * 주지 않으면 바로 발동 단계로 시작한다.
+   */
+  private triggerAugmentPhase(phase: number, durationMs: number, liveAt?: number): void {
     const sim = this.sim;
     if (!sim) return;
     this.triggeredPhases.add(phase);
@@ -607,7 +624,6 @@ export class Room {
     if (this.augment && !this.augment.closed) this.closeAugmentPhase();
 
     const totals = this.betTotals();
-    const endsAt = Date.now() + durationMs;
     // 등급은 구간당 한 번만 뽑아 전원이 공유한다. 카드는 그 등급 안에서 각자 다르게 뽑는다.
     const tier = rollTier(phase);
     const hands = new Map<string, { cardKey: string; def: AugmentDefinition }[]>();
@@ -617,10 +633,35 @@ export class Room {
       const hand = cards.map((def, i) => ({ cardKey: `${phase}:${p.id}:${i}`, def }));
       hands.set(p.id, hand);
       const view: AugmentCardView[] = hand.map((c) => ({ cardKey: c.cardKey, defId: c.def.id }));
-      this.send(p, { type: 'AUGMENT_PHASE', phase, tier, endsAt, cards: view });
+      this.send(p, { type: 'AUGMENT_PHASE', phase, tier, endsAt: 0, cards: view, preview: true });
     }
 
-    this.augment = { phase, tier, endsAt, hands, used: new Set(), closed: false };
+    this.augment = {
+      phase,
+      tier,
+      endsAt: 0,
+      hands,
+      used: new Set(),
+      closed: false,
+      live: false,
+      liveAt: liveAt ?? 0,
+      durationMs,
+      queued: new Map()
+    };
+    if (liveAt === undefined) this.goLiveAugment();
+  }
+
+  /** 미리 고르기를 끝내고 발동 단계로 넘어간다: 예약된 카드를 쓰고, 남은 사람의 선택 시간을 잰다 */
+  private goLiveAugment(): void {
+    const augState = this.augment;
+    if (!augState || augState.closed || augState.live) return;
+    const phase = augState.phase;
+    const durationMs = augState.durationMs;
+    augState.live = true;
+    augState.endsAt = Date.now() + durationMs;
+    this.broadcast({ type: 'AUGMENT_LIVE', phase, endsAt: augState.endsAt });
+    for (const [playerId, q] of augState.queued) this.selectAugment(playerId, q.cardKey, q.targetHorseId);
+    augState.queued.clear();
 
     // NPC 증강 선택 예약 (연결이 끊긴 사람에게는 자동 사용하지 않음 — NPC만)
     for (const p of this.players.values()) {
@@ -680,13 +721,23 @@ export class Room {
     };
 
     if (!player || !aug || !sim) return fail('증강을 사용할 수 없습니다.');
-    if (aug.closed || Date.now() >= aug.endsAt) return fail('증강 선택 시간이 지났습니다.');
+    if (aug.closed || (aug.live && Date.now() >= aug.endsAt)) return fail('증강 선택 시간이 지났습니다.');
     if (sim.allFinished()) return fail('경주가 이미 끝났습니다.');
     if (aug.used.has(playerId)) return fail('이번 구간에서는 이미 카드를 사용했습니다.');
 
     const hand = aug.hands.get(playerId) ?? [];
     const card = hand.find((c) => c.cardKey === cardKey);
     if (!card) return fail('손패에 없는 카드입니다.');
+
+    // 미리 고르기 단계: 예약만 해 둔다 (다시 골라 바꿀 수 있다). 발동은 증강 지점에서 한다.
+    if (!aug.live) {
+      if (card.def.targetType === 'single' && !sim.horses.some((h) => h.info.id === targetHorseId)) {
+        return fail('대상 말을 골라 주세요.');
+      }
+      aug.queued.set(playerId, { cardKey, targetHorseId });
+      this.send(player, { type: 'AUGMENT_RESULT', ok: true, cardKey, queued: true });
+      return;
+    }
 
     const result = sim.applyAugment(card.def, { targetHorseId, bets: this.betTotals() });
     if (!result.ok) {
@@ -892,14 +943,16 @@ export class Room {
     if (this.phase === 'racing' && this.sim) {
       snapshot.race = { startedAt: this.raceStartedAt, horses: this.sim.snapshot() };
       const aug = this.augment;
-      if (aug && !aug.closed && Date.now() < aug.endsAt) {
+      if (aug && !aug.closed && (!aug.live || Date.now() < aug.endsAt)) {
         const hand = aug.hands.get(forPlayerId) ?? [];
         snapshot.augment = {
           phase: aug.phase,
           tier: aug.tier,
           endsAt: aug.endsAt,
           cards: hand.map((c) => ({ cardKey: c.cardKey, defId: c.def.id })),
-          used: aug.used.has(forPlayerId)
+          used: aug.used.has(forPlayerId),
+          preview: !aug.live,
+          queuedKey: aug.queued.get(forPlayerId)?.cardKey
         };
       }
     }

@@ -69,6 +69,9 @@ const state = {
     used: boolean;
     selectedKey: string | null;
     pending: boolean;
+    /** 미리 고르기 단계인지, 예약해 둔 카드가 무엇인지 */
+    preview: boolean;
+    queuedKey: string | null;
   } | null,
   rankings: null as RankingEntry[] | null,
   cameraSel: 'leader' as CameraTarget,
@@ -260,14 +263,13 @@ function renderLobby(): void {
   $('lobby-title').textContent = state.settings.roomName;
   const codeEl = $('lobby-code');
   if (state.roomId) {
-    codeEl.innerHTML = `${state.settings.isPrivate ? '초대 코드' : '방 코드'} <b class="code">${esc(state.roomId)}</b>`;
+    codeEl.innerHTML = `초대 코드 <b class="code">${esc(state.roomId)}</b> <span class="muted">친구에게 이 코드를 알려 주세요</span>`;
     codeEl.classList.remove('hidden');
   }
   $('lobby-settings').innerHTML = `
     <span class="chip">최대 ${state.settings.maxPlayers}명</span>
     <span class="chip">${state.settings.totalRounds}라운드</span>
     <span class="chip">시작 코인 ${ROUND_COINS[state.settings.totalRounds]}</span>
-    <span class="chip">${state.settings.isPrivate ? icon('lock') + '비공개' : '공개'}</span>
     ${state.settings.blindBets ? `<span class="chip">${icon('blind')}블라인드 배팅</span>` : ''}`;
   $('lobby-players').innerHTML = state.players
     .map(
@@ -303,22 +305,11 @@ function betsHidden(): boolean {
 }
 
 function renderSideBets(): void {
-  const blindNote = betsHidden()
-    ? '<p class="muted">블라인드 방입니다. 다른 사람의 배팅은 라운드 결과에서 공개됩니다.</p>'
-    : '';
-  if (state.revealed.length === 0) {
-    $('side-bets').innerHTML = blindNote || '<p class="muted">배팅이 끝나면 여기에 나옵니다.</p>';
-    return;
-  }
-  $('side-bets').innerHTML = blindNote + state.revealed
-    .map(
-      (b) => `<div class="side-bet">
-        <b>${esc(b.playerName)}</b><br/>
-        ${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId)}<br/>
-        ${coinHtml(b.amount)} <span class="muted">배당 ×${b.odds.toFixed(2)}</span>
-      </div>`
-    )
-    .join('');
+  $('side-bets').innerHTML =
+    state.revealed.length === 0 && !betsHidden()
+      ? '<p class="muted">배팅이 끝나면 여기에 나옵니다.</p>'
+      : `${betsHidden() ? '<p class="muted">블라인드 방입니다. 내 배팅만 보이고, 나머지는 라운드 결과에서 공개됩니다.</p>' : ''}
+        <div class="reveal-list">${revealListHtml()}</div>`;
 }
 
 // ============ 배팅 화면 ============
@@ -337,9 +328,10 @@ function renderBettingOverlay(): void {
   $('bet-controls').classList.toggle('hidden', !isBetting);
 
   const btn = $<HTMLButtonElement>('btn-ready');
-  btn.disabled = state.readySent;
+  // 준비 완료는 다시 누르면 취소된다
+  btn.classList.toggle('waiting', state.readySent);
   btn.textContent = state.readySent
-    ? '다른 사람을 기다리는 중입니다'
+    ? '준비 취소 (다른 사람을 기다리는 중)'
     : isBetting
       ? '준비 완료'
       : '출마표 확인 완료';
@@ -351,8 +343,9 @@ function renderBettingOverlay(): void {
 function renderReadyCount(): void {
   const humans = state.players.filter((p) => !p.isNpc && p.connected);
   const ready = humans.filter((p) => p.ready).length;
-  const hint = state.phase === 'betting' ? '모두 누르면 바로 경주를 시작합니다.' : '모두 누르면 바로 배팅으로 넘어갑니다.';
-  $('ready-count').textContent = humans.length > 1 ? `준비 완료 ${ready}/${humans.length}명. ${hint}` : hint;
+  const next = state.phase === 'betting' ? '경주를 시작합니다' : '배팅으로 넘어갑니다';
+  $('ready-count').textContent =
+    humans.length > 1 ? `준비 완료 ${ready}/${humans.length}명. 모두 누르면 바로 ${next}.` : `누르면 바로 ${next}.`;
 }
 
 /** 능력치는 내부 값(1~100)을 10점 만점으로 줄여 보여 준다 */
@@ -486,9 +479,15 @@ function renderAugmentBar(): void {
   }
 
   const tierInfo = TIER_INFO[aug.tier];
+  const livePct = Math.round((AUGMENT_PHASES.find((ph) => ph.phase === aug.phase)?.at ?? 0) * 100);
+  const guide = aug.preview
+    ? aug.queuedKey
+      ? `예약했습니다. 선두가 ${livePct}% 지점에 닿으면 발동합니다. 다른 카드로 바꿀 수 있습니다.`
+      : `미리 고르기. 지금 골라 두면 선두가 ${livePct}% 지점에 닿을 때 발동합니다.`
+    : '카드 한 장을 고르세요. 경주는 멈추지 않습니다.';
   const head = `<div class="augment-head">
-      <b>${aug.phase}차 증강 <span class="aug-tier-chip" style="background:${tierInfo.color}">${icon('gem')}${tierInfo.label}</span> 카드 한 장을 고르세요. 경주는 멈추지 않습니다.</b>
-      <span id="augment-remain"></span>
+      <b>${aug.phase}차 증강 <span class="aug-tier-chip" style="background:${tierInfo.color}">${icon('gem')}${tierInfo.label}</span> ${guide}</b>
+      <span id="augment-remain">${aug.preview ? '미리보기' : ''}</span>
     </div>
     <div class="augment-timebar"><div id="augment-timefill" style="width:100%"></div></div>`;
 
@@ -507,10 +506,12 @@ function renderAugmentBar(): void {
           )
           .join('')}</div>`;
       } else if (selected) {
-        pickRow = `<div class="augment-pickhorse"><button class="btn small" data-confirm="${c.cardKey}">이 카드 쓰기</button></div>`;
+        pickRow = `<div class="augment-pickhorse"><button class="btn small" data-confirm="${c.cardKey}">${aug.preview ? '이 카드 예약' : '이 카드 쓰기'}</button></div>`;
       }
-      return `<div class="augment-card${selected ? ' selected' : ''}" data-card="${c.cardKey}" style="border-color:${rar.color};${aug.pending ? 'opacity:0.5;pointer-events:none' : ''}">
+      const queued = aug.queuedKey === c.cardKey;
+      return `<div class="augment-card${selected ? ' selected' : ''}${queued ? ' queued' : ''}" data-card="${c.cardKey}" style="border-color:${rar.color};${aug.pending ? 'opacity:0.5;pointer-events:none' : ''}">
         
+        ${queued ? '<span class="aug-queued">예약됨</span>' : ''}
         <div class="aug-emoji">${def.emoji}</div>
         <div class="aug-name">${esc(def.name)}</div>
         <div class="aug-desc">${esc(def.description)}</div>
@@ -810,7 +811,13 @@ function applySnapshot(snap: RoomSnapshot): void {
     case 'racing':
       if (snap.race) view?.pushState(snap.race.horses);
       if (snap.augment) {
-        state.augment = { ...snap.augment, selectedKey: null, pending: false };
+        state.augment = {
+          ...snap.augment,
+          selectedKey: null,
+          pending: false,
+          preview: !!snap.augment.preview,
+          queuedKey: snap.augment.queuedKey ?? null
+        };
         renderAugmentBar();
       }
       renderSideBets();
@@ -826,11 +833,10 @@ function applySnapshot(snap: RoomSnapshot): void {
   updateTopbar();
 }
 
-function renderRevealOverlay(): void {
+/** 사람별 배팅 목록 — 배팅 공개 화면과 배팅 현황 창이 함께 쓴다. 블라인드 방에서는 내 것만 내용이 보인다 */
+function revealListHtml(): string {
   const blind = betsHidden();
-  const title = document.querySelector('#overlay-reveal h2');
-  if (title) title.textContent = blind ? '블라인드 배팅' : '배팅 공개';
-  $('reveal-list').innerHTML = state.players
+  return state.players
     .map((p) => {
       const bets = state.revealed.filter((b) => b.playerId === p.id);
       const name = esc(p.name) + (p.id === state.myId ? ' (나)' : '');
@@ -855,6 +861,12 @@ function renderRevealOverlay(): void {
       return `<div class="reveal-player"><div class="rp-name">${name}</div><div class="rp-bets">${betsHtml}</div></div>`;
     })
     .join('');
+}
+
+function renderRevealOverlay(): void {
+  const title = document.querySelector('#overlay-reveal h2');
+  if (title) title.textContent = betsHidden() ? '블라인드 배팅' : '배팅 공개';
+  $('reveal-list').innerHTML = revealListHtml();
   show('overlay-reveal');
 }
 
@@ -885,26 +897,8 @@ net.on((msg: S2C) => {
       break;
     }
 
-    case 'ROOM_LIST': {
-      const list = $('room-list');
-      if (msg.rooms.length === 0) {
-        list.innerHTML = '<p class="muted">열려 있는 공개 방이 없습니다. 방을 직접 만들어 보세요.</p>';
-      } else {
-        list.innerHTML = msg.rooms
-          .map(
-            (r) => `<div class="room-item">
-              <span><b>${esc(r.name)}</b> <span class="muted">${r.players}/${r.maxPlayers}명, ${r.totalRounds}라운드</span></span>
-              <button class="btn small" data-room="${r.id}">참가</button>
-            </div>`
-          )
-          .join('');
-        list.querySelectorAll<HTMLElement>('button[data-room]').forEach((el) => {
-          el.onclick = () =>
-            net.send({ type: 'JOIN_ROOM', playerName: playerName(), roomId: el.dataset.room! });
-        });
-      }
-      break;
-    }
+    case 'ROOM_LIST':
+      break; // 방은 초대 코드로만 들어온다 (목록 없음)
 
     case 'ROOM_UPDATE': {
       state.players = msg.players;
@@ -1057,7 +1051,9 @@ net.on((msg: S2C) => {
         cards: msg.cards,
         used: false,
         selectedKey: null,
-        pending: false
+        pending: false,
+        preview: !!msg.preview,
+        queuedKey: null
       };
       renderAugmentBar();
       sfx('augment', ['silver', 'gold', 'platinum'].indexOf(msg.tier));
@@ -1065,6 +1061,15 @@ net.on((msg: S2C) => {
         const tierInfo = TIER_INFO[msg.tier];
         const tierColor = { silver: '#dee2e6', gold: '#ffd43b', platinum: '#66d9e8' }[msg.tier];
         view?.announce(`${msg.phase}차 증강 ${tierInfo.label}`, tierColor);
+      }
+      break;
+    }
+
+    case 'AUGMENT_LIVE': {
+      if (state.augment && state.augment.phase === msg.phase) {
+        state.augment.preview = false;
+        state.augment.endsAt = msg.endsAt;
+        renderAugmentBar();
       }
       break;
     }
@@ -1077,12 +1082,18 @@ net.on((msg: S2C) => {
 
     case 'AUGMENT_RESULT': {
       if (!state.augment) break;
-      if (msg.ok) {
+      if (msg.ok && msg.queued) {
+        // 미리 고르기: 예약만 됐다. 증강 지점에서 발동하고, 그 전에는 바꿀 수 있다
+        state.augment.queuedKey = msg.cardKey ?? null;
+        state.augment.selectedKey = null;
+        state.augment.pending = false;
+      } else if (msg.ok) {
         state.augment.used = true;
         state.augment.pending = false;
       } else {
         state.augment.pending = false;
         state.augment.selectedKey = null;
+        state.augment.queuedKey = null;
         toast(msg.message ?? '카드를 사용할 수 없습니다. 다른 카드를 선택하세요.');
       }
       renderAugmentBar();
@@ -1098,7 +1109,9 @@ net.on((msg: S2C) => {
       if (targetNames) line += `, 대상 ${esc(targetNames)}`;
       if (blockedNames) line += ` <span class="log-bad">(${esc(blockedNames)} 방어막으로 막음)</span>`;
       addLog(line, def.hostile ? 'log-bad' : 'log-good');
-      view?.announce(`${def.emoji} ${msg.playerName}: ${def.name}!`, def.hostile ? '#ef4565' : '#2cb67d');
+      // 누가 무엇을 썼는지는 맞은 말 머리 위에 몇 초간 붙여 둔다
+      view?.showAugmentNote(msg.targets, `${def.emoji} ${def.name}`, msg.playerName, def.hostile);
+      view?.showAugmentNote(msg.blocked, '방어 성공', def.name, false);
       view?.flashHorses(msg.targets, !def.hostile);
       sfx(def.hostile ? 'hex' : 'buff');
       if (msg.blocked.length > 0) sfx('shield');
@@ -1195,7 +1208,7 @@ setInterval(() => {
   }
 
   const aug = state.augment;
-  if (aug && !aug.used) {
+  if (aug && !aug.used && !aug.preview) {
     const augRemain = Math.max(0, aug.endsAt - Date.now());
     const el = document.getElementById('augment-remain');
     if (el) el.textContent = `${(augRemain / 1000).toFixed(1)}초`;
@@ -1234,6 +1247,7 @@ function bindUI(): void {
   // 참가자 / 배팅 현황 창: 상단 버튼으로 열고, 닫기 버튼이나 바깥을 누르면 닫는다
   for (const [btn, modal] of [['btn-show-players', 'modal-players'], ['btn-show-bets', 'modal-bets']]) {
     $(btn).onclick = () => {
+      if (modal === 'modal-bets') renderSideBets();
       const opening = $(modal).classList.contains('hidden');
       hide('modal-players');
       hide('modal-bets');
@@ -1256,7 +1270,7 @@ function bindUI(): void {
   $('btn-goto-join').onclick = () => {
     playerName();
     showScreen('scr-join');
-    net.send({ type: 'LIST_ROOMS' });
+    $<HTMLInputElement>('join-code').focus();
   };
   // 혼자 하기: NPC 5명과 6인전을 만들고 바로 시작한다
   const soloRounds = $<HTMLInputElement>('solo-rounds');
@@ -1324,7 +1338,7 @@ function bindUI(): void {
       type: 'CREATE_ROOM',
       playerName: playerName(),
       roomName: $<HTMLInputElement>('create-name').value || `${playerName()}의 경마장`,
-      isPrivate: $<HTMLSelectElement>('create-private').value === 'private',
+      isPrivate: true,
       blindBets: $<HTMLSelectElement>('create-blind').value === 'blind',
       maxPlayers: Number(maxInput.value),
       totalRounds: Number(roundsInput.value),
@@ -1334,7 +1348,6 @@ function bindUI(): void {
 
   // 방 참가 화면
   $('btn-join-back').onclick = () => showScreen('scr-main');
-  $('btn-refresh-rooms').onclick = () => net.send({ type: 'LIST_ROOMS' });
   $('btn-join-code').onclick = () => {
     const code = $<HTMLInputElement>('join-code').value.trim().toUpperCase();
     if (code.length < 4) return toast('초대 코드를 입력하세요.');
@@ -1378,9 +1391,9 @@ function bindUI(): void {
     updateBetSelInfo();
   };
   $('btn-ready').onclick = () => {
-    state.readySent = true;
-    sfx('ready');
-    net.send({ type: 'READY', phase: state.phase === 'preview' ? 'preview' : 'betting' });
+    state.readySent = !state.readySent;
+    if (state.readySent) sfx('ready');
+    net.send({ type: 'READY', phase: state.phase === 'preview' ? 'preview' : 'betting', ready: state.readySent });
     renderBettingOverlay();
   };
 

@@ -6,8 +6,7 @@ import type {
   NpcPersona,
   OddsTable
 } from '../../../shared/src/types';
-import { BET_MIN } from '../../../shared/src/constants';
-import { betLimit } from './betting';
+import { BET_MIN, NPC_BET_RATIO } from '../../../shared/src/constants';
 import type { RaceSim } from '../sim/race';
 
 export interface NpcBetChoice {
@@ -35,7 +34,7 @@ export function npcChooseBets(
   odds: OddsTable,
   rng: () => number = Math.random
 ): NpcBetChoice[] {
-  const limit = betLimit(coins);
+  const limit = Math.floor(coins * NPC_BET_RATIO);
   if (limit < BET_MIN) return [];
   const fav = favorites(horses, odds);
   const randomHorse = () => horses[Math.floor(rng() * horses.length)].id;

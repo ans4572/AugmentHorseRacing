@@ -95,6 +95,25 @@ describe('방 / 라운드 / 코인', () => {
     expect(room.placeBet('p1', 'winner', 2, 50)).not.toBeNull();
   });
 
+  it('준비 완료는 취소할 수 있고, 취소한 사람이 다시 누를 때까지 넘어가지 않는다', () => {
+    const room = makeRoom(1);
+    cleanups.push(room);
+    room.startGame('p1');
+    room.setReady('p1', 'preview');
+    room.setReady('p2', 'preview');
+    expect(room.phase).toBe('betting');
+
+    room.setReady('p1', 'betting'); // 실수로 누름
+    expect(room.publicPlayers().find((p) => p.id === 'p1')!.ready).toBe(true);
+    room.setReady('p1', 'betting', false); // 취소
+    expect(room.publicPlayers().find((p) => p.id === 'p1')!.ready).toBe(false);
+    room.setReady('p2', 'betting');
+    expect(room.phase).toBe('betting'); // p1이 취소했으므로 마감되지 않는다
+    expect(room.placeBet('p1', 'winner', 1, 50)).toBeNull(); // 취소한 뒤 배팅할 수 있다
+    room.setReady('p1', 'betting');
+    expect(room.phase).toBe('reveal');
+  });
+
   it('배팅 시 코인이 차감되고 취소 시 환불된다', () => {
     const room = makeRoom(1); // 시작 코인 500
     cleanups.push(room);
@@ -104,13 +123,13 @@ describe('방 / 라운드 / 코인', () => {
     const p1 = room.players.get('p1')!;
     expect(room.placeBet('p1', 'winner', 3, 100)).toBeNull();
     expect(p1.coins).toBe(400);
-    // 한도 초과 (500 × 30% = 150)
-    expect(room.placeBet('p1', 'top3', 2, 100)).not.toBeNull();
-    expect(room.placeBet('p1', 'top3', 2, 50)).toBeNull();
-    expect(p1.coins).toBe(350);
+    // 가진 코인(400)보다 많이는 걸 수 없지만, 남은 전부를 거는 올인은 된다
+    expect(room.placeBet('p1', 'top3', 2, 410)).not.toBeNull();
+    expect(room.placeBet('p1', 'top3', 2, 400)).toBeNull();
+    expect(p1.coins).toBe(0);
     const betId = room.bets.find((b) => b.playerId === 'p1' && b.amount === 100)!.betId;
     expect(room.cancelBet('p1', betId)).toBeNull();
-    expect(p1.coins).toBe(450);
+    expect(p1.coins).toBe(100);
   });
 
   it('코인이 10 미만이면 다음 라운드 시작 시 100으로 보충한다', () => {
@@ -284,7 +303,7 @@ describe('방 / 라운드 / 코인', () => {
     };
     const internals = room as unknown as Internals;
     internals.startRace();
-    for (const phase of [1, 2, 3, 4]) {
+    for (const phase of [1, 2, 3, 4, 5]) {
       internals.triggerAugmentPhase(phase, 5000);
       const { tier, hands } = internals.augment;
       expect(['silver', 'gold', 'platinum']).toContain(tier);

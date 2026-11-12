@@ -229,7 +229,7 @@ export class GameHub {
 
       case 'READY': {
         const room = currentRoom();
-        if (room) room.setReady(session.playerId, msg.phase);
+        if (room) room.setReady(session.playerId, msg.phase, msg.ready !== false);
         break;
       }
 

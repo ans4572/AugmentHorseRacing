@@ -66,6 +66,8 @@ const LEG = {
 };
 /** 무릎 쪽이 몸통 쪽의 1/3 굵기인 원뿔 허벅지 */
 const THIGH_GEO = new THREE.CylinderGeometry(1, 0.33, 1, 14);
+/** 다리 관절이 예전 엉덩이 높이(HIP_Y)보다 몸통 안쪽으로 올라간 높이 */
+const HIP_UP = LEG.thighLen - 0.7;
 /** 목: 어깨에서 앞으로 기울어 뻗는다. NECK_HALF는 목 길이의 절반 */
 const NECK_BASE_X = 0.55;
 const NECK_BASE_Y = 1.02;
@@ -127,6 +129,8 @@ interface Rig {
   shield: THREE.Mesh;
   shadow: THREE.Mesh;
   label: HTMLDivElement;
+  /** 머리 위에 잠깐 붙는 증강 안내 (무엇을 / 누가) */
+  note: { text: string; by: string; hostile: boolean; until: number } | null;
   labelText: string;
   labelW: number;
   labelH: number;
@@ -378,9 +382,9 @@ export class Race3DView {
     this.scene.add(finish);
     this.buildGate(TRACK_LEN + 0.8);
 
-    // 증강이 열리는 20/40/60/80% 표지판과 바닥선, 그 사이 10% 단위 작은 표지
+    // 증강이 열리는 10/30/50/70/90% 표지판과 바닥선, 그 사이 10% 단위 작은 표지
     for (let pct = 10; pct < 100; pct += 10) {
-      const major = pct % 20 === 0;
+      const major = pct % 20 === 10;
       const x = (pct / 100) * TRACK_LEN;
       if (major) this.addStripe(x, 0xffffff, 0.35, 0.75);
       const board = new THREE.Mesh(
@@ -822,17 +826,18 @@ export class Race3DView {
     ];
     for (const [hx, hz] of hips) {
       const leg = new THREE.Group();
-      leg.position.set(hx, HIP_Y, hz);
+      // 다리가 흔들리는 축은 몸통 안쪽에 있는 허벅지 꼭대기다.
+      // 축이 허벅지 중간에 있으면 달릴 때 윗부분이 반대로 흔들려 몸 밖으로 튀어나온다.
+      leg.position.set(hx, HIP_Y + HIP_UP, hz);
       inner.add(leg);
       // 허벅지: 뒷다리는 엉덩이 근육까지 두껍게, 앞다리는 어깨 쪽이 굵게
       const hind = hx < 0;
       const tw = hind ? LEG.thighH : LEG.thighF;
-      const ttop = -0.68 + LEG.thighLen;
-      part(THIGH_GEO, legMat, leg, [0, -0.68 + LEG.thighLen / 2, 0], [tw, LEG.thighLen, tw * 0.86], 0.1);
+      part(THIGH_GEO, legMat, leg, [0, -LEG.thighLen / 2, 0], [tw, LEG.thighLen, tw * 0.86], 0.1);
       // 몸통과 자연스럽게 이어지는 둥근 어깨·엉덩이
-      part(GEO.sphere, legMat, leg, [0, ttop - 0.04, 0], [tw, tw, tw * 0.9], 0.08);
+      part(GEO.sphere, legMat, leg, [0, -0.04, 0], [tw, tw, tw * 0.9], 0.08);
       const knee = new THREE.Group();
-      knee.position.set(0, -0.66, 0);
+      knee.position.set(0, -0.66 - HIP_UP, 0);
       leg.add(knee);
       part(GEO.sphere, legMat, knee, [0, 0, 0], [LEG.knee, LEG.knee, LEG.knee], 0.14);
       part(GEO.cyl, legMat, knee, [0, -0.3, 0], [LEG.shin, 0.62, LEG.shin], 0.16);
@@ -949,6 +954,7 @@ export class Race3DView {
       cross: 0,
       buff: 0,
       fxStart: {},
+      note: null,
       bubbles,
       siren,
       eyes,
@@ -1040,6 +1046,14 @@ export class Race3DView {
     el.append(e, n);
     this.overlay.appendChild(el);
     setTimeout(() => el.remove(), 2000);
+  }
+
+  /** 증강을 맞은 말 머리 위에 카드 이름과 쓴 사람을 몇 초간 붙여 둔다 */
+  showAugmentNote(ids: number[], text: string, by: string, hostile: boolean, seconds = 4.5): void {
+    for (const id of ids) {
+      const rig = this.rigs.find((v) => v.info.id === id);
+      if (rig) rig.note = { text, by, hostile, until: this.elapsed + seconds };
+    }
   }
 
   flashHorses(ids: number[], good: boolean): void {
@@ -1152,6 +1166,7 @@ export class Race3DView {
   private update(dt: number, rawDt: number): void {
     for (const r of this.rigs) this.updateRig(r, dt, rawDt);
     this.updateParticles(dt);
+    this.updateEmojis(dt);
     this.updateRings(dt);
     this.updateCamera(rawDt);
   }
@@ -1373,7 +1388,7 @@ export class Race3DView {
     r.inner.scale.set(s * (1 + 1.3 * warp), s * (1 - 0.5 * warp), s * (1 - 0.88 * r.flat)); // 종이 말은 옆으로 납작해진다
 
     // 조랑말: 다리가 짧아진 만큼 몸을 내린다
-    const legDrop = (1 - r.legScale) * HIP_Y * s;
+    const legDrop = (1 - r.legScale) * (HIP_Y + HIP_UP) * s;
     // 이족보행: 뒷다리 엉덩이 관절을 축으로 몸 전체를 세운다
     const px = -0.58;
     const py = HIP_Y;
@@ -1494,6 +1509,38 @@ export class Race3DView {
     const shadowScale = (airborne ? 0.7 : 1) * s;
     r.shadow.scale.set(1.25 * shadowScale, 0.8 * shadowScale, 1);
 
+    // 증강별 이펙트 — 색 연기 대신 그림 스티커(이모지)를 뿌린다
+    {
+      const X = r.root.position.x;
+      const Z = r.root.position.z;
+      const rearX = X - 0.9 * Math.cos(r.root.rotation.y);
+      const rnd = (a: number): number => (Math.random() - 0.5) * a;
+      const pop = (rate: number, emojis: string[], x: number, y: number, size = 0.9, vy = 1.6): void => {
+        if (Math.random() < dt * rate) {
+          this.spawnEmoji(emojis[Math.floor(Math.random() * emojis.length)], x + rnd(0.6), y + rnd(0.4), Z + rnd(0.8), size, vy);
+        }
+      };
+      const headX = X + r.head.position.x * s;
+      const headY = (r.head.position.y + TORSO_RAISE) * s + r.inner.position.y;
+      if (rocket) pop(16, ['🔥', '💥', '💨'], rearX - 0.4, 2.3 * s, 1.1); // 엉덩이 로켓: 꽁무니 폭발
+      if (jitter) pop(9, ['⚡', '☕', '‼️'], X + rnd(1.8), 2.6, 0.8); // 에너지 드링크: 카페인 과다
+      if (vis.has('droop')) pop(4, ['🌧️', '😮‍💨', '📅'], headX + 0.4, headY + 1.3, 1.0, 0.5); // 월요병: 머리 위 먹구름과 달력
+      if (flying) pop(8, ['🌀', '🍃'], X + rnd(1.6), r.inner.position.y + 0.6, 0.8, -1.2); // 목 프로펠러: 아래로 내리꽂는 바람
+      if (vis.has('poop')) pop(5, ['💩', '💦', '🧻'], rearX - 0.1, 1.7 * s, 0.75); // 급똥: 설명 생략
+      if (warpK != null) pop(26, ['💨', '🏃', '👋'], X - 0.5 - Math.random() * 2.5, 1.6 + Math.random(), 0.8, 0.4); // 칼퇴: 퇴근합니다
+      if (swapK != null) pop(18, ['💰', '✨', '🎰'], X + rnd(1.5), r.inner.position.y + 1.6 + rnd(1.5), 0.9); // 인생 역전: 돈벼락
+      if (sitting) pop(6, ['⭐', '💫', '🍌'], headX + rnd(0.8), headY + 0.9, 0.7, 0.6); // 엉덩방아: 별이 보인다
+      if (r.buff > 0.5) pop(4, ['💪', '🍗', '💦'], X + rnd(1.2), 3.2 * s, 0.85); // 득근: 닭가슴살의 힘
+      if (lowbat) pop(3, ['🪫', '❗'], headX, headY + 0.9, 0.8, 0.7); // 배터리 1%
+      if (nap) pop(3, ['💤', '🍚'], X + 0.6, 2.4, 0.9, 0.9); // 식곤증: 밥 먹고 꿀잠
+      if (siren) pop(4, ['🚨', '🎫', '💸'], headX, headY + 1.0, 0.8, 0.8); // 과속 단속: 딱지와 과태료
+      if (vis.has('eat')) pop(5, ['🥕', '😋'], headX + 0.5, headY - 0.2, 0.7, 0.9); // 당근 먹방
+      if (disco) pop(7, ['🎵', '🎶', '🪩'], X + rnd(2), 3.2, 0.8); // 디스코 타임
+      if (vis.has('bighead')) pop(3, ['📸', '✨'], headX + rnd(1.5), headY + rnd(1.2), 0.8, 0.3); // 연예인 병: 플래시 세례
+      if (vis.has('giant')) pop(3, ['🦖', '💢'], X + rnd(2), 5.2, 1.2, 0.8); // 거대화
+      if (fart) pop(4, ['💨', '🤢'], rearX - 0.6, 1.8 * s, 0.9); // 방귀 부스터: 뒤따르는 말의 심정
+    }
+
     // 발굽 먼지 / 방귀 연기
     const backX = r.root.position.x - 0.9 * Math.cos(r.root.rotation.y);
     if (fart && Math.random() < dt * 40) {
@@ -1501,6 +1548,72 @@ export class Race3DView {
     } else if (runAmt > 0.35 && !airborne && Math.random() < dt * (boosting ? 26 : 11)) {
       this.spawnDust(backX, 0.15, r.root.position.z + (Math.random() - 0.5) * 0.6, boosting, this.trailMaterial(r.trail));
     }
+  }
+
+  // ---------- 이모지 스티커 이펙트 ----------
+  private emojiTex = new Map<string, THREE.CanvasTexture>();
+  private emojiPool: { sprite: THREE.Sprite; life: number; maxLife: number; vx: number; vy: number; size: number; spin: number }[] = [];
+
+  private spawnEmoji(emoji: string, x: number, y: number, z: number, size: number, vy: number): void {
+    let p = this.emojiPool.find((q) => q.life <= 0);
+    if (!p) {
+      if (this.emojiPool.length >= 70) return;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
+      this.scene.add(sprite);
+      p = { sprite, life: 0, maxLife: 1, vx: 0, vy: 0, size: 1, spin: 0 };
+      this.emojiPool.push(p);
+    }
+    let tex = this.emojiTex.get(emoji);
+    if (!tex) {
+      tex = canvasTexture(96, 96, (g) => {
+        g.font = '72px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(emoji, 48, 54);
+      });
+      this.emojiTex.set(emoji, tex);
+    }
+    const mat = p.sprite.material as THREE.SpriteMaterial;
+    mat.map = tex;
+    mat.needsUpdate = true;
+    p.maxLife = 0.9 + Math.random() * 0.5;
+    p.life = p.maxLife;
+    p.size = size;
+    p.vx = -1.2 - Math.random() * 1.2;
+    p.vy = vy * (0.7 + Math.random() * 0.6);
+    p.spin = (Math.random() - 0.5) * 2.4;
+    p.sprite.position.set(x, y, z);
+    p.sprite.visible = true;
+  }
+
+  private updateEmojis(dt: number): void {
+    for (const p of this.emojiPool) {
+      if (p.life <= 0) continue;
+      p.life -= dt;
+      if (p.life <= 0) {
+        p.sprite.visible = false;
+        continue;
+      }
+      const k = p.life / p.maxLife;
+      p.sprite.position.x += p.vx * dt;
+      p.sprite.position.y += p.vy * dt;
+      // 통 튀어나왔다가 서서히 사라진다
+      const pop = Math.min(1, (1 - k) * 6);
+      p.sprite.scale.setScalar(p.size * (0.4 + 0.6 * pop));
+      const mat = p.sprite.material as THREE.SpriteMaterial;
+      mat.opacity = Math.min(1, k * 2.2);
+      mat.rotation += p.spin * dt;
+    }
+  }
+
+  private fxMats = new Map<number, THREE.MeshBasicMaterial>();
+  private fxMat(color: number): THREE.MeshBasicMaterial {
+    let m = this.fxMats.get(color);
+    if (!m) {
+      m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 });
+      this.fxMats.set(color, m);
+    }
+    return m;
   }
 
   /** 꾸미기로 고른 발자국 색의 재질 (무지개는 낱알마다 색이 다르다) */
@@ -1681,10 +1794,20 @@ export class Race3DView {
       }
       const fxText = [...new Set(fx)].slice(0, 5).join('');
       const rankText = snap ? `${snap.rank}위` : '';
-      const text = `${rankText}|${fxText}`;
+      if (r.note && this.elapsed > r.note.until) r.note = null;
+      const text = `${rankText}|${fxText}|${r.note ? r.note.text + r.note.by : ''}`;
       if (text !== r.labelText) {
         r.labelText = text;
         r.label.innerHTML = '';
+        if (r.note) {
+          const nt = document.createElement('div');
+          nt.className = `r3d-label-note${r.note.hostile ? ' hostile' : ''}`;
+          nt.textContent = r.note.text;
+          const who = document.createElement('small');
+          who.textContent = r.note.by;
+          nt.appendChild(who);
+          r.label.appendChild(nt);
+        }
         if (fxText) {
           const f = document.createElement('div');
           f.className = 'r3d-label-fx';

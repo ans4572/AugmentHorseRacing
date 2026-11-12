@@ -318,6 +318,35 @@ describe('방 / 라운드 / 코인', () => {
     }
   });
 
+  it('증강 카드는 자리마다 한 번씩 같은 등급의 다른 카드로 새로고침할 수 있다', () => {
+    const room = makeRoom(1);
+    cleanups.push(room);
+    room.startGame('p1');
+    type Aug = {
+      tier: string;
+      hands: Map<string, { cardKey: string; def: { id: string; rarity: string } }[]>;
+    };
+    const internals = room as unknown as { startRace(): void; triggerAugmentPhase(p: number, d: number): void; augment: Aug };
+    internals.startRace();
+    internals.triggerAugmentPhase(1, 5000);
+    const hand = internals.augment.hands.get('p1')!;
+    const key = hand[0].cardKey;
+    const before = hand.map((c) => c.def.id);
+
+    room.rerollAugment('p1', key);
+    expect(hand[0].def.id).not.toBe(before[0]);
+    expect(new Set(hand.map((c) => c.def.id)).size).toBe(3); // 손패 안에서 겹치지 않는다
+    expect(TIER_OF_RARITY[hand[0].def.rarity as keyof typeof TIER_OF_RARITY]).toBe(internals.augment.tier);
+    expect(hand.slice(1).map((c) => c.def.id)).toEqual(before.slice(1)); // 다른 자리는 그대로
+
+    // 같은 자리는 다시 바꿀 수 없지만 다른 자리는 바꿀 수 있다
+    const once = hand[0].def.id;
+    room.rerollAugment('p1', key);
+    expect(hand[0].def.id).toBe(once);
+    room.rerollAugment('p1', hand[1].cardKey);
+    expect(hand[1].def.id).not.toBe(before[1]);
+  });
+
   it('동일 코인이면 누적 순이익 → 적중 횟수 → 공동 순위로 판정한다', () => {
     const room = makeRoom(2);
     cleanups.push(room);

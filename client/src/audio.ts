@@ -7,6 +7,8 @@
 // ============================================================
 
 import { TRACKS, hz, midiToHz, stepTime, type CompiledTrack, type TrackEvent, type TrackName } from './music';
+import { CARD_SFX, playCardSfx } from './cardSfx';
+import { CARD_SAMPLE_IDS } from './cardSamples';
 
 export type { TrackName };
 
@@ -499,6 +501,61 @@ export function sfx(name: SfxName, arg = 0, delay = 0): void {
   const t = c.currentTime + 0.01 + delay;
   const hold = SFX[name](c, sfxOut, t, arg);
   if (hold > 0) holdUntil = Math.max(holdUntil, t + hold);
+}
+
+/** 지금 울리고 있는 카드 효과음이 끝나는 시각들 — 한꺼번에 너무 많이 겹치지 않게 센다 */
+let cardVoices: number[] = [];
+const CARD_VOICE_LIMIT = 3;
+/** 녹음 효과음: 처음 필요할 때 받아서 풀어 두고 다시 쓴다 */
+const sampleIds = new Set(CARD_SAMPLE_IDS);
+const samples = new Map<string, AudioBuffer>();
+const sampleLoading = new Set<string>();
+
+function loadSample(id: string, c: AudioContext): void {
+  if (samples.has(id) || sampleLoading.has(id)) return;
+  sampleLoading.add(id);
+  fetch(`/sfx/${id}.mp3`)
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+    .then((data) => c.decodeAudioData(data))
+    .then((buf) => samples.set(id, buf))
+    .catch(() => sampleIds.delete(id)) // 받지 못한 소리는 합성음으로 대신한다
+    .finally(() => sampleLoading.delete(id));
+}
+
+/** 경주가 시작될 때 불러 두면 첫 카드부터 녹음 효과음이 난다 */
+export function warmCardSfx(): void {
+  if (!unlocked || !prefs.sfx) return;
+  const c = context();
+  if (!c) return;
+  for (const id of sampleIds) loadSample(id, c);
+}
+
+/**
+ * 증강 카드 고유의 효과음을 낸다. 녹음 파일이 있으면 그것을, 아직 못 받았거나 없으면 합성음을 쓴다.
+ * 어느 쪽도 없는 카드면 false를 돌려주므로 부르는 쪽에서 공통 소리(buff / hex)를 내면 된다.
+ */
+export function cardSfx(id: string): boolean {
+  if (!sampleIds.has(id) && !CARD_SFX[id]) return false;
+  if (!unlocked || !prefs.sfx) return true;
+  const c = context();
+  if (!c || !sfxOut) return true;
+  cardVoices = cardVoices.filter((end) => end > c.currentTime);
+  if (cardVoices.length >= CARD_VOICE_LIMIT) return true; // 이미 여러 장이 울리는 중이면 건너뛴다
+  const t = c.currentTime + 0.01;
+  const buf = samples.get(id);
+  if (buf) {
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.connect(sfxOut);
+    src.start(t);
+    cardVoices.push(t + buf.duration);
+    return true;
+  }
+  if (sampleIds.has(id)) loadSample(id, c); // 다음부터는 녹음 소리가 난다
+  const len = playCardSfx(id, c, sfxOut, t);
+  if (len == null) return false;
+  cardVoices.push(t + len);
+  return true;
 }
 
 export function toggleMusic(): void {

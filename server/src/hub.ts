@@ -256,6 +256,12 @@ export class GameHub {
         break;
       }
 
+      case 'REROLL_AUGMENT': {
+        const room = currentRoom();
+        if (room) room.rerollAugment(session.playerId, msg.cardKey);
+        break;
+      }
+
       case 'NEXT_ROUND': {
         const room = currentRoom();
         if (!room) return;

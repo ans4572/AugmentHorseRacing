@@ -325,7 +325,7 @@ export interface RoomSnapshot {
   revealedBets?: RevealedBet[];
   betCounts?: BetCount[];
   race?: { startedAt: number; horses: HorseSnapshot[] };
-  augment?: { phase: number; tier: AugmentTier; endsAt: number; cards: AugmentCardView[]; used: boolean; preview?: boolean; queuedKey?: string };
+  augment?: { phase: number; tier: AugmentTier; endsAt: number; cards: AugmentCardView[]; used: boolean; preview?: boolean; queuedKey?: string; /** 이미 새로고침한 카드 자리 */ rerolled?: string[] };
   rankings?: RankingEntry[];
   roundResult?: { round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize };
   gameResult?: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus };
@@ -345,6 +345,8 @@ export type C2S =
   | { type: 'PLACE_BET'; betType: BetType; horseId: number; amount: number }
   | { type: 'CANCEL_BET'; betId: string }
   | { type: 'SELECT_AUGMENT'; cardKey: string; targetHorseId?: number }
+  /** 카드 한 장을 같은 등급의 다른 카드로 바꾼다 (카드 자리마다 한 번) */
+  | { type: 'REROLL_AUGMENT'; cardKey: string }
   | { type: 'NEXT_ROUND' }
   | { type: 'RESTART' }
   | { type: 'EMOTE'; emoji: string }
@@ -369,6 +371,7 @@ export type S2C =
   | { type: 'RACE_STATE'; t: number; horses: HorseSnapshot[] }
   | { type: 'AUGMENT_PHASE'; phase: number; tier: AugmentTier; endsAt: number; cards: AugmentCardView[]; /** 미리 고르기 단계: 고른 카드는 증강 지점에서 발동한다 */ preview?: boolean }
   | { type: 'AUGMENT_LIVE'; phase: number; endsAt: number }
+  | { type: 'AUGMENT_REROLLED'; cardKey: string; defId: string }
   | { type: 'AUGMENT_CLOSED'; phase: number }
   | { type: 'AUGMENT_USED'; playerName: string; defId: string; targets: number[]; blocked: number[] }
   | { type: 'AUGMENT_RESULT'; ok: boolean; message?: string; cardKey?: string; /** 미리 고르기로 예약만 된 상태 */ queued?: boolean }

@@ -93,7 +93,7 @@ function render(): void {
   el('stable-carrots').innerHTML = `${icon('carrot')}${s.carrots}`;
   el('stable-stats').textContent =
     s.stats.races > 0
-      ? `출전 ${s.stats.races}회, 우승 ${s.stats.wins}회, 3위 안 ${s.stats.podiums}회. 지금까지 번 당근 ${s.stats.earned}개.`
+      ? `출전 ${s.stats.races}회, 우승 ${s.stats.wins}회, 1~3위 ${s.stats.podiums}회. 지금까지 번 당근 ${s.stats.earned}개.`
       : '아직 출전 기록이 없습니다. 혼자 하기에서 첫 경주를 뛰어 보세요.';
 
   el('stable-tabs').innerHTML = SLOT_ORDER.map(

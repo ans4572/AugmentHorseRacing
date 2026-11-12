@@ -36,7 +36,7 @@ import { claimGameBonus, claimRoundPrize, myHorseEntry, stable } from './stable'
 import { closeStable, horseSummary, initStableUi, openStable } from './stableUi';
 import { bib, icon, inkOn, mountIcons, rankBadge } from './icons';
 import { startTitleBg, stopTitleBg } from './titleBg';
-import { initAudio, onSoundPrefsChange, setMusic, sfx, soundPrefs, toggleMusic, toggleSfx } from './audio';
+import { cardSfx, warmCardSfx, initAudio, onSoundPrefsChange, setMusic, sfx, soundPrefs, toggleMusic, toggleSfx } from './audio';
 
 // ============ 전역 상태 ============
 
@@ -72,6 +72,8 @@ const state = {
     /** 미리 고르기 단계인지, 예약해 둔 카드가 무엇인지 */
     preview: boolean;
     queuedKey: string | null;
+    /** 이미 새로고침한 카드 자리 */
+    rerolled: string[];
   } | null,
   rankings: null as RankingEntry[] | null,
   cameraSel: 'leader' as CameraTarget,
@@ -269,7 +271,7 @@ function renderLobby(): void {
   $('lobby-settings').innerHTML = `
     <span class="chip">최대 ${state.settings.maxPlayers}명</span>
     <span class="chip">${state.settings.totalRounds}라운드</span>
-    <span class="chip">시작 코인 ${ROUND_COINS[state.settings.totalRounds]}</span>
+    <span class="chip">시작 코인 ${ROUND_COINS[state.settings.totalRounds].toLocaleString('ko-KR')}</span>
     ${state.settings.blindBets ? `<span class="chip">${icon('blind')}블라인드 배팅</span>` : ''}`;
   $('lobby-players').innerHTML = state.players
     .map(
@@ -512,6 +514,11 @@ function renderAugmentBar(): void {
       return `<div class="augment-card${selected ? ' selected' : ''}${queued ? ' queued' : ''}" data-card="${c.cardKey}" style="border-color:${rar.color};${aug.pending ? 'opacity:0.5;pointer-events:none' : ''}">
         
         ${queued ? '<span class="aug-queued">예약됨</span>' : ''}
+        ${
+          aug.rerolled.includes(c.cardKey)
+            ? ''
+            : `<button class="aug-reroll" data-reroll="${c.cardKey}" title="다른 카드로 바꾸기 (한 번만)" aria-label="${esc(def.name)} 카드를 다른 카드로 바꾸기">${icon('refresh')}</button>`
+        }
         <div class="aug-emoji">${def.emoji}</div>
         <div class="aug-name">${esc(def.name)}</div>
         <div class="aug-desc">${esc(def.description)}</div>
@@ -532,6 +539,9 @@ function renderAugmentBar(): void {
         renderAugmentBar();
       }
     };
+  });
+  bar.querySelectorAll<HTMLElement>('[data-reroll]').forEach((el) => {
+    el.onclick = () => net.send({ type: 'REROLL_AUGMENT', cardKey: el.dataset.reroll! });
   });
   bar.querySelectorAll<HTMLElement>('[data-pick]').forEach((el) => {
     el.onclick = () => {
@@ -816,7 +826,8 @@ function applySnapshot(snap: RoomSnapshot): void {
           selectedKey: null,
           pending: false,
           preview: !!snap.augment.preview,
-          queuedKey: snap.augment.queuedKey ?? null
+          queuedKey: snap.augment.queuedKey ?? null,
+          rerolled: snap.augment.rerolled ?? []
         };
         renderAugmentBar();
       }
@@ -1033,6 +1044,7 @@ net.on((msg: S2C) => {
       state.phase = 'racing';
       hide('overlay-countdown');
       sfx('go');
+      warmCardSfx();
       view?.announce('출발!');
       updateTopbar();
       break;
@@ -1053,7 +1065,8 @@ net.on((msg: S2C) => {
         selectedKey: null,
         pending: false,
         preview: !!msg.preview,
-        queuedKey: null
+        queuedKey: null,
+        rerolled: []
       };
       renderAugmentBar();
       sfx('augment', ['silver', 'gold', 'platinum'].indexOf(msg.tier));
@@ -1062,6 +1075,19 @@ net.on((msg: S2C) => {
         const tierColor = { silver: '#dee2e6', gold: '#ffd43b', platinum: '#66d9e8' }[msg.tier];
         view?.announce(`${msg.phase}차 증강 ${tierInfo.label}`, tierColor);
       }
+      break;
+    }
+
+    case 'AUGMENT_REROLLED': {
+      const aug = state.augment;
+      if (!aug) break;
+      aug.cards = aug.cards.map((c) => (c.cardKey === msg.cardKey ? { ...c, defId: msg.defId } : c));
+      aug.rerolled.push(msg.cardKey);
+      // 바꾼 카드를 고르거나 예약해 둔 상태였다면 푼다
+      if (aug.selectedKey === msg.cardKey) aug.selectedKey = null;
+      if (aug.queuedKey === msg.cardKey) aug.queuedKey = null;
+      renderAugmentBar();
+      sfx('pop');
       break;
     }
 
@@ -1113,7 +1139,8 @@ net.on((msg: S2C) => {
       view?.showAugmentNote(msg.targets, `${def.emoji} ${def.name}`, msg.playerName, def.hostile);
       view?.showAugmentNote(msg.blocked, '방어 성공', def.name, false);
       view?.flashHorses(msg.targets, !def.hostile);
-      sfx(def.hostile ? 'hex' : 'buff');
+      // 카드마다 고유 효과음이 있고, 없는 카드만 공통 소리를 낸다
+      if (!cardSfx(def.id)) sfx(def.hostile ? 'hex' : 'buff');
       if (msg.blocked.length > 0) sfx('shield');
       break;
     }
@@ -1264,7 +1291,8 @@ function bindUI(): void {
   if (savedName) $<HTMLInputElement>('main-name').value = savedName;
 
   $('btn-goto-create').onclick = () => {
-    playerName();
+    // 방 이름을 비워 두면 쓰이는 이름을 미리 보여 준다
+    $<HTMLInputElement>('create-name').placeholder = `${playerName()}의 경마장`;
     showScreen('scr-create');
   };
   $('btn-goto-join').onclick = () => {
@@ -1274,9 +1302,33 @@ function bindUI(): void {
   };
   // 혼자 하기: NPC 5명과 6인전을 만들고 바로 시작한다
   const soloRounds = $<HTMLInputElement>('solo-rounds');
+  // 방 설정은 다음에 열 때도 그대로 나오도록 이 브라우저에 기억한다
+  const SETUP_KEY = 'augment-derby-setup';
+  const savedSetup = ((): Record<string, string> => {
+    try {
+      return JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}') as Record<string, string>;
+    } catch {
+      return {};
+    }
+  })();
+  const remember = (key: string, value: string): void => {
+    savedSetup[key] = value;
+    try {
+      localStorage.setItem(SETUP_KEY, JSON.stringify(savedSetup));
+    } catch {
+      /* 저장할 수 없는 환경에서는 이번 접속 동안만 유지된다 */
+    }
+  };
+  const restore = (input: HTMLInputElement, key: string): void => {
+    const v = Number(savedSetup[key]);
+    if (Number.isFinite(v) && v >= Number(input.min) && v <= Number(input.max)) input.value = String(v);
+  };
+  const coinText = (rounds: number): string => ROUND_COINS[rounds].toLocaleString('ko-KR');
+  restore(soloRounds, 'soloRounds');
   const syncSolo = () => {
+    remember('soloRounds', soloRounds.value);
     $('solo-rounds-label').textContent = `${soloRounds.value}라운드`;
-    $('solo-coins').textContent = String(ROUND_COINS[Number(soloRounds.value)]);
+    $('solo-coins').textContent = coinText(Number(soloRounds.value));
   };
   soloRounds.oninput = syncSolo;
   syncSolo();
@@ -1319,13 +1371,51 @@ function bindUI(): void {
   const roundsInput = $<HTMLInputElement>('create-rounds');
   const maxInput = $<HTMLInputElement>('create-max');
   const npcInput = $<HTMLInputElement>('create-npc');
+  restore(roundsInput, 'rounds');
+  restore(maxInput, 'max');
+  restore(npcInput, 'npc');
+  // 배팅 공개 방식: 둘 중 하나를 고르는 단추
+  const blindSeg = $('create-blind');
+  const BLIND_HELP: Record<string, string> = {
+    open: '배팅이 끝나면 누가 어디에 걸었는지 모두에게 보여 줍니다.',
+    blind: '라운드 결과가 나올 때까지 각자 자기 배팅만 볼 수 있습니다.'
+  };
+  const setBlind = (value: string): void => {
+    blindSeg.querySelectorAll<HTMLElement>('button').forEach((b) => {
+      const on = b.dataset.value === value;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+    blindSeg.dataset.value = value;
+    $('create-blind-help').textContent = BLIND_HELP[value];
+    remember('blind', value);
+  };
+  blindSeg.querySelectorAll<HTMLElement>('button').forEach((b) => {
+    b.onclick = () => setBlind(b.dataset.value!);
+  });
+  // 방향키로도 바꿀 수 있다 (라디오 묶음의 기본 조작)
+  blindSeg.onkeydown = (ev) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key)) return;
+    ev.preventDefault();
+    setBlind(blindSeg.dataset.value === 'open' ? 'blind' : 'open');
+    blindSeg.querySelector<HTMLElement>('button.active')?.focus();
+  };
+  setBlind(savedSetup.blind === 'blind' ? 'blind' : 'open');
   const syncCreate = () => {
     $('create-rounds-label').textContent = `${roundsInput.value}라운드`;
     $('create-max-label').textContent = `${maxInput.value}명`;
-    $('create-coins').textContent = String(ROUND_COINS[Number(roundsInput.value)]);
+    $('create-coins').textContent = coinText(Number(roundsInput.value));
     npcInput.max = String(Number(maxInput.value) - 1);
     if (Number(npcInput.value) > Number(npcInput.max)) npcInput.value = npcInput.max;
-    $('create-npc-label').textContent = npcInput.value;
+    const npc = Number(npcInput.value);
+    const seats = Number(maxInput.value) - npc;
+    $('create-npc-label').textContent = npc === 0 ? '없음' : `${npc}명`;
+    $('create-npc-max').textContent = `${npcInput.max}명`;
+    $('create-seats').textContent = `사람이 앉을 자리는 나를 포함해 ${seats}명입니다.`;
+    remember('rounds', roundsInput.value);
+    remember('max', maxInput.value);
+    remember('npc', npcInput.value);
   };
   roundsInput.oninput = syncCreate;
   maxInput.oninput = syncCreate;
@@ -1339,11 +1429,19 @@ function bindUI(): void {
       playerName: playerName(),
       roomName: $<HTMLInputElement>('create-name').value || `${playerName()}의 경마장`,
       isPrivate: true,
-      blindBets: $<HTMLSelectElement>('create-blind').value === 'blind',
+      blindBets: $('create-blind').dataset.value === 'blind',
       maxPlayers: Number(maxInput.value),
       totalRounds: Number(roundsInput.value),
       npcCount: Number(npcInput.value)
     });
+  };
+
+  // 입력 칸에서 Enter를 누르면 그 화면의 주 동작을 실행한다
+  $('create-name').onkeydown = (ev) => {
+    if (ev.key === 'Enter') $('btn-create-go').click();
+  };
+  $('join-code').onkeydown = (ev) => {
+    if (ev.key === 'Enter') $('btn-join-code').click();
   };
 
   // 방 참가 화면

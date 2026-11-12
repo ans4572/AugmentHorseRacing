@@ -89,6 +89,8 @@ interface AugmentPhaseState {
   liveAt: number;
   durationMs: number;
   queued: Map<string, { cardKey: string; targetHorseId?: number }>;
+  /** 이미 새로고침한 카드 자리 (cardKey) */
+  rerolled: Set<string>;
 }
 
 let idCounter = 0;
@@ -646,7 +648,8 @@ export class Room {
       live: false,
       liveAt: liveAt ?? 0,
       durationMs,
-      queued: new Map()
+      queued: new Map(),
+      rerolled: new Set()
     };
     if (liveAt === undefined) this.goLiveAugment();
   }
@@ -710,6 +713,37 @@ export class Room {
     if (!this.augment || this.augment.closed) return;
     this.augment.closed = true;
     this.broadcast({ type: 'AUGMENT_CLOSED', phase: this.augment.phase });
+  }
+
+  /** 카드 한 장을 같은 등급의 다른 카드로 바꾼다. 카드 자리마다 한 번만 된다 */
+  rerollAugment(playerId: string, cardKey: string): void {
+    const player = this.players.get(playerId);
+    const aug = this.augment;
+    const sim = this.sim;
+    const fail = (message: string) => {
+      if (player) this.send(player, { type: 'AUGMENT_RESULT', ok: false, message });
+    };
+    if (!player || !aug || !sim) return fail('증강을 바꿀 수 없습니다.');
+    if (aug.closed || (aug.live && Date.now() >= aug.endsAt)) return fail('증강 선택 시간이 지났습니다.');
+    if (aug.used.has(playerId)) return fail('이미 카드를 사용했습니다.');
+    const hand = aug.hands.get(playerId) ?? [];
+    const slot = hand.find((c) => c.cardKey === cardKey);
+    if (!slot) return fail('손패에 없는 카드입니다.');
+    if (aug.rerolled.has(cardKey)) return fail('이 카드는 이미 새로고침했습니다.');
+
+    // 지금 손에 든 카드와 겹치지 않는 카드를 같은 등급에서 뽑는다
+    const held = new Set(hand.map((c) => c.def.id));
+    let next: AugmentDefinition | undefined;
+    for (let i = 0; i < 8 && !next; i++) {
+      next = drawCards(sim, aug.phase, aug.tier, this.betTotals()).find((d) => !held.has(d.id));
+    }
+    if (!next) return fail('바꿀 수 있는 다른 카드가 없습니다.');
+
+    aug.rerolled.add(cardKey);
+    slot.def = next;
+    // 예약해 둔 카드를 바꿨다면 예약도 풀린다
+    if (aug.queued.get(playerId)?.cardKey === cardKey) aug.queued.delete(playerId);
+    this.send(player, { type: 'AUGMENT_REROLLED', cardKey, defId: next.id });
   }
 
   selectAugment(playerId: string, cardKey: string, targetHorseId?: number): void {
@@ -952,7 +986,8 @@ export class Room {
           cards: hand.map((c) => ({ cardKey: c.cardKey, defId: c.def.id })),
           used: aug.used.has(forPlayerId),
           preview: !aug.live,
-          queuedKey: aug.queued.get(forPlayerId)?.cardKey
+          queuedKey: aug.queued.get(forPlayerId)?.cardKey,
+          rerolled: hand.filter((c) => aug.rerolled.has(c.cardKey)).map((c) => c.cardKey)
         };
       }
     }

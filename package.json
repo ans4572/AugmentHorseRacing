@@ -18,6 +18,7 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
+    "@openverse/api-client": "^0.0.1-a1",
     "three": "^0.187.0",
     "ws": "^8.18.0"
   },

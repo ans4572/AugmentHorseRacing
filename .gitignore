@@ -24,3 +24,4 @@ desktop.ini
 # Cloudflare 로컬 상태 / 비밀값
 .wrangler/
 .dev.vars
+s/

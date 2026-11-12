@@ -1503,8 +1503,7 @@ export class Race3DView {
     // 방어막은 큰 구 대신 뽁뽁이로 보여 준다
     r.shield.visible = false;
     r.bubbles.visible = (snap?.shield ?? 0) > 0;
-    r.siren.visible = siren;
-    if (siren) (r.siren.material as THREE.MeshBasicMaterial).color.setHex(Math.sin(t * 14) > 0 ? 0xff2d2d : 0x2f6bff);
+    r.siren.visible = false; // 예전 '과속 단속'의 경광등 — 지금은 쓰지 않는다
     const airborne = flying || r.inflate > 0.5;
     const shadowScale = (airborne ? 0.7 : 1) * s;
     r.shadow.scale.set(1.25 * shadowScale, 0.8 * shadowScale, 1);
@@ -1524,19 +1523,19 @@ export class Race3DView {
       const headY = (r.head.position.y + TORSO_RAISE) * s + r.inner.position.y;
       if (rocket) pop(16, ['🔥', '💥', '💨'], rearX - 0.4, 2.3 * s, 1.1); // 엉덩이 로켓: 꽁무니 폭발
       if (jitter) pop(9, ['⚡', '☕', '‼️'], X + rnd(1.8), 2.6, 0.8); // 에너지 드링크: 카페인 과다
-      if (vis.has('droop')) pop(4, ['🌧️', '😮‍💨', '📅'], headX + 0.4, headY + 1.3, 1.0, 0.5); // 월요병: 머리 위 먹구름과 달력
+      if (vis.has('droop')) pop(4, ['🥱', '💤'], headX + 0.4, headY + 1.1, 0.9, 0.5); // 하품 전염
       if (flying) pop(8, ['🌀', '🍃'], X + rnd(1.6), r.inner.position.y + 0.6, 0.8, -1.2); // 목 프로펠러: 아래로 내리꽂는 바람
       if (vis.has('poop')) pop(5, ['💩', '💦', '🧻'], rearX - 0.1, 1.7 * s, 0.75); // 급똥: 설명 생략
-      if (warpK != null) pop(26, ['💨', '🏃', '👋'], X - 0.5 - Math.random() * 2.5, 1.6 + Math.random(), 0.8, 0.4); // 칼퇴: 퇴근합니다
-      if (swapK != null) pop(18, ['💰', '✨', '🎰'], X + rnd(1.5), r.inner.position.y + 1.6 + rnd(1.5), 0.9); // 인생 역전: 돈벼락
+      if (warpK != null) pop(26, ['💨', '✨', '🧭'], X - 0.5 - Math.random() * 2.5, 1.6 + Math.random(), 0.8, 0.4); // 지름길 발견
+      if (swapK != null) pop(18, ['🔀', '✨', '💫'], X + rnd(1.5), r.inner.position.y + 1.6 + rnd(1.5), 0.9); // 말생 역전
       if (sitting) pop(6, ['⭐', '💫', '🍌'], headX + rnd(0.8), headY + 0.9, 0.7, 0.6); // 엉덩방아: 별이 보인다
-      if (r.buff > 0.5) pop(4, ['💪', '🍗', '💦'], X + rnd(1.2), 3.2 * s, 0.85); // 득근: 닭가슴살의 힘
-      if (lowbat) pop(3, ['🪫', '❗'], headX, headY + 0.9, 0.8, 0.7); // 배터리 1%
+      if (r.buff > 0.5) pop(4, ['💪', '🥕', '💦'], X + rnd(1.2), 3.2 * s, 0.85); // 득근: 당근 단백질의 힘
+      if (lowbat) pop(4, ['💦', '😮‍💨'], headX, headY + 0.9, 0.8, 0.7); // 헉헉 방전
       if (nap) pop(3, ['💤', '🍚'], X + 0.6, 2.4, 0.9, 0.9); // 식곤증: 밥 먹고 꿀잠
-      if (siren) pop(4, ['🚨', '🎫', '💸'], headX, headY + 1.0, 0.8, 0.8); // 과속 단속: 딱지와 과태료
+      if (siren) pop(4, ['🪢', '✋'], headX, headY + 1.0, 0.8, 0.8); // 고삐 당기기
       if (vis.has('eat')) pop(5, ['🥕', '😋'], headX + 0.5, headY - 0.2, 0.7, 0.9); // 당근 먹방
       if (disco) pop(7, ['🎵', '🎶', '🪩'], X + rnd(2), 3.2, 0.8); // 디스코 타임
-      if (vis.has('bighead')) pop(3, ['📸', '✨'], headX + rnd(1.5), headY + rnd(1.2), 0.8, 0.3); // 연예인 병: 플래시 세례
+      if (vis.has('bighead')) pop(3, ['👑', '✨'], headX + rnd(1.5), headY + rnd(1.2), 0.8, 0.3); // 우승 후보 병: 벌써 왕관
       if (vis.has('giant')) pop(3, ['🦖', '💢'], X + rnd(2), 5.2, 1.2, 0.8); // 거대화
       if (fart) pop(4, ['💨', '🤢'], rearX - 0.6, 1.8 * s, 0.9); // 방귀 부스터: 뒤따르는 말의 심정
     }

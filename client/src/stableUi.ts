@@ -11,6 +11,7 @@ import { HORSE_COLORS } from '../../shared/src/names';
 import { Race3DView } from './race3d';
 import { buy, equip, isOwned, setHorseName, stable } from './stable';
 import { icon } from './icons';
+import { sfx } from './audio';
 
 // ============================================================
 // 마구간 화면 — 내 말 미리보기, 꾸미기 상점, 입어 보기
@@ -130,6 +131,7 @@ function render(): void {
         const item = COSMETIC_BY_ID[id];
         if (isOwned(id)) {
           equip(id);
+          sfx('equip');
           delete tryOn[item.slot];
         } else if (tryOn[item.slot] === id) {
           delete tryOn[item.slot]; // 다시 누르면 입어 보기 취소
@@ -157,6 +159,7 @@ function render(): void {
       const result = buy(tryingId);
       if (result === 'ok') {
         delete tryOn[item.slot];
+        sfx('buy');
         notify(`${item.name}을(를) 사서 바로 입혔습니다.`, false);
       } else if (result === 'poor') {
         notify('당근이 부족합니다. 혼자 하기에서 모을 수 있습니다.');

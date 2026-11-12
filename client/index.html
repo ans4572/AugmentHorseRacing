@@ -12,10 +12,17 @@
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
+  <div id="title-bg" aria-hidden="true"></div>
   <div class="finish-line" aria-hidden="true"></div>
 
   <!-- 연결 상태 -->
   <div id="conn-banner" class="hidden">서버에 연결하는 중입니다</div>
+
+  <!-- 소리 켜고 끄기 (메뉴 화면용 — 게임 중에는 전광판 안의 버튼을 쓴다) -->
+  <div class="sound-ctl corner">
+    <button type="button" data-snd="music" aria-label="배경음악" aria-pressed="true"><i data-ic="note"></i></button>
+    <button type="button" data-snd="sfx" aria-label="효과음" aria-pressed="true"><i data-ic="speaker"></i></button>
+  </div>
 
   <!-- 화면 1: 메인 -->
   <div id="scr-main" class="screen">
@@ -181,6 +188,10 @@
       <div id="top-phase"></div>
       <div id="top-timer"></div>
       <div id="top-coins"></div>
+      <div class="sound-ctl">
+        <button type="button" data-snd="music" aria-label="배경음악" aria-pressed="true"><i data-ic="note"></i></button>
+        <button type="button" data-snd="sfx" aria-label="효과음" aria-pressed="true"><i data-ic="speaker"></i></button>
+      </div>
       <button id="btn-game-leave" class="btn small" title="게임에서 나가 메인 화면으로 돌아갑니다">나가기</button>
     </div>
     <div id="game-body">
@@ -214,19 +225,23 @@
         <div id="horse-cards" class="horse-cards"></div>
         <div id="bet-controls" class="bet-controls">
           <div id="bet-type-tabs" class="bet-tabs"></div>
+          <p id="bet-type-desc" class="muted"></p>
           <div class="bet-amount-row">
-            <span id="bet-selected-info" class="muted">말을 고르세요</span>
-            <input id="bet-amount" type="number" min="10" step="10" value="10" aria-label="배팅 금액" />
+            <input id="bet-amount" type="number" min="0" step="10" value="0" aria-label="배팅 금액" />
             <button class="btn small alt bet-quick" data-add="10">+10</button>
             <button class="btn small alt bet-quick" data-add="50">+50</button>
             <button class="btn small alt bet-quick" data-add="100">+100</button>
             <button id="bet-max" class="btn small alt">최대</button>
-            <button id="btn-place-bet" class="btn small">배팅하기</button>
+            <button id="bet-clear" class="btn small ghost">0으로</button>
+            <span id="bet-limit-info" class="muted"></span>
           </div>
-          <div id="bet-limit-info" class="muted"></div>
+          <button id="btn-place-bet" class="btn bet-go"></button>
           <div id="my-bets"></div>
         </div>
-        <button id="btn-ready" class="btn">능력치 확인 완료</button>
+        <div class="ready-row">
+          <span id="ready-count" class="muted"></span>
+          <button id="btn-ready" class="btn alt">준비 완료</button>
+        </div>
       </div>
     </div>
 
@@ -252,8 +267,9 @@
       <ol class="howto">
         <li>방을 만들고 친구를 초대합니다. 같은 PC에서 브라우저 탭을 여러 개 열어도 됩니다.</li>
         <li>라운드마다 여섯 마리의 능력치를 보고 결과에 코인을 겁니다. 한 라운드에 가진 코인의 30%까지 걸 수 있습니다.</li>
+        <li>배팅 시간은 2분입니다. 모두가 준비 완료를 누르면 바로 넘어갑니다.</li>
         <li>배팅이 끝나면 누가 어느 말에 걸었는지 모두 공개됩니다. 블라인드 방에서는 결과가 나올 때 공개됩니다.</li>
-        <li>경주가 25%, 50%, 75% 지점을 지날 때 증강 카드 3장을 받습니다. 한 장을 골라 말을 돕거나 방해합니다. <b>고르는 동안에도 경주는 멈추지 않습니다.</b></li>
+        <li>경주가 20%, 40%, 60%, 80% 지점을 지날 때마다 증강 카드 3장을 받습니다. 한 장을 골라 말을 돕거나 방해합니다. <b>고르는 동안에도 경주는 멈추지 않습니다.</b></li>
         <li>모든 라운드가 끝났을 때 코인이 가장 많은 사람이 이깁니다.</li>
       </ol>
       <div class="btn-row"><button id="btn-howto-close" class="btn">닫기</button></div>

@@ -247,7 +247,7 @@ describe('증강 카드 드로우 (등급제)', () => {
     const sim = new RaceSim(sixHorses(), mulberry32(1));
     setPositions(sim, { 1: 300, 2: 250, 3: 200, 4: 150, 5: 100, 6: 50 });
     for (const tier of TIERS) {
-      for (const phase of [1, 2, 3]) {
+      for (const phase of [1, 2, 3, 4]) {
         for (let i = 0; i < 30; i++) {
           const hand = drawCards(sim, phase, tier, noBets, mulberry32(i * 7 + phase));
           for (const card of hand) expect(tierOf(card)).toBe(tier);
@@ -284,7 +284,7 @@ describe('증강 카드 드로우 (등급제)', () => {
     const rng = mulberry32(42);
     const runs = 6000;
     const platinumRate: number[] = [];
-    for (const phase of [1, 2, 3]) {
+    for (const phase of [1, 2, 3, 4]) {
       const count = { silver: 0, gold: 0, platinum: 0 };
       for (let i = 0; i < runs; i++) count[rollTier(phase, rng)]++;
       const weights = PHASE_TIER_WEIGHTS[phase];
@@ -298,11 +298,11 @@ describe('증강 카드 드로우 (등급제)', () => {
     expect(platinumRate[2]).toBeGreaterThan(platinumRate[1]);
   });
 
-  it('75% 구간(3차)에서는 위치 교환 카드가 나오지 않는다', () => {
+  it('마지막 구간(4차, 80%)에서는 위치 교환 카드가 나오지 않는다', () => {
     const sim = new RaceSim(sixHorses(), mulberry32(1));
     setPositions(sim, { 1: 800, 2: 700, 3: 600, 4: 500, 5: 400, 6: 300 });
     for (let i = 0; i < 100; i++) {
-      const hand = drawCards(sim, 3, 'platinum', noBets, mulberry32(i));
+      const hand = drawCards(sim, 4, 'platinum', noBets, mulberry32(i));
       expect(hand.every((c) => c.effectType !== 'swapPositions')).toBe(true);
     }
   });

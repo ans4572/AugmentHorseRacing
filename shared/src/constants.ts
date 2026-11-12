@@ -3,7 +3,7 @@ import type { AugmentTier, BetType, Rarity } from './types';
 // ---------------- 경주 ----------------
 
 /** 코스 거리 (정규화 단위) */
-export const COURSE_LENGTH = 1000;
+export const COURSE_LENGTH = 1400;
 
 /** 서버 시뮬레이션 틱 간격 (ms) — 20Hz */
 export const TICK_MS = 50;
@@ -56,7 +56,7 @@ export const ODDS_HOUSE_FACTOR = 0.9;
 
 export const TIMINGS = {
   preview: 20000,   // 말 능력치 확인
-  betting: 30000,   // 배팅
+  betting: 120000,  // 배팅 (모두 준비 완료를 누르면 바로 마감)
   reveal: 5000,     // 배팅 공개
   countdown: 3000,  // 경주 시작 카운트다운
   finishHold: 2500  // 전원 완주 후 결과 표시까지 대기
@@ -73,9 +73,10 @@ export interface AugmentPhaseDef {
 }
 
 export const AUGMENT_PHASES: AugmentPhaseDef[] = [
-  { phase: 1, at: 0.25, durationMs: 7000 },
-  { phase: 2, at: 0.5, durationMs: 6000 },
-  { phase: 3, at: 0.75, durationMs: 5000 }
+  { phase: 1, at: 0.2, durationMs: 7000 },
+  { phase: 2, at: 0.4, durationMs: 6000 },
+  { phase: 3, at: 0.6, durationMs: 6000 },
+  { phase: 4, at: 0.8, durationMs: 5000 }
 ];
 
 /** 같은 등급 안에서 희귀도별 가중치 (플래티넘 안에서 전설이 영웅보다 드물다) */
@@ -112,8 +113,9 @@ export const TIER_INFO: Record<AugmentTier, { label: string; emoji: string; colo
 /** 구간별 등급 등장 가중치 — 뒤 구간일수록 높은 등급이 잘 나온다 */
 export const PHASE_TIER_WEIGHTS: Record<number, Record<AugmentTier, number>> = {
   1: { silver: 60, gold: 30, platinum: 10 },
-  2: { silver: 35, gold: 45, platinum: 20 },
-  3: { silver: 20, gold: 40, platinum: 40 }
+  2: { silver: 45, gold: 40, platinum: 15 },
+  3: { silver: 30, gold: 45, platinum: 25 },
+  4: { silver: 20, gold: 40, platinum: 40 }
 };
 
 /** 등급 안에 뽑을 카드가 모자랄 때 채워 넣는 순서 */

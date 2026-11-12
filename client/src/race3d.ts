@@ -44,14 +44,28 @@ const GEO = {
   cone: new THREE.ConeGeometry(1, 1, 12),
   disc: new THREE.CircleGeometry(1, 24),
   box: new THREE.BoxGeometry(1, 1, 1),
-  /** 아래로 갈수록 가늘어지는 다리 */
-  leg: new THREE.CylinderGeometry(1, 0.78, 1, 12),
-  /** 위가 굵고 무릎으로 갈수록 가늘어지는 허벅지 */
-  thigh: new THREE.CylinderGeometry(1, 0.42, 1, 14)
 };
 
 /** 엉덩이 관절 높이 = 다리 전체 길이 */
 const HIP_Y = 1.42;
+
+/**
+ * 다리 모양 — 망아지 다리: 가늘고 곧은 정강이에 큼직한 발굽,
+ * 허벅지는 몸통 쪽이 굵은 원뿔이고 윗부분이 몸통 안으로 들어가 있다.
+ */
+const LEG = {
+  /** 허벅지 몸통 쪽 굵기 (앞다리 / 뒷다리) */
+  thighF: 0.27,
+  thighH: 0.31,
+  /** 허벅지 길이. 아래 끝은 무릎에 고정되고 남는 길이는 몸통 안으로 들어간다 */
+  thighLen: 0.98,
+  shin: 0.09,
+  knee: 0.105,
+  hoof: 0.17,
+  hoofH: 0.24
+};
+/** 무릎 쪽이 몸통 쪽의 1/3 굵기인 원뿔 허벅지 */
+const THIGH_GEO = new THREE.CylinderGeometry(1, 0.33, 1, 14);
 /** 목: 어깨에서 앞으로 기울어 뻗는다. NECK_HALF는 목 길이의 절반 */
 const NECK_BASE_X = 0.55;
 const NECK_BASE_Y = 1.02;
@@ -227,6 +241,8 @@ export class Race3DView {
   private rings: Ring[] = [];
   /** 마구간 미리보기: 말 한 마리를 가까이서 비추고 이름표·미니맵을 숨긴다 */
   private preview: boolean;
+  /** 타이틀 배경: 컨테이너를 가득 채우고 이름표·미니맵을 숨긴다 */
+  private backdrop: boolean;
   private trailMats = new Map<string, THREE.MeshBasicMaterial[]>();
   private dustMat = new THREE.MeshBasicMaterial({ color: 0xe8c9a0, transparent: true, opacity: 0.6 });
   private fartMat = new THREE.MeshBasicMaterial({ color: 0x94d82d, transparent: true, opacity: 0.65 });
@@ -248,12 +264,13 @@ export class Race3DView {
   private resizeObs: ResizeObserver;
   private disposed = false;
 
-  constructor(container: HTMLElement, opts: { preview?: boolean } = {}) {
+  constructor(container: HTMLElement, opts: { preview?: boolean; backdrop?: boolean } = {}) {
     this.container = container;
     this.preview = !!opts.preview;
+    this.backdrop = !!opts.backdrop;
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    container.style.position = 'relative';
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.backdrop ? 1.5 : 2));
+    if (!this.backdrop) container.style.position = 'relative';
     container.appendChild(this.renderer.domElement);
 
     this.overlay = document.createElement('div');
@@ -264,7 +281,7 @@ export class Race3DView {
     this.minimap.className = 'r3d-minimap';
     this.minimap.innerHTML = '<span class="r3d-minimap-flag"></span>';
     this.overlay.appendChild(this.minimap);
-    if (this.preview) this.overlay.style.display = 'none';
+    if (this.preview || this.backdrop) this.overlay.style.display = 'none';
 
     this.scene.background = new THREE.Color(0x8fd3ff);
     this.scene.fog = new THREE.Fog(0xc4e9ff, 70, 260);
@@ -345,10 +362,9 @@ export class Race3DView {
     this.scene.add(finish);
     this.buildGate(TRACK_LEN + 0.8);
 
-    // 25/50/75% 표지판과 바닥선, 10% 단위 작은 표지
-    for (let pct = 10; pct < 100; pct += 5) {
-      const major = pct === 25 || pct === 50 || pct === 75;
-      if (!major && pct % 10 !== 0) continue;
+    // 증강이 열리는 20/40/60/80% 표지판과 바닥선, 그 사이 10% 단위 작은 표지
+    for (let pct = 10; pct < 100; pct += 10) {
+      const major = pct % 20 === 0;
       const x = (pct / 100) * TRACK_LEN;
       if (major) this.addStripe(x, 0xffffff, 0.35, 0.75);
       const board = new THREE.Mesh(
@@ -792,14 +808,17 @@ export class Race3DView {
       inner.add(leg);
       // 허벅지: 뒷다리는 엉덩이 근육까지 두껍게, 앞다리는 어깨 쪽이 굵게
       const hind = hx < 0;
-      part(GEO.thigh, legMat, leg, [0, -0.33, 0], hind ? [0.27, 0.7, 0.22] : [0.21, 0.7, 0.19], 0.1);
-      part(GEO.sphere, legMat, leg, [hind ? -0.04 : 0.03, -0.1, 0], hind ? [0.33, 0.4, 0.25] : [0.25, 0.32, 0.21], 0.08);
+      const tw = hind ? LEG.thighH : LEG.thighF;
+      const ttop = -0.68 + LEG.thighLen;
+      part(THIGH_GEO, legMat, leg, [0, -0.68 + LEG.thighLen / 2, 0], [tw, LEG.thighLen, tw * 0.86], 0.1);
+      // 몸통과 자연스럽게 이어지는 둥근 어깨·엉덩이
+      part(GEO.sphere, legMat, leg, [0, ttop - 0.04, 0], [tw, tw, tw * 0.9], 0.08);
       const knee = new THREE.Group();
       knee.position.set(0, -0.66, 0);
       leg.add(knee);
-      part(GEO.sphere, legMat, knee, [0, 0, 0], [0.12, 0.12, 0.12], 0.14);
-      part(GEO.leg, legMat, knee, [0, -0.3, 0], [0.1, 0.62, 0.1], 0.16);
-      part(GEO.cyl, hoofMat, knee, [0, -0.66, 0], [0.14, 0.18, 0.14], 0);
+      part(GEO.sphere, legMat, knee, [0, 0, 0], [LEG.knee, LEG.knee, LEG.knee], 0.14);
+      part(GEO.cyl, legMat, knee, [0, -0.3, 0], [LEG.shin, 0.62, LEG.shin], 0.16);
+      part(GEO.cyl, hoofMat, knee, [0, -0.57 - LEG.hoofH / 2, 0], [LEG.hoof, LEG.hoofH, LEG.hoof], 0);
       legs.push(leg);
       knees.push(knee);
     }
@@ -1032,6 +1051,17 @@ export class Race3DView {
   // ---------------- 프레임 루프 ----------------
 
   private resize(): void {
+    if (this.backdrop) {
+      const bw = Math.max(1, this.container.clientWidth);
+      const bh = Math.max(1, this.container.clientHeight);
+      this.renderer.setSize(bw, bh, false);
+      this.camera.aspect = bw / bh;
+      // 넓은 화면에서는 말들이 오른쪽에 오도록 시야를 옮겨 왼쪽의 제목과 겹치지 않게 한다
+      if (bw >= 900) this.camera.setViewOffset(bw * 1.45, bh, 0, 0, bw, bh);
+      else this.camera.clearViewOffset();
+      this.camera.updateProjectionMatrix();
+      return;
+    }
     if (this.preview) {
       const pw = Math.max(160, this.container.clientWidth);
       const ph = Math.round((pw * 3) / 4);

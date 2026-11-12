@@ -33,7 +33,10 @@ export class Net {
   onConnectionChange: ((connected: boolean) => void) | null = null;
 
   connect(): void {
-    const url = `ws://${location.hostname}:${SERVER_PORT}`;
+    // 개발 중에는 로컬 Node 서버(3001번 포트), 배포본은 같은 주소의 /ws (Cloudflare)
+    const url = import.meta.env.DEV
+      ? `ws://${location.hostname}:${SERVER_PORT}`
+      : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
     const ws = new WebSocket(url);
     this.ws = ws;
 

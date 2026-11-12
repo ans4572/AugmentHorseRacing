@@ -226,6 +226,8 @@ export interface PlayerPublic {
   connected: boolean;
   coins: number;
   isHost: boolean;
+  /** 지금 단계(출마표 확인·배팅)에서 준비 완료를 눌렀는지. NPC는 항상 true */
+  ready?: boolean;
 }
 
 export interface RoomSettings {

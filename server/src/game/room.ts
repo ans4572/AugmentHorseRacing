@@ -179,7 +179,8 @@ export class Room {
       isNpc: p.isNpc,
       connected: p.connected,
       coins: p.coins,
-      isHost: p.id === this.hostId
+      isHost: p.id === this.hostId,
+      ready: p.isNpc || (this.phase === 'preview' ? p.readyPreview : this.phase === 'betting' ? p.readyBetting : false)
     }));
   }
 
@@ -486,6 +487,7 @@ export class Room {
     if (!p) return;
     if (phase === 'preview') p.readyPreview = true;
     else p.readyBetting = true;
+    this.broadcastRoomUpdate();
     this.checkEarlySkip();
   }
 

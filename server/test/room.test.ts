@@ -284,7 +284,7 @@ describe('방 / 라운드 / 코인', () => {
     };
     const internals = room as unknown as Internals;
     internals.startRace();
-    for (const phase of [1, 2, 3]) {
+    for (const phase of [1, 2, 3, 4]) {
       internals.triggerAugmentPhase(phase, 5000);
       const { tier, hands } = internals.augment;
       expect(['silver', 'gold', 'platinum']).toContain(tier);

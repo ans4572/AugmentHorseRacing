@@ -52,10 +52,10 @@ describe('전체 증강 점검 — 모든 카드가 설명한 방향으로 실�
     }
   });
 
-  it('어느 등급이든 3차 구간에서 3장을 채울 수 있다', () => {
+  it('어느 등급이든 마지막(4차) 구간에서 3장을 채울 수 있다', () => {
     for (const tier of ['silver', 'gold', 'platinum']) {
       const count = AUGMENTS.filter(
-        (a) => TIER_OF_RARITY[a.rarity] === tier && a.allowedPhases.includes(3)
+        (a) => TIER_OF_RARITY[a.rarity] === tier && a.allowedPhases.includes(4)
       ).length;
       expect(count, tier).toBeGreaterThanOrEqual(6);
     }

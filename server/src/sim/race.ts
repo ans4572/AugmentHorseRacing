@@ -82,7 +82,8 @@ export class RaceSim {
       prevPos: 0,
       speed: 0,
       stamina: 55 + info.stats.stamina * 0.95,
-      staminaMax: 55 + info.stats.stamina * 0.95,
+      // 코스가 길어져도 지치는 정도가 같도록 코스 길이에 비례시킨다 (기준 1000)
+      staminaMax: (55 + info.stats.stamina * 0.95) * (COURSE_LENGTH / 1000),
       fatigued: false,
       finished: false,
       finishTime: null,

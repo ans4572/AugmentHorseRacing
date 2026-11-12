@@ -1,6 +1,6 @@
 import type { AugmentDefinition } from './types';
 
-const ALL_PHASES = [1, 2, 3];
+const ALL_PHASES = [1, 2, 3, 4];
 /** 라운드 종료까지 지속 (실질적 무제한) */
 const PERMANENT = 10 * 60 * 1000;
 
@@ -60,7 +60,7 @@ export const AUGMENTS: AugmentDefinition[] = [
   // ---------- 15.6 특수 조건 ----------
   { id: 'popular_tragedy', name: '연예인 병', description: '인기에 취했다. 우승 배팅금 최다 말 속력 -30%, 4초', rarity: 'common', targetType: 'mostBetWin', effectType: 'speedMult', value: -0.3, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: true, emoji: '😎', visual: 'bighead' },
   { id: 'unpopular_rebellion', name: '무관심이 약', description: '아무도 안 볼 때 잘한다. 우승 배팅금 최소 말 속력 +35%, 4초', rarity: 'common', targetType: 'leastBetWin', effectType: 'speedMult', value: 0.35, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '📈' },
-  { id: 'extreme_swap', name: '인생 역전', description: '로또 맞았다! 현재 1등과 6등의 위치를 맞바꾼다', rarity: 'legendary', targetType: 'swap16', effectType: 'swapPositions', value: 0, durationMs: 0, allowedPhases: [1, 2], hostile: true, emoji: '🔀' },
+  { id: 'extreme_swap', name: '인생 역전', description: '로또 맞았다! 현재 1등과 6등의 위치를 맞바꾼다', rarity: 'legendary', targetType: 'swap16', effectType: 'swapPositions', value: 0, durationMs: 0, allowedPhases: [1, 2, 3], hostile: true, emoji: '🔀' },
   { id: 'no_middle', name: '중간은 싫어', description: '어중간한 건 못 참아. 현재 3등과 4등 속력 +40%, 3초', rarity: 'common', targetType: 'rank34', effectType: 'speedMult', value: 0.4, durationMs: 3000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🙃' },
   { id: 'retake_lead', name: '만년 2등의 한', description: '이번엔 내가 1등! 현재 2등 속력 +45%, 3초', rarity: 'common', targetType: 'rank2', effectType: 'speedMult', value: 0.45, durationMs: 3000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🥈', anim: 'boost' },
   { id: 'escape_last', name: '꼴찌 탈출 넘버원', description: '현재 6등이 코스의 2%를 즉시 건너뛴다', rarity: 'rare', targetType: 'rank6', effectType: 'teleport', value: 0.02, durationMs: 0, allowedPhases: ALL_PHASES, hostile: false, emoji: '🏃' },

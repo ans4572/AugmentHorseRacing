@@ -57,7 +57,6 @@ h3 { font-size: 15px; font-weight: 800; margin-top: 4px; }
   width: 28px; height: 28px; border-radius: 3px; flex-shrink: 0;
   font-family: var(--display); font-size: 18px; line-height: 1; color: #fff;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), inset 0 0 0 3px rgba(26, 33, 80, 0.25);
-  text-shadow: 0 1px 0 rgba(26, 33, 80, 0.55);
   vertical-align: middle;
 }
 /* 밝은 색 천에는 잉크 숫자 (실제 번호 안장처럼) */
@@ -97,10 +96,10 @@ h3 { font-size: 15px; font-weight: 800; margin-top: 4px; }
 
 /* ---------- 공통 화면 ---------- */
 .screen {
-  min-height: 100vh;
+  min-height: 100svh;
   display: flex; flex-direction: column;
   align-items: flex-start; justify-content: center;
-  padding: clamp(18px, 5vh, 56px) clamp(14px, 8vw, 128px);
+  padding: clamp(18px, 5vh, 56px) clamp(20px, 8vw, 128px);
 }
 
 /* 결승선 — 메뉴 화면 오른쪽에 서 있는 체크무늬 띠 */
@@ -110,14 +109,21 @@ h3 { font-size: 15px; font-weight: 800; margin-top: 4px; }
   box-shadow: 0 0 0 4px #fff;
   pointer-events: none;
 }
-body[data-screen='scr-game'] .finish-line { display: none; }
+body[data-screen='scr-game'] .finish-line,
+body[data-screen='scr-main'] .finish-line { display: none; }
+
+/* 타이틀 배경 — 실제 경주 화면이 메인 화면 뒤에서 돈다 */
+#title-bg { position: fixed; inset: 0; z-index: 0; display: none; }
+#title-bg.on { display: block; }
+#title-bg canvas { display: block; width: 100%; height: 100%; }
+/* 글씨가 읽히도록 장면 전체를 한 톤 눌러 준다 */
+#title-bg::after { content: ''; position: absolute; inset: 0; background: rgba(9, 44, 27, 0.42); }
 .screen > * { position: relative; z-index: 1; max-width: 100%; }
 
 /* 마권 종이 */
 .slip {
   background: var(--paper);
   border-radius: var(--r);
-  box-shadow: 0 3px 0 var(--turf-deep), 0 22px 28px -20px rgba(6, 34, 20, 0.7);
   padding: 26px 28px;
   width: 440px; max-width: 100%;
   display: flex; flex-direction: column; gap: 14px;
@@ -248,6 +254,30 @@ label > span { font-weight: 800; }
 }
 #btn-game-leave { white-space: nowrap; background: transparent; color: #fff; border-color: #8f97c9; }
 #btn-game-leave.danger { background: var(--stamp); border-color: #fff; }
+
+/* 소리 켜고 끄기 — 꺼져 있으면 빨간 줄을 긋는다 */
+.sound-ctl { display: inline-flex; gap: 6px; }
+.sound-ctl button {
+  position: relative; display: grid; place-items: center;
+  width: 40px; height: 40px; padding: 0; cursor: pointer;
+  background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: var(--r);
+}
+.sound-ctl button .ic { width: 22px; height: 22px; vertical-align: 0; }
+.sound-ctl button[aria-pressed='false'] { color: var(--ink-soft); }
+.sound-ctl button[aria-pressed='false']::after {
+  content: ''; position: absolute; left: 3px; right: 3px; top: 50%;
+  height: 4px; margin-top: -2px; border-radius: 2px;
+  background: var(--stamp); box-shadow: 0 0 0 1.5px var(--paper);
+  transform: rotate(-45deg);
+}
+.sound-ctl button:focus-visible { outline: 3px solid var(--hl); outline-offset: 2px; }
+.sound-ctl.corner { position: fixed; top: 12px; right: 12px; z-index: 40; }
+body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
+#topbar .sound-ctl button { width: 34px; height: 34px; background: transparent; color: #fff; border-color: #8f97c9; }
+#topbar .sound-ctl button .ic { width: 19px; height: 19px; }
+#topbar .sound-ctl button[aria-pressed='false'] { color: #8f97c9; }
+#topbar .sound-ctl button[aria-pressed='false']::after { box-shadow: 0 0 0 1.5px var(--ink); }
 #scr-game .game-overlay { padding-top: 60px; }
 
 #game-body { display: flex; gap: 8px; flex: 1; min-height: 0; }
@@ -410,17 +440,16 @@ label > span { font-weight: 800; }
 
 /* ---------- 마권 표기 (배팅 컨트롤) ---------- */
 .bet-controls { display: flex; flex-direction: column; gap: 9px; }
-.bet-tabs { display: flex; gap: 6px 18px; flex-wrap: wrap; }
+/* 배팅 종류: 넷 중 하나를 고르는 이어 붙인 단추 */
+.bet-tabs { display: grid; grid-template-columns: repeat(4, 1fr); border: 2px solid var(--ink); border-radius: var(--r); overflow: hidden; }
 .bet-tab {
-  font-family: inherit; font-size: 15px; font-weight: 700; color: var(--ink);
-  background: none; border: 0; cursor: pointer; padding: 4px 0;
-  display: inline-flex; align-items: center; gap: 7px;
+  font-family: inherit; font-size: 15px; font-weight: 800; color: var(--ink);
+  background: var(--paper); border: 0; cursor: pointer; padding: 9px 4px;
 }
-/* 마권 구매표의 타원 칸 — 고르면 잉크로 칠해진다 */
-.bet-tab .omr { width: 24px; height: 13px; border: 2px solid var(--ink); border-radius: 50%; flex-shrink: 0; }
-.bet-tab.active .omr { background: var(--ink); }
-.bet-tab.active { font-weight: 800; }
-.bet-tab .bt-desc { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+.bet-tab + .bet-tab { box-shadow: -2px 0 0 var(--ink); }
+.bet-tab.active { background: var(--ink); color: #fff; }
+.btn.bet-go { width: 100%; font-size: 17px; padding: 12px 14px; flex-wrap: wrap; }
+.ready-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .bet-amount-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .bet-amount-row input { width: 110px; font-family: var(--display); font-weight: 400; font-size: 20px; padding: 5px 10px; }
 #bet-selected-info { display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px; color: var(--ink); }
@@ -624,7 +653,7 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
 /* ---------- 좁은 화면 ---------- */
 @media (max-width: 900px) {
   .finish-line { display: none; }
-  .screen { padding: 18px 14px; }
+  .screen { padding: 18px 20px; }
   #sidebar { display: none; }
   .horse-cards { grid-template-columns: repeat(2, 1fr); }
   #scr-game { padding: 4px; gap: 5px; }

@@ -19,3 +19,8 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+.taste-skill/
+
+# Cloudflare 로컬 상태 / 비밀값
+.wrangler/
+.dev.vars

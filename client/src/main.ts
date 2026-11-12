@@ -25,7 +25,8 @@ import {
   BET_TYPE_INFO,
   TIER_INFO,
   TIER_OF_RARITY,
-  ROUND_COINS
+  ROUND_COINS,
+  AUGMENT_PHASES
 } from '../../shared/src/constants';
 import { AUGMENT_BY_ID, TARGET_TYPE_LABELS } from '../../shared/src/augments';
 import { BREED_INFO, EMOTES } from '../../shared/src/names';
@@ -34,6 +35,8 @@ import { Race3DView, type CameraTarget } from './race3d';
 import { claimGameBonus, claimRoundPrize, myHorseEntry, stable } from './stable';
 import { closeStable, horseSummary, initStableUi, openStable } from './stableUi';
 import { bib, icon, inkOn, mountIcons, rankBadge } from './icons';
+import { startTitleBg, stopTitleBg } from './titleBg';
+import { initAudio, onSoundPrefsChange, setMusic, sfx, soundPrefs, toggleMusic, toggleSfx } from './audio';
 
 // ============ 전역 상태 ============
 
@@ -94,16 +97,40 @@ function showScreen(id: string): void {
     else hide(s);
   }
   document.body.dataset.screen = id;
+  if (id === 'scr-main') startTitleBg();
+  else stopTitleBg();
   if (id !== 'scr-stable') closeStable();
   refreshStableBadges();
   // 모바일 세로 화면에서는 게임 중에만 가로 모드 안내를 띄운다
   $('rotate-hint').classList.toggle('when-game', id === 'scr-game');
+  syncMusic();
+}
+
+/** 지금 화면과 진행 단계에 맞는 배경음악을 고른다 */
+function syncMusic(): void {
+  if (document.body.dataset.screen !== 'scr-game') return setMusic('menu');
+  switch (state.phase) {
+    case 'preview':
+    case 'betting':
+    case 'reveal':
+    case 'roundResult':
+      return setMusic('paddock');
+    case 'racing':
+      // 결승선을 넘으면 음악을 멈추고 결과 징글에 자리를 내준다
+      return setMusic(state.rankings ? null : 'race');
+    case 'gameResult':
+      return setMusic('menu');
+    default:
+      // 카운트다운은 똑딱 소리만 들리게 비워 둔다
+      return setMusic(null);
+  }
 }
 
 function toast(message: string, isError = true): void {
   const el = document.createElement('div');
   el.className = `toast${isError ? ' error' : ''}`;
   el.textContent = message;
+  if (isError) sfx('error');
   $('toast-area').appendChild(el);
   setTimeout(() => el.remove(), 3500);
 }
@@ -307,18 +334,26 @@ function renderBettingOverlay(): void {
   renderBetTabs();
   renderMyBets();
 
-  const controls = $('bet-controls');
-  controls.style.opacity = isBetting ? '1' : '0.45';
-  controls.style.pointerEvents = isBetting ? 'auto' : 'none';
+  // 출마표를 보는 동안에는 배팅 칸을 아예 숨겨 화면을 단순하게 둔다
+  $('bet-controls').classList.toggle('hidden', !isBetting);
 
   const btn = $<HTMLButtonElement>('btn-ready');
   btn.disabled = state.readySent;
   btn.textContent = state.readySent
     ? '다른 사람을 기다리는 중입니다'
     : isBetting
-      ? '배팅 마감하기'
-      : '능력치 확인 완료';
+      ? '준비 완료'
+      : '출마표 확인 완료';
+  renderReadyCount();
   show('overlay-betting');
+}
+
+/** 준비 완료를 누른 사람 수 — 모두 누르면 서버가 바로 다음 단계로 넘긴다 */
+function renderReadyCount(): void {
+  const humans = state.players.filter((p) => !p.isNpc && p.connected);
+  const ready = humans.filter((p) => p.ready).length;
+  const hint = state.phase === 'betting' ? '모두 누르면 바로 경주를 시작합니다.' : '모두 누르면 바로 배팅으로 넘어갑니다.';
+  $('ready-count').textContent = humans.length > 1 ? `준비 완료 ${ready}/${humans.length}명. ${hint}` : hint;
 }
 
 function statBar(label: string, value: number, color: string): string {
@@ -365,11 +400,10 @@ function renderBetTabs(): void {
   $('bet-type-tabs').innerHTML = (Object.keys(BET_TYPE_INFO) as BetType[])
     .map(
       (t) =>
-        `<button class="bet-tab${state.selBetType === t ? ' active' : ''}" data-type="${t}" aria-pressed="${state.selBetType === t}">
-          <span class="omr"></span>${BET_TYPE_INFO[t].label}<span class="bt-desc">${BET_TYPE_INFO[t].desc}</span>
-        </button>`
+        `<button class="bet-tab${state.selBetType === t ? ' active' : ''}" data-type="${t}" aria-pressed="${state.selBetType === t}">${BET_TYPE_INFO[t].label}</button>`
     )
     .join('');
+  $('bet-type-desc').textContent = `${BET_TYPE_INFO[state.selBetType].label}: ${BET_TYPE_INFO[state.selBetType].desc}이면 적중`;
   document.querySelectorAll<HTMLElement>('.bet-tab').forEach((el) => {
     el.onclick = () => {
       state.selBetType = el.dataset.type as BetType;
@@ -389,14 +423,27 @@ function betLimitNow(): { limit: number; used: number } {
 
 function updateBetSelInfo(): void {
   const { limit, used } = betLimitNow();
-  $('bet-limit-info').textContent =
-    `이번 라운드에 ${limit}코인까지 걸 수 있습니다 (가진 코인의 ${BET_LIMIT_RATIO * 100}%). 지금까지 ${used}코인, 한 번에 최소 ${BET_MIN}코인.`;
-  const info = $('bet-selected-info');
-  if (state.selHorse == null) {
-    info.textContent = '말을 고르세요';
+  const left = Math.max(0, Math.min(limit - used, state.coins));
+  $('bet-limit-info').textContent = `더 걸 수 있는 코인 ${left}`;
+
+  // 배팅 버튼 하나에 "누구에게, 무엇을, 얼마"를 모두 적는다
+  const btn = $<HTMLButtonElement>('btn-place-bet');
+  const amount = Math.floor(Number($<HTMLInputElement>('bet-amount').value) || 0);
+  const horse = state.horses.find((h) => h.id === state.selHorse);
+  const odds = horse ? state.odds[horse.id]?.[state.selBetType] : undefined;
+  if (!horse) {
+    btn.disabled = true;
+    btn.textContent = '위에서 말을 고르세요';
+  } else if (amount < BET_MIN) {
+    btn.disabled = true;
+    btn.textContent = `금액을 정하세요 (최소 ${BET_MIN}코인)`;
+  } else if (amount > left) {
+    btn.disabled = true;
+    btn.textContent = `${left}코인까지만 걸 수 있습니다`;
   } else {
-    const odds = state.odds[state.selHorse]?.[state.selBetType];
-    info.innerHTML = `${BET_TYPE_INFO[state.selBetType].label} ${horseChip(state.selHorse)} <span class="odds">×${odds?.toFixed(2) ?? '-'}</span>`;
+    btn.disabled = false;
+    const win = odds ? Math.floor(amount * odds) - amount : 0;
+    btn.innerHTML = `${bib(horse.id, horse.color, 'sm')} ${esc(horse.name)} ${BET_TYPE_INFO[state.selBetType].label}에 ${amount}코인 걸기 <span class="btn-note">맞으면 +${win}</span>`;
   }
 }
 
@@ -512,6 +559,7 @@ function renderRoundResult(data: {
   // 내 말의 순위 상금 (당근) — 같은 상금은 한 번만 받는다
   const prize = data.ownerPrize && data.ownerPrize.playerId === state.myId ? data.ownerPrize : null;
   if (prize && claimRoundPrize(prize)) {
+    sfx('carrot', 0, 1.5);
     toast(`내 말 ${prize.rank}위, 당근 +${prize.carrots}`, false);
   }
   const prizeHtml = prize
@@ -584,6 +632,7 @@ function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerB
   // 게임 종료 당근 보너스 — 한 번만 받는다
   const bonus = data.ownerBonus && data.ownerBonus.playerId === state.myId ? data.ownerBonus : null;
   if (bonus && claimGameBonus(bonus)) {
+    sfx('carrot', 0, 2.6);
     toast(`게임 보너스, 당근 +${bonus.placementCarrots + bonus.profitCarrots}`, false);
   }
   const carrots = (n: number): string => `<b>${icon('carrot')}+${n}</b>`;
@@ -857,6 +906,7 @@ net.on((msg: S2C) => {
       state.players = msg.players;
       state.settings = msg.settings;
       if (state.phase === 'lobby') renderLobby();
+      if (state.phase === 'preview' || state.phase === 'betting') renderReadyCount();
       renderSidebar();
       break;
     }
@@ -920,6 +970,7 @@ net.on((msg: S2C) => {
       renderCameraSelect();
       renderBettingOverlay();
       renderSideBets();
+      sfx('reveal');
       addLog(`${msg.round}라운드 출마표가 나왔습니다.`, 'log-head');
       const myHorse = msg.horses.find((h) => isMyHorse(h));
       if (myHorse) {
@@ -937,6 +988,7 @@ net.on((msg: S2C) => {
       state.phaseEndsAt = msg.endsAt;
       state.bettingBaseCoins = state.coins;
       state.readySent = false;
+      sfx('bell');
       renderBettingOverlay();
       updateTopbar();
       break;
@@ -944,6 +996,7 @@ net.on((msg: S2C) => {
 
     case 'BET_ACCEPTED': {
       state.myBets.push(msg.bet);
+      sfx('coin');
       state.coins = msg.coins;
       renderMyBets();
       updateBetSelInfo();
@@ -953,6 +1006,7 @@ net.on((msg: S2C) => {
 
     case 'BET_CANCELED': {
       state.myBets = state.myBets.filter((b) => b.betId !== msg.betId);
+      sfx('cancel');
       state.coins = msg.coins;
       renderMyBets();
       updateBetSelInfo();
@@ -965,6 +1019,7 @@ net.on((msg: S2C) => {
       state.phaseEndsAt = msg.endsAt;
       state.revealed = msg.bets;
       state.betCounts = msg.betCounts;
+      sfx('reveal');
       hide('overlay-betting');
       renderRevealOverlay();
       renderSideBets();
@@ -984,6 +1039,7 @@ net.on((msg: S2C) => {
     case 'RACE_START': {
       state.phase = 'racing';
       hide('overlay-countdown');
+      sfx('go');
       addLog('출발!', 'log-head');
       view?.announce('출발!');
       updateTopbar();
@@ -1006,6 +1062,7 @@ net.on((msg: S2C) => {
         pending: false
       };
       renderAugmentBar();
+      sfx('augment', ['silver', 'gold', 'platinum'].indexOf(msg.tier));
       {
         const tierInfo = TIER_INFO[msg.tier];
         const tierColor = { silver: '#dee2e6', gold: '#ffd43b', platinum: '#66d9e8' }[msg.tier];
@@ -1049,6 +1106,8 @@ net.on((msg: S2C) => {
       addLog(line, def.hostile ? 'log-bad' : 'log-good');
       view?.announce(`${def.emoji} ${msg.playerName}: ${def.name}!`, def.hostile ? '#ef4565' : '#2cb67d');
       view?.flashHorses(msg.targets, !def.hostile);
+      sfx(def.hostile ? 'hex' : 'buff');
+      if (msg.blocked.length > 0) sfx('shield');
       break;
     }
 
@@ -1057,6 +1116,7 @@ net.on((msg: S2C) => {
       state.augment = null;
       renderAugmentBar();
       view?.showFinish(msg.rankings);
+      sfx('finish');
       const first = msg.rankings.find((r) => r.rank === 1);
       if (first) addLog(`경주 종료. 우승 <b>${esc(horseName(first.horseId))}</b>`, 'log-head');
       break;
@@ -1066,6 +1126,8 @@ net.on((msg: S2C) => {
       state.phase = 'roundResult';
       const mine = msg.results.find((r) => r.playerId === state.myId);
       if (mine) state.coins = mine.coins;
+      // 내 배팅이 하나라도 맞았으면 축하, 다 빗나갔으면 뿜뿜뿜
+      if (mine) sfx(mine.bets.length === 0 ? 'bell' : mine.bets.some((b) => b.hit) ? 'win' : 'lose');
       state.players = state.players.map((p) => {
         const res = msg.results.find((r) => r.playerId === p.id);
         return res ? { ...p, coins: res.coins } : p;
@@ -1083,6 +1145,7 @@ net.on((msg: S2C) => {
 
     case 'GAME_RESULT': {
       state.phase = 'gameResult';
+      sfx(msg.standings.find((s) => s.playerId === state.myId)?.rank === 1 ? 'champion' : 'gameEnd');
       renderGameResult(msg);
       updateTopbar();
       break;
@@ -1090,6 +1153,7 @@ net.on((msg: S2C) => {
 
     case 'EMOTE': {
       view?.showEmote(msg.playerName, msg.emoji);
+      sfx('pop');
       addLog(`${msg.emoji} ${esc(msg.playerName)}`);
       break;
     }
@@ -1100,9 +1164,13 @@ net.on((msg: S2C) => {
       break;
     }
   }
+  syncMusic();
 });
 
 // ============ 타이머 루프 ============
+
+/** 마지막으로 똑딱 소리를 낸 초 (같은 초에 두 번 울리지 않게) */
+let lastTick = -1;
 
 setInterval(() => {
   const remain = Math.max(0, state.phaseEndsAt - Date.now());
@@ -1121,6 +1189,18 @@ setInterval(() => {
   if (state.phase === 'countdown') {
     const n = Math.ceil(remain / 1000);
     $('overlay-countdown').textContent = n > 0 ? String(n) : 'GO!';
+    if (n !== lastTick) {
+      lastTick = n;
+      if (n > 0) sfx('tick');
+    }
+  } else if (state.phase === 'betting' && !state.readySent && sec > 0 && sec <= 5) {
+    // 배팅 마감 5초 전부터 재촉한다
+    if (sec !== lastTick) {
+      lastTick = sec;
+      sfx('warn');
+    }
+  } else {
+    lastTick = -1;
   }
 
   const aug = state.augment;
@@ -1130,7 +1210,7 @@ setInterval(() => {
     if (el) el.textContent = `${(augRemain / 1000).toFixed(1)}초`;
     const fill = document.getElementById('augment-timefill');
     if (fill) {
-      const total = aug.phase === 1 ? 7000 : aug.phase === 2 ? 6000 : 5000;
+      const total = AUGMENT_PHASES.find((p) => p.phase === aug.phase)?.durationMs ?? 6000;
       fill.style.width = `${Math.max(0, (augRemain / total) * 100)}%`;
     }
   }
@@ -1138,8 +1218,29 @@ setInterval(() => {
 
 // ============ 버튼 바인딩 ============
 
+/** 배경음악·효과음 켜고 끄는 버튼 (메뉴 화면 구석과 게임 전광판에 하나씩 있다) */
+function bindSoundButtons(): void {
+  const buttons = document.querySelectorAll<HTMLElement>('[data-snd]');
+  const refresh = (): void => {
+    const p = soundPrefs();
+    buttons.forEach((b) => {
+      const music = b.dataset.snd === 'music';
+      const on = music ? p.music : p.sfx;
+      b.setAttribute('aria-pressed', String(on));
+      b.title = `${music ? '배경음악' : '효과음'} ${on ? '끄기' : '켜기'}`;
+    });
+  };
+  buttons.forEach((b) => {
+    b.onclick = () => (b.dataset.snd === 'music' ? toggleMusic() : toggleSfx());
+  });
+  onSoundPrefsChange(refresh);
+  refresh();
+}
+
 function bindUI(): void {
   mountIcons();
+  initAudio();
+  bindSoundButtons();
   const savedName = localStorage.getItem('augment-derby-name');
   if (savedName) $<HTMLInputElement>('main-name').value = savedName;
 
@@ -1245,24 +1346,35 @@ function bindUI(): void {
   $('btn-lobby-start').onclick = () => net.send({ type: 'START_GAME' });
 
   // 배팅
+  const amountInput = $<HTMLInputElement>('bet-amount');
   $('btn-place-bet').onclick = () => {
     if (state.selHorse == null) return toast('말을 먼저 고르세요.');
-    const amount = Number($<HTMLInputElement>('bet-amount').value);
-    net.send({ type: 'PLACE_BET', betType: state.selBetType, horseId: state.selHorse, amount });
+    net.send({ type: 'PLACE_BET', betType: state.selBetType, horseId: state.selHorse, amount: Number(amountInput.value) });
+    // 다음 마권을 새로 적을 수 있게 금액을 비운다
+    amountInput.value = '0';
+    updateBetSelInfo();
   };
+  amountInput.oninput = updateBetSelInfo;
   document.querySelectorAll<HTMLElement>('.bet-quick').forEach((el) => {
     el.onclick = () => {
-      const input = $<HTMLInputElement>('bet-amount');
-      input.value = String(Number(input.value || 0) + Number(el.dataset.add));
+      amountInput.value = String(Number(amountInput.value || 0) + Number(el.dataset.add));
+      updateBetSelInfo();
     };
   });
   $('bet-max').onclick = () => {
     const { limit, used } = betLimitNow();
     const max = Math.floor(Math.min(limit - used, state.coins) / 10) * 10;
-    $<HTMLInputElement>('bet-amount').value = String(Math.max(0, max));
+    amountInput.value = String(Math.max(0, max));
+    updateBetSelInfo();
+  };
+  // 금액 초기화
+  $('bet-clear').onclick = () => {
+    amountInput.value = '0';
+    updateBetSelInfo();
   };
   $('btn-ready').onclick = () => {
     state.readySent = true;
+    sfx('ready');
     net.send({ type: 'READY', phase: state.phase === 'preview' ? 'preview' : 'betting' });
     renderBettingOverlay();
   };
@@ -1309,5 +1421,7 @@ if (new URLSearchParams(location.search).has('showcase')) {
 } else {
   bindUI();
   refreshStableBadges();
+  document.body.dataset.screen = 'scr-main';
+  startTitleBg();
   net.connect();
 }

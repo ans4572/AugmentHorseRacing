@@ -1,0 +1,18 @@
+{
+  // Cloudflare Workers 배포 설정 — `npm run deploy`
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "augment-derby",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2025-10-01",
+  // 클라이언트 빌드 결과를 정적 파일로 함께 올린다
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS"
+  },
+  // 게임 서버: Durable Object 하나가 모든 방을 맡는다
+  "durable_objects": {
+    "bindings": [{ "name": "GAME_HUB", "class_name": "GameHubDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameHubDO"] }],
+  "observability": { "enabled": true }
+}

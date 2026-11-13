@@ -1461,3 +1461,49 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .r3d-label.dim .r3d-label-bet { opacity: 1; }
 /* 위쪽 진행 막대의 점에도 노란 테두리 */
 .r3d-dot.mybet { box-shadow: 0 0 0 2px var(--hl), 0 0 0 4px var(--ink); z-index: 2; }
+
+/* ================= 등수표: 말에 올리면 걸린 배팅 보기 ================= */
+#rank-board .rb-row { cursor: default; }
+#rb-tip {
+  position: absolute; z-index: 6; min-width: 210px; max-width: min(320px, 86%); pointer-events: none;
+  background: var(--paper); color: var(--ink); border: 2px solid var(--ink); border-radius: var(--r);
+  box-shadow: 0 4px 0 rgba(26, 33, 80, 0.45); padding: 8px 10px; display: flex; flex-direction: column; gap: 5px;
+}
+#rb-tip.hidden { display: none; }
+.rbt-head { display: flex; align-items: center; gap: 7px; font-size: 16px; padding-bottom: 6px; border-bottom: 2px dashed var(--line); }
+.rbt-head b { font-weight: 800; }
+.rbt-head span:last-child { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.rbt-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; column-gap: 8px; font-size: 14px; padding: 2px 4px; border-radius: 3px; }
+.rbt-row.me { background: var(--hl); }
+.rbt-row .pchip { min-width: 0; }
+.rbt-row .pchip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.rbt-type { font-weight: 800; white-space: nowrap; }
+.rbt-state { font-size: 12px; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
+.rbt-state.hit { color: #0b6b3a; }
+.rbt-empty { font-size: 14px; color: var(--ink-soft); margin: 0; }
+#rank-board { pointer-events: auto; }
+
+/* ================= 증강 기록 5줄, 등수표 딱지 색 통일 ================= */
+#bottom-bar { min-height: 170px; max-height: 170px; }
+@media (max-width: 900px) { #bottom-bar { min-height: 163px; max-height: 163px; } }
+@media (max-width: 640px) and (orientation: portrait) { #bottom-bar { min-height: 278px; max-height: 278px; } }
+/* 등수표의 배팅 딱지는 모두 건 사람 색으로 채운다. 지금 순위로 맞고 있는 딱지는 테두리로만 알린다 */
+.rb-bet, .rb-bet:not(.hit), .rb-row.mine .rb-bet, .rb-row.mine .rb-bet:not(.hit) { background: var(--pc); color: #fff; box-shadow: none; opacity: 1; }
+.rb-bet.hit { box-shadow: 0 0 0 2px #fff; }
+.rb-row.mine .rb-bet.hit { box-shadow: 0 0 0 2px var(--ink); }
+
+/* ================= 폰 세로 다듬기 ================= */
+@media (max-width: 640px) and (orientation: portrait) {
+  /* 등수표: 통짜 바탕을 없애고 줄마다 바탕을 둔다. 배팅이 없는 줄은 좁아져 말을 덜 가린다 */
+  #rank-board { background: none; padding: 0; align-items: flex-start; max-width: 70%; }
+  #rank-board .rb-row { background: rgba(26, 33, 80, 0.78); }
+  #rank-board .rb-row.mine { background: var(--hl); }
+  /* 반응 단추는 두 줄 폭으로 줄여 기록 칸을 넓힌다 */
+  #emotes { grid-template-rows: repeat(4, auto); }
+  /* 결과: 등수와 번호를 한 줄에 놓아 칸 높이를 줄인다 */
+  .result-horse { display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center; column-gap: 6px; row-gap: 2px; padding: 6px 4px; }
+  .result-horse .rh-name, .result-horse .muted { grid-column: 1 / -1; }
+  /* 배팅 정산: 말 이름은 위 결과 칸에 있으므로 번호만 남겨 한 줄에 들어가게 한다 */
+  .result-table .rp-bet { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+  .result-table .rp-bet .horse-chip > span:not(.bib):not(.tag) { display: none; }
+}

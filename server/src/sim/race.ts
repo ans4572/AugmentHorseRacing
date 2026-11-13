@@ -100,7 +100,9 @@ export class RaceSim {
 
   /** 기본 최고 속력 (단위/초) */
   private baseMaxSpeed(h: SimHorse): number {
-    return 17 + h.info.stats.speed * 0.09;
+    // 속력 능력치 1점의 영향을 줄여(0.09 → 0.06) 가장 빠른 말과 느린 말의 차이를 약 17%로 좁혔다.
+    // 기본값은 능력치 65인 말의 속력이 전과 같도록 맞췄다
+    return 19 + h.info.stats.speed * 0.06;
   }
 
   tick(dtMs: number): void {

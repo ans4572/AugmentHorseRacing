@@ -4,8 +4,10 @@ import { BREED_INFO, HORSE_COLORS, HORSE_NAMES } from '../../../shared/src/names
 import { pickDistinct, randInt } from './rng';
 
 /** 능력치 총합(속력+가속+지구력) 허용 범위 — 극단 조합 방지 */
-export const STAT_SUM_MIN = 150;
+export const STAT_SUM_MIN = 175;
 export const STAT_SUM_MAX = 230;
+/** 속력, 가속, 지구력의 최솟값. 화면 표기(10으로 나눠 반올림)로 4가 된다. 너무 약한 말이 혼자 뒤처지지 않게 한다 */
+export const STAT_MIN = 35;
 
 /** 말 종류를 가중치에 따라 뽑는다 (겉모습 전용) */
 export function pickBreed(rng: () => number = Math.random): HorseBreed {
@@ -53,9 +55,9 @@ export function generateHorses(rng: () => number = Math.random, usedNames?: Set<
     let stamina = 0;
     // 총합 제한을 만족할 때까지 재추출
     do {
-      speed = randInt(rng, 20, 95);
-      accel = randInt(rng, 20, 95);
-      stamina = randInt(rng, 20, 95);
+      speed = randInt(rng, STAT_MIN, 95);
+      accel = randInt(rng, STAT_MIN, 95);
+      stamina = randInt(rng, STAT_MIN, 95);
     } while (speed + accel + stamina < STAT_SUM_MIN || speed + accel + stamina > STAT_SUM_MAX);
     horses.push({
       id,

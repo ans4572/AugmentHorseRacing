@@ -586,6 +586,8 @@ function renderRankBoard(snaps: { id: number; rank: number; finished: boolean }[
   if (!snaps || snaps.length === 0) {
     el.classList.add('hidden');
     rankBoardKey = '';
+    rankTipHorse = null;
+    $('rb-tip').classList.add('hidden');
     return;
   }
   const order = [...snaps].sort((a, b) => a.rank - b.rank);
@@ -608,7 +610,7 @@ function renderRankBoard(snaps: { id: number; rank: number; finished: boolean }[
         .filter((b) => b.horseId === s.id)
         .map(
           (b) =>
-            `<span class="rb-bet${betHits(b.type, s.rank, order.length) ? ' hit' : ''}${b.playerId === state.myId ? ' me' : ''}" style="--pc:${playerColor(b.playerId)}" title="${esc(b.playerName)} ${BET_TYPE_INFO[b.type].label} ${b.amount}코인">${BET_SHORT[b.type]}</span>`
+            `<span class="rb-bet${betHits(b.type, s.rank, order.length) ? ' hit' : ''}${b.playerId === state.myId ? ' me' : ''}" style="--pc:${playerColor(b.playerId)}">${BET_SHORT[b.type]}</span>`
         )
         .join('');
       // 노란 줄은 내가 건 말
@@ -619,6 +621,50 @@ function renderRankBoard(snaps: { id: number; rank: number; finished: boolean }[
       </div>`;
     })
     .join('');
+  renderRankTip();
+}
+
+/** 등수표에서 마우스를 올린(또는 누른) 말. 그 말에 누가 무엇을 걸었는지 옆에 띄운다 */
+let rankTipHorse: number | null = null;
+
+function renderRankTip(): void {
+  const tip = $('rb-tip');
+  const board = $('rank-board');
+  const row = rankTipHorse == null ? null : board.querySelector<HTMLElement>(`.rb-row[data-h="${rankTipHorse}"]`);
+  const h = state.horses.find((x) => x.id === rankTipHorse);
+  if (!row || !h || board.classList.contains('hidden')) {
+    tip.classList.add('hidden');
+    return;
+  }
+  const snap = lastSnaps.find((x) => x.id === h.id);
+  const bets = visibleBets().filter((b) => b.horseId === h.id);
+  const list = bets.length
+    ? bets
+        .map((b) => {
+          const hit = snap ? betHits(b.type, snap.rank, state.horses.length) : false;
+          return `<div class="rbt-row${b.playerId === state.myId ? ' me' : ''}">
+            ${playerChip(b.playerId, b.playerName)}
+            <span class="rbt-type">${BET_TYPE_INFO[b.type].label}</span>
+            ${coinHtml(b.amount)}
+            <span class="rbt-state${hit ? ' hit' : ''}">${hit ? '지금 적중' : '빗나감'}</span>
+          </div>`;
+        })
+        .join('')
+    : '<p class="rbt-empty">이 말에 건 사람이 없습니다.</p>';
+  tip.innerHTML = `<div class="rbt-head">${bib(h.id, h.color, 'sm')}<b>${esc(h.name)}</b>${snap ? `<span>지금 ${snap.rank}등</span>` : ''}</div>
+    ${list}
+    ${betsHidden() ? '<p class="rbt-empty">블라인드 방이라 내 배팅만 보입니다.</p>' : ''}`;
+  tip.classList.remove('hidden');
+  // 등수표 오른쪽에 붙이고, 자리가 없으면(좁은 화면) 등수표 아래에 둔다
+  const wrap = $('race-wrap');
+  const right = board.offsetLeft + board.offsetWidth + 8;
+  if (right + tip.offsetWidth <= wrap.clientWidth - 4) {
+    tip.style.left = `${right}px`;
+    tip.style.top = `${Math.max(4, Math.min(board.offsetTop + row.offsetTop, wrap.clientHeight - tip.offsetHeight - 4))}px`;
+  } else {
+    tip.style.left = `${board.offsetLeft}px`;
+    tip.style.top = `${board.offsetTop + board.offsetHeight + 6}px`;
+  }
 }
 
 function statBar(label: string, value: number, color: string): string {
@@ -1364,6 +1410,8 @@ net.on((msg: S2C) => {
     }
 
     case 'ROUND_START': {
+      // 새 라운드: 지난 라운드의 증강 기록을 비운다
+      $('game-log').innerHTML = '';
       state.round = msg.round;
       state.totalRounds = msg.totalRounds;
       state.horses = msg.horses;
@@ -1715,6 +1763,29 @@ function bindUI(): void {
       if (t === $(modal) || t.closest('[data-close]')) hide(modal);
     };
   }
+  // 등수표의 말에 마우스를 올리면(폰에서는 누르면) 그 말에 걸린 배팅을 보여 준다
+  const rankBoard = $('rank-board');
+  const tipFor = (ev: Event): number | null => {
+    const row = (ev.target as HTMLElement).closest<HTMLElement>('.rb-row');
+    return row ? Number(row.dataset.h) : null;
+  };
+  rankBoard.onmouseover = (ev) => {
+    const id = tipFor(ev);
+    if (id === rankTipHorse) return;
+    rankTipHorse = id;
+    renderRankTip();
+  };
+  rankBoard.onmouseleave = () => {
+    rankTipHorse = null;
+    renderRankTip();
+  };
+  rankBoard.onclick = (ev) => {
+    const id = tipFor(ev);
+    // 마우스가 없는 화면: 같은 말을 다시 누르면 닫는다
+    if (window.matchMedia('(hover: none)').matches) rankTipHorse = rankTipHorse === id ? null : id;
+    else rankTipHorse = id;
+    renderRankTip();
+  };
   // 증강 카드에 마우스를 올리면 그 카드가 맞힐 말을 띄워 보인다 (다시 그려도 끊기지 않게 창 전체에서 받는다)
   const augBar = $('augment-bar');
   augBar.onmouseover = (ev) => {

@@ -13,6 +13,11 @@ import { RaceSim } from '../sim/race';
  * 증강으로 판이 흔들리는 만큼 완만하게 눌러 배당을 계산한다.
  * 배당은 경기 시작 전에 고정되며 이후 변경되지 않는다.
  */
+/** 맞은 횟수가 이 값보다 한참 적으면 평균 순위 쪽을 거의 그대로 쓴다 */
+const PRIOR_FULL_BELOW = 5;
+/** 평균 순위 1등 차이가 우승(꼴찌) 확률에 주는 영향. 클수록 약한 말의 배당이 더 벌어진다 */
+const PRIOR_RANK_SLOPE = 1.3;
+
 export function computeOdds(
   horses: HorseInfo[],
   runs = 220,
@@ -42,12 +47,12 @@ export function computeOdds(
   // 1) 시뮬레이션 빈도에 평균 순위로 만든 확률을 조금 섞는다.
   //    한 번도 우승하지 못한 말들끼리도 평균 순위가 다르면 배당이 달라진다.
   // 2) 실제 경기는 증강 카드로 순위가 크게 흔들리므로 확률을 완만하게 누른다.
-  //    그러지 않으면 배당이 상한(30배)과 하한(1.05배)에 몰린다.
+  //    그러지 않으면 배당이 상한과 하한(1.05배)에 몰린다.
   const sigmoid = (x: number): number => 1 / (1 + Math.exp(-x));
   const logit = (q: number): number => Math.log(q / (1 - q));
   const meanRank = (id: number): number => rankSum[id] / runs;
   const softmax = (sign: number): Record<number, number> => {
-    const w = horses.map((h) => Math.exp(sign * 1.1 * meanRank(h.id)));
+    const w = horses.map((h) => Math.exp(sign * PRIOR_RANK_SLOPE * meanRank(h.id)));
     const total = w.reduce((x, y) => x + y, 0);
     return Object.fromEntries(horses.map((h, i) => [h.id, w[i] / total]));
   };
@@ -63,8 +68,12 @@ export function computeOdds(
   for (const type of ['winner', 'last', 'top3', 'bottom3'] as BetType[]) {
     const single = type === 'winner' || type === 'last';
     const tempered = horses.map((h) => {
-      const freq = (counts[h.id][type] + 0.5) / (runs + 1);
-      const mixed = Math.min(0.995, Math.max(0.002, 0.8 * freq + 0.2 * prior[type][h.id]));
+      const count = counts[h.id][type];
+      const freq = (count + 0.5) / (runs + 1);
+      // 맞은 횟수가 적을수록 횟수는 믿기 어렵다 (0번과 1번의 차이는 우연이다).
+      // 그런 말은 평균 순위로 만든 확률을 더 많이 반영해, 약한 말끼리도 배당이 갈리게 한다
+      const priorWeight = single ? Math.max(0.2, PRIOR_FULL_BELOW / (count + PRIOR_FULL_BELOW)) : 0.2;
+      const mixed = Math.min(0.995, Math.max(0.0004, (1 - priorWeight) * freq + priorWeight * prior[type][h.id]));
       return single ? Math.pow(mixed, ODDS_TEMPER_SINGLE) : sigmoid(ODDS_TEMPER_GROUP * logit(mixed));
     });
     // 확률의 합을 원래 값(1마리 맞히기는 1, 3마리 안은 3)으로 되돌린다

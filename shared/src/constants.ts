@@ -53,7 +53,7 @@ export const BET_TYPE_INFO: Record<BetType, { label: string; desc: string }> = {
 
 /** 배당 범위 */
 export const ODDS_MIN = 1.05;
-export const ODDS_MAX = 30;
+export const ODDS_MAX = 50;
 /** 배당 계산 시 적용하는 환급률 */
 export const ODDS_HOUSE_FACTOR = 0.9;
 /** 배당 완만화: 우승·꼴찌 확률에 거는 지수 (1이면 시뮬레이션 그대로, 작을수록 고르게) */

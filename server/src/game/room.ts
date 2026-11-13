@@ -47,7 +47,7 @@ import { RaceSim, type BetTotals } from '../sim/race';
 import { computeOdds } from './odds';
 import { settleBets, validateBet } from './betting';
 import { drawCards, rollTier } from './deck';
-import { npcChooseAugment, npcChooseBets } from './npc';
+import { npcChooseAugment, npcChooseBets, type NpcBetSituation } from './npc';
 
 export interface SocketLike {
   send(data: string): void;
@@ -131,6 +131,8 @@ export class Room {
   private lastGameResult: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus } | null = null;
   /** 싱글 모드에서 6마리 중 하나로 출전하는 플레이어의 말 */
   ownerHorse: { playerId: string; name: string; look: HorseLook } | null = null;
+  /** 이번 게임에서 이미 출전한 말 이름. 라운드가 바뀌어도 같은 이름이 다시 나오지 않게 한다 */
+  private usedHorseNames = new Set<string>();
   /** 게임(시작~최종 결과)마다 새로 만드는 ID — 당근 중복 지급 방지 키에 쓴다 */
   private gameId = '';
   private ownerRoundCarrots = 0;
@@ -386,8 +388,11 @@ export class Room {
       }
     }
 
-    this.horses = generateHorses();
+    // 첫 라운드에 이번 게임에서 쓴 이름 기록을 비운다
+    if (round <= 1) this.usedHorseNames.clear();
+    this.horses = generateHorses(Math.random, this.usedHorseNames);
     this.enterOwnerHorse();
+    for (const h of this.horses) this.usedHorseNames.add(h.name);
     this.odds = computeOdds(this.horses);
 
     for (const p of this.players.values()) {
@@ -452,14 +457,25 @@ export class Room {
       if (!p.isNpc || !p.persona) continue;
       this.setTimer(() => {
         if (this.phase !== 'betting') return;
-        const choices = npcChooseBets(p.persona!, p.coinsAtBettingStart, this.horses, this.odds);
+        const choices = npcChooseBets(p.persona!, p.coinsAtBettingStart, this.horses, this.odds, Math.random, this.npcBetSituation(p));
         for (const c of choices) {
           this.placeBet(p.id, c.type, c.horseId, c.amount);
         }
-      }, 2000 + Math.random() * 5000);
+      }, 2000 + Math.random() * 12000); // 한꺼번에 걸지 않고 2~14초 사이에 흩어져 건다
     }
 
     this.setTimer(() => this.closeBetting(), TIMINGS.betting);
+  }
+
+  /** NPC가 코인 순위에서 어디쯤인지. 뒤처지면 크게 걸고 앞서면 조심한다 */
+  private npcBetSituation(npc: Player): NpcBetSituation {
+    const coins = [...this.players.values()].map((p) => p.coinsAtBettingStart).sort((x, y) => y - x);
+    const finalRound = this.round >= this.settings.totalRounds;
+    // 첫 라운드는 모두 같은 코인이라 순위가 없다
+    if (coins.length < 2 || coins[0] === coins[coins.length - 1]) return { standing: 'mid', finalRound };
+    const rank = coins.indexOf(npc.coinsAtBettingStart) + 1;
+    const standing = rank === 1 ? 'lead' : rank > Math.ceil(coins.length / 2) ? 'behind' : 'mid';
+    return { standing, finalRound };
   }
 
   private closeBetting(): void {
@@ -469,7 +485,7 @@ export class Room {
     for (const p of this.players.values()) {
       if (!p.isNpc || !p.persona) continue;
       if (this.bets.some((b) => b.playerId === p.id)) continue;
-      const choices = npcChooseBets(p.persona, p.coinsAtBettingStart, this.horses, this.odds);
+      const choices = npcChooseBets(p.persona, p.coinsAtBettingStart, this.horses, this.odds, Math.random, this.npcBetSituation(p));
       for (const c of choices) this.placeBet(p.id, c.type, c.horseId, c.amount);
     }
     this.phase = 'reveal';
@@ -717,18 +733,21 @@ export class Room {
             mostBet = hid;
           }
         }
-        const choice = npcChooseAugment(
-          p.persona!,
-          hand.map((h) => h.def),
-          {
-            sim: this.sim,
-            myBoostTargets: myBoost,
-            myHinderTargets: myHinder,
-            // 블라인드 방에서는 NPC도 남의 배팅을 모르는 것으로 한다
-            mostBetHorse: this.settings.blindBets ? null : mostBet,
-            ownerHorse: this.ownerHorseId()
-          }
-        );
+        const ctx = {
+          sim: this.sim,
+          myBoostTargets: myBoost,
+          myHinderTargets: myHinder,
+          myBets: this.bets.filter((b) => b.playerId === p.id).map((b) => ({ type: b.type, horseId: b.horseId })),
+          // 블라인드 방에서는 NPC도 남의 배팅을 모르는 것으로 한다
+          mostBetHorse: this.settings.blindBets ? null : mostBet,
+          ownerHorse: this.ownerHorseId()
+        };
+        let choice = npcChooseAugment(p.persona!, hand.map((h) => h.def), ctx);
+        // 쓸 만한 카드가 없으면 가장 나쁜 카드를 한 번 바꿔 보고 다시 고른다
+        if (choice && choice.bestScore < 3.5 && Math.random() < 0.6) {
+          this.rerollAugment(p.id, hand[choice.worstIndex].cardKey);
+          choice = npcChooseAugment(p.persona!, hand.map((h) => h.def), ctx);
+        }
         if (choice) {
           this.selectAugment(p.id, hand[choice.index].cardKey, choice.targetHorseId);
         }

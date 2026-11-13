@@ -14,7 +14,7 @@ export interface HorseStats {
   stamina: number;
   /** 몸무게 350~650(kg) */
   weight: number;
-  /** 행운 1~100 */
+  /** 컨디션 1~100 (화면 표기. 코드에서는 luck) */
   luck: number;
 }
 

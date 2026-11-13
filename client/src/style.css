@@ -1173,10 +1173,10 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 /* 배팅 중에는 창 안에 남은 시간이 크게 나오므로 상단 바의 시간은 숨긴다 */
 #scr-game[data-phase='preview'] #top-timer, #scr-game[data-phase='betting'] #top-timer { display: none; }
 /* 배팅 화면(넓은 화면): 말 카드는 왼쪽, 거는 칸과 내 마권은 오른쪽에 두어 한 화면에 다 보이게 한다 */
-@media (min-width: 1100px) {
+@media (min-width: 760px) {
   #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) {
     width: min(1180px, 96vw);
-    display: grid; grid-template-columns: minmax(0, 1fr) 320px; column-gap: 20px; align-items: start;
+    display: grid; grid-template-columns: minmax(0, 1fr) 420px; column-gap: 20px; align-items: start;
   }
   #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) > .row-between,
   #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) > .ready-row { grid-column: 1 / -1; }
@@ -1192,3 +1192,272 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .statbar .sb-label { white-space: nowrap; }
 @media (max-width: 900px) { .statbar .sb-label { width: 46px; } }
 #my-bets button { white-space: nowrap; flex-shrink: 0; }
+
+/* ---------- 출마표: 컨디션 사유 한 줄 ---------- */
+/* 좋고 나쁨은 문구 앞의 작은 네모 색으로 알린다 */
+.hc-cond { word-break: keep-all; font-size: 14px; line-height: 1.4; margin-top: 3px; color: var(--ink); display: flex; gap: 6px; align-items: baseline; }
+.hc-cond::before { content: ''; flex: 0 0 8px; height: 8px; border-radius: 2px; background: var(--ink-soft); }
+.hc-cond.good::before { background: #0f7a50; }
+.hc-cond.bad::before { background: #d92b22; }
+
+/* ================= 배팅: 말은 한 줄씩, 마권은 크게 ================= */
+.horse-cards.as-rows { grid-template-columns: 1fr; gap: 6px; }
+.horse-row {
+  display: grid; grid-template-columns: auto 132px 150px minmax(0, 1fr) auto; column-gap: 12px; align-items: center;
+  border: 2px solid var(--line); border-radius: var(--r); padding: 7px 12px; cursor: pointer; background: var(--paper);
+  -webkit-tap-highlight-color: transparent;
+}
+.horse-row:hover { border-color: var(--ink-soft); }
+.horse-row.selected { background: var(--hl); border-color: var(--ink); box-shadow: 0 3px 0 var(--ink); }
+.horse-row.mine { border-style: double; border-width: 5px; padding: 4px 9px; }
+.hr-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hr-name .hc-name { font-weight: 800; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hr-name .tag { align-self: flex-start; }
+.hr-sub { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.horse-row.selected .hr-sub, .horse-row.selected .hr-odds span, .horse-row.selected .sb-label { color: var(--ink); }
+.hr-stats .statbar { font-size: 12px; margin-top: 2px; }
+.hr-stats .statbar:first-child { margin-top: 0; }
+.horse-row .hc-cond { margin-top: 0; }
+.hr-odds { text-align: right; }
+.hr-odds span { display: block; font-size: 12px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+.hr-odds b { font-family: var(--display); font-weight: 400; font-size: 24px; font-variant-numeric: tabular-nums; }
+
+.ticket { position: relative; background: var(--ink); color: #fff; border-radius: 6px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+/* 마권 양옆의 반달 홈: 절취선 자리 */
+.ticket::before, .ticket::after { content: ''; position: absolute; top: 86px; width: 20px; height: 20px; border-radius: 50%; background: var(--paper); left: -10px; }
+.ticket::after { left: auto; right: -10px; }
+.t-head { display: flex; align-items: center; gap: 12px; min-height: 80px; padding-bottom: 14px; border-bottom: 2px dashed rgba(255, 255, 255, 0.45); }
+.t-head .bib { width: 60px; height: 60px; font-size: 40px; border-color: #fff; flex: none; }
+.t-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.t-who b { font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1.15; }
+.t-who span { font-size: 14px; font-weight: 700; color: rgba(255, 255, 255, 0.85); word-break: keep-all; }
+.t-types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.t-type {
+  display: flex; justify-content: space-between; align-items: center; gap: 6px; text-align: left; cursor: pointer;
+  font-family: var(--body); color: #fff; background: transparent; border: 2px solid rgba(255, 255, 255, 0.5); border-radius: var(--r); padding: 8px 10px; min-height: 56px;
+}
+.t-type:hover { border-color: #fff; }
+.t-type.active { background: var(--hl); border-color: var(--hl); color: var(--ink); }
+.tt-label { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.tt-label b { font-size: 16px; font-weight: 800; }
+.tt-label small { font-size: 12px; font-weight: 700; opacity: 0.85; word-break: keep-all; }
+.tt-odds { font-family: var(--display); font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ticket .bet-amount-row { gap: 6px; }
+.ticket .bet-amount-row input { flex: 1 1 96px; min-width: 0; width: auto; font-size: 28px; border: 0; border-radius: var(--r); background: #fff; color: var(--ink); }
+.ticket .btn.small { box-shadow: none; }
+.ticket .btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.5); }
+.t-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; font-weight: 700; color: rgba(255, 255, 255, 0.85); }
+.t-link { font-family: var(--body); font-size: 14px; font-weight: 800; color: var(--hl); background: transparent; border: 0; padding: 6px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.t-link:hover { color: #fff; }
+.t-pay { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.t-pay span { font-size: 16px; font-weight: 800; }
+.t-pay b { font-family: var(--display); font-weight: 400; font-size: 54px; line-height: 1; color: var(--hl); font-variant-numeric: tabular-nums; }
+.ticket .btn.bet-go { font-size: 20px; padding: 14px; box-shadow: 0 4px 0 #0c1030; }
+.ticket .btn.bet-go:disabled { background: rgba(255, 255, 255, 0.16); color: rgba(255, 255, 255, 0.8); border-color: rgba(255, 255, 255, 0.35); box-shadow: none; font-size: 16px; }
+
+/* 전체 배당표 창 */
+.overlay-inner.narrow.odds-popup { width: 620px; }
+.od-row { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr)); gap: 6px; align-items: center; margin-top: 6px; }
+.od-head { margin-top: 0; }
+.od-type { text-align: center; font-size: 14px; background: var(--paper-2); border-radius: 3px; padding: 5px 0; }
+.od-horse { display: flex; align-items: center; gap: 7px; font-weight: 800; font-size: 16px; min-width: 0; }
+.od-horse span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.od-cell {
+  position: relative; font-family: var(--display); font-size: 20px; font-variant-numeric: tabular-nums; color: var(--ink); background: var(--paper);
+  border: 2px solid var(--ink); border-radius: var(--r); box-shadow: 0 3px 0 var(--ink); padding: 9px 0; cursor: pointer;
+}
+.od-cell.hot { color: var(--stamp); }
+.od-cell.selected { background: var(--hl); }
+.od-cell.has-bet::after, .od-mark { content: ''; position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 2px; background: var(--pen); }
+.od-legend { margin-top: 12px; font-size: 14px; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.od-mark { position: static; display: inline-block; }
+.od-hot { color: var(--stamp); font-weight: 800; margin-left: 10px; }
+
+@media (max-width: 759px) {
+  /* 마권이 말 목록 아래로 내려온다 */
+  .ticket { margin-top: 4px; }
+}
+@media (max-width: 640px) {
+  .horse-row { grid-template-columns: auto minmax(0, 1fr) auto; row-gap: 5px; padding: 7px 9px; }
+  .horse-row .hr-stats { display: none; } /* 능력치 막대는 출마표에서 이미 봤다 */
+  .horse-row .hc-cond { grid-column: 1 / -1; }
+  .hr-name .hc-name { font-size: 16px; }
+  .hr-sub, .hr-odds span { font-size: 12px; }
+  .hr-odds b { font-size: 22px; }
+  .ticket { padding: 14px 12px; }
+  .ticket::before, .ticket::after { top: 78px; }
+  .t-head { min-height: 72px; }
+  .t-head .bib { width: 50px; height: 50px; font-size: 32px; }
+  .t-who b { font-size: 24px; }
+  .t-pay b { font-size: 44px; }
+  .ticket .bet-amount-row input { flex-basis: 100%; }
+  .od-row { gap: 4px; grid-template-columns: minmax(0, 1.3fr) repeat(4, minmax(0, 1fr)); }
+  .od-cell { font-size: 16px; padding: 10px 0; }
+  .od-horse { font-size: 14px; gap: 5px; }
+}
+
+/* 마권 다듬기 */
+.ticket .bet-amount-row input { flex: 1 1 70px; }
+.ticket .bet-amount-row .btn.small { padding-left: 8px; padding-right: 8px; }
+@media (max-width: 640px) {
+  .horse-row .bib { grid-row: 1; grid-column: 1; }
+  .horse-row .hr-name { grid-row: 1; grid-column: 2; }
+  .horse-row .hr-odds { grid-row: 1; grid-column: 3; }
+  .horse-row .hc-cond { grid-row: 2; grid-column: 1 / -1; }
+  .ticket .bet-amount-row input { flex-basis: 100%; }
+  .od-row { grid-template-columns: minmax(0, 1.75fr) repeat(4, minmax(0, 1fr)); }
+  .od-cell { font-size: 14px; }
+  .od-horse span:last-child { white-space: normal; word-break: keep-all; line-height: 1.2; }
+}
+
+/* 전체 배당표 단추: 말 목록의 배당 열 바로 위 */
+.hr-top { display: flex; justify-content: flex-end; }
+/* 넓은 화면: 단추는 목록 밖 위쪽(제목 줄 높이)에 띄워서, 말 목록과 마권의 윗선이 맞게 한다 */
+@media (min-width: 760px) {
+  .horse-cards.as-rows { position: relative; }
+  .hr-top { position: absolute; right: 0; bottom: 100%; margin-bottom: 8px; }
+}
+
+/* ================= 배팅 화면 검토 반영 ================= */
+/* 760~1099px: 두 단을 유지하되 마권 폭과 말 줄 내용을 줄인다 */
+@media (min-width: 760px) and (max-width: 1099px) {
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) { grid-template-columns: minmax(0, 1fr) 330px; column-gap: 14px; }
+  .horse-row { grid-template-columns: auto minmax(0, 1fr) 130px auto; }
+  .horse-row .hc-cond { display: none; } /* 고르면 마권 머리에 나온다 */
+  .t-who b { font-size: 24px; }
+  .t-pay b { font-size: 44px; }
+  .tt-odds { font-size: 18px; }
+}
+@media (min-width: 760px) and (max-width: 899px) {
+  .horse-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .horse-row .hr-stats { display: none; }
+}
+/* 내 말은 딱지로 알린다. 줄 모양에서는 겹테두리가 고른 줄보다 더 튀어서 뺀다 */
+.horse-row.mine { border-style: solid; border-width: 2px; padding: 6px 12px; }
+.horse-row { padding-top: 6px; padding-bottom: 6px; }
+.horse-row:focus-visible { outline: 3px solid var(--pen); outline-offset: 2px; }
+/* 아직 받을 코인이 없을 때는 큰 숫자를 가라앉힌다 */
+.t-pay b.zero { color: rgba(255, 255, 255, 0.35); }
+@media (max-width: 640px) {
+  .horse-row.mine { padding: 7px 9px; }
+}
+/* 좁은 두 단 화면에서는 금액 칸을 한 줄 다 쓴다 (숫자가 잘리지 않게) */
+@media (min-width: 760px) and (max-width: 1099px) {
+  .ticket .bet-amount-row input { flex-basis: 100%; }
+}
+/* 배당 칸 폭을 고정해 줄마다 능력치 막대의 세로선이 맞게 한다 */
+.hr-odds { min-width: 94px; }
+
+/* ================= 증강 카드: 종류 띠, 큰 수치, 지금 대상 ================= */
+#augment-bar .augment-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+/* 카드 윗부분 띠로 도움(초록)과 방해(빨강)를 가른다 */
+.aug-band { display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; color: #fff; min-width: 0; }
+.augment-card.good .aug-band { background: #0b6b3a; }
+.augment-card.bad .aug-band { background: #c21d15; }
+.aug-band b { font-size: 14px; font-weight: 800; flex: none; padding: 1px 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.22); }
+.aug-band span { font-size: 16px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aug-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.aug-fx { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-right: 0; }
+.aug-fx-main { font-family: var(--display); font-size: 28px; line-height: 1.1; word-break: keep-all; }
+.augment-card.good .aug-fx-main { color: #0b6b3a; }
+.augment-card.bad .aug-fx-main { color: #c21d15; }
+.aug-fx-chip { font-size: 14px; font-weight: 800; color: var(--ink); background: var(--paper-2); border-radius: 3px; padding: 3px 8px; white-space: nowrap; }
+.aug-flav { font-size: 12px; color: var(--ink-soft); line-height: 1.5; padding-right: 44px; word-break: keep-all; }
+.aug-tgt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-right: 44px; min-height: 30px; }
+.aug-tgt-label { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 800; color: var(--ink); }
+.aug-tgt-now { display: inline-flex; align-items: center; gap: 5px; }
+.aug-tgt-live { font-size: 12px; font-weight: 800; color: var(--ink-soft); }
+.aug-tgt-horse { display: inline-flex; border-radius: 4px; }
+.aug-tgt-horse.mybet { box-shadow: 0 0 0 3px var(--hl), 0 0 0 5px var(--ink); margin: 0 4px; }
+.aug-tgt-none { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+#augment-bar .aug-body .augment-pickhorse { margin-top: 2px; }
+@media (max-width: 640px) {
+  .aug-band { padding: 5px 10px; }
+  .aug-body { padding: 8px 10px 10px; gap: 5px; }
+  .aug-fx-main { font-size: 24px; }
+  .aug-flav { display: none; } /* 폰에서는 고르는 데 필요한 것만 남긴다 */
+}
+.aug-flav { padding-right: 0; white-space: normal; overflow: visible; }
+
+/* ================= 증강 팝업 검토 반영 ================= */
+/* 새로고침 단추를 띠 오른쪽으로 올려, 카드 본문이 폭을 다 쓰게 한다 */
+#augment-bar .aug-reroll { top: 3px; right: 5px; bottom: auto; width: 28px; height: 28px; font-size: 16px; border-color: #fff; background: transparent; color: #fff; }
+#augment-bar .aug-reroll:hover { background: rgba(255, 255, 255, 0.2); }
+#augment-bar .aug-band { padding-right: 42px; }
+#augment-bar .aug-tgt, #augment-bar .aug-flav, #augment-bar .augment-pickhorse { padding-right: 0; }
+/* 말 고르기: 여섯 마리가 한 줄에 들어가게, 내가 건 말은 노란 테두리 */
+#augment-bar .augment-pickhorse { gap: 7px; flex-wrap: nowrap; }
+#augment-bar .augment-pickhorse .pick { flex: 0 1 36px; width: auto; min-width: 0; height: 36px; }
+#augment-bar .augment-pickhorse .pick.mybet { box-shadow: 0 0 0 3px var(--hl), 0 0 0 5px var(--ink); }
+/* 예약한 카드: 노란 테와 노란 딱지로 알리고 나머지 카드는 가라앉힌다 (눌러서 바꿀 수는 있다) */
+#augment-bar .augment-card.queued { box-shadow: 0 0 0 4px var(--hl), 0 0 0 6px var(--ink); }
+#augment-bar .aug-queued { top: 6px; right: 40px; background: var(--hl); color: var(--ink); }
+#augment-bar .augment-card.queued .aug-band { padding-right: 104px; }
+#augment-bar .augment-cards:has(.queued) .augment-card:not(.queued):not(.selected) { opacity: 0.6; }
+.aug-guide { font-weight: 700; }
+@media (max-width: 640px) {
+  .aug-guide { display: block; margin-top: 3px; font-size: 14px; }
+}
+
+/* ================= 증강 카드에 올리면 대상 말 강조 ================= */
+.r3d-label.dim { opacity: 0.4; }
+.r3d-label.hl { z-index: 3; }
+.r3d-label.hl .r3d-label-name { background: #0b6b3a; color: #fff; border-color: #fff; box-shadow: 0 0 0 3px #3ddc84; font-size: 16px; }
+.r3d-label.hl.hl-bad .r3d-label-name { background: #c21d15; box-shadow: 0 0 0 3px #ff4d4d; }
+#rank-board .rb-row.hl { box-shadow: inset 0 0 0 3px #3ddc84; }
+#rank-board[data-hl-kind='bad'] .rb-row.hl { box-shadow: inset 0 0 0 3px #ff4d4d; }
+
+/* ================= 배팅 창 높이 고정 ================= */
+/* 말을 고르거나 금액을 넣거나 마권이 늘어도 창 높이가 변하지 않게, 변하던 칸의 높이를 정해 둔다 */
+.t-head { min-height: 98px; align-items: center; }
+.ticket::before, .ticket::after { top: 104px; }
+.t-who span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-height: 2.9em; line-height: 1.45; }
+.t-type { min-height: 60px; }
+.ticket .btn.bet-go, .ticket .btn.bet-go:disabled { min-height: 58px; }
+.t-pay { min-height: 56px; }
+@media (min-width: 760px) {
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #my-bets { height: 132px; max-height: none; overflow-y: auto; }
+  .ticket .bet-amount-row { min-height: 44px; }
+}
+@media (max-width: 640px) {
+  .t-head { min-height: 90px; }
+  .ticket::before, .ticket::after { top: 94px; }
+}
+/* 800px 높이 화면에서도 스크롤 없이 들어가게 마권을 조금 조인다 */
+.ticket { padding-top: 12px; padding-bottom: 14px; gap: 10px; }
+.t-head { min-height: 90px; }
+.ticket::before, .ticket::after { top: 92px; }
+.t-pay { min-height: 50px; }
+.ticket .btn.bet-go, .ticket .btn.bet-go:disabled { height: 58px; min-height: 0; padding-top: 0; padding-bottom: 0; }
+@media (min-width: 760px) {
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #my-bets { height: 100px; }
+}
+@media (max-width: 640px) {
+  .ticket::before, .ticket::after { top: 92px; }
+}
+/* 배당 글자 자리를 늘 같은 폭으로 잡아 둔다: 말을 고르기 전후로 종류 칸의 줄바꿈이 달라지지 않게 */
+.tt-odds { min-width: 4.3em; text-align: right; }
+.tt-odds.blank { visibility: hidden; }
+@media (min-width: 760px) {
+  #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #my-bets { height: 98px; }
+}
+/* 종류 칸: 윗줄에 이름과 배당, 아랫줄에 조건. 배당 길이와 상관없이 늘 두 줄이라 높이가 같다 */
+.t-type { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 6px; row-gap: 1px; align-items: baseline; min-height: 0; height: 58px; padding-top: 6px; padding-bottom: 6px; }
+.tt-label { display: contents; }
+.tt-label b { grid-column: 1; grid-row: 1; white-space: nowrap; }
+.tt-odds { grid-column: 2; grid-row: 1; min-width: 0; }
+.tt-label small { grid-column: 1 / -1; grid-row: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ================= 경주 화면: 내가 건 말 표시 ================= */
+.r3d-label-bet {
+  position: relative; font-size: 14px; font-weight: 800; line-height: 1.3; color: var(--ink); background: var(--hl);
+  border: 2px solid var(--ink); border-radius: 3px; padding: 0 7px; margin-bottom: 5px;
+}
+/* 아래로 향한 꼬리: 이 말이라는 표시 */
+.r3d-label-bet::after {
+  content: ''; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: var(--ink); border-bottom: 0;
+}
+.r3d-label.dim .r3d-label-bet { opacity: 1; }
+/* 위쪽 진행 막대의 점에도 노란 테두리 */
+.r3d-dot.mybet { box-shadow: 0 0 0 2px var(--hl), 0 0 0 4px var(--ink); z-index: 2; }

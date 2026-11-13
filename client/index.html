@@ -232,6 +232,15 @@
       </div>
     </div>
 
+    <!-- 전체 배당표: 칸을 누르면 그 말과 종류가 마권에 적힌다 -->
+    <div id="modal-odds" class="game-overlay popup hidden">
+      <div class="overlay-inner narrow odds-popup">
+        <div class="row-between"><h2>전체 배당</h2><button class="btn small ghost" data-close>닫기</button></div>
+        <p class="muted">칸을 누르면 그 말과 종류로 마권을 적습니다.</p>
+        <div id="odds-table"></div>
+      </div>
+    </div>
+
     <!-- 배팅 오버레이 (능력치 확인 + 배팅) -->
     <div id="overlay-betting" class="game-overlay hidden">
       <div class="overlay-inner">
@@ -241,18 +250,23 @@
         </div>
         <div id="horse-cards" class="horse-cards"></div>
         <div id="bet-controls" class="bet-controls">
-          <div id="bet-type-tabs" class="bet-tabs"></div>
-          <p id="bet-type-desc" class="muted"></p>
-          <div class="bet-amount-row">
-            <input id="bet-amount" type="number" min="0" step="10" value="0" aria-label="배팅 금액" />
-            <button class="btn small alt bet-quick" data-add="10">+10</button>
-            <button class="btn small alt bet-quick" data-add="50">+50</button>
-            <button class="btn small alt bet-quick" data-add="100">+100</button>
-            <button id="bet-max" class="btn small alt">올인</button>
-            <button id="bet-clear" class="btn small ghost">0으로</button>
-            <span id="bet-limit-info" class="muted"></span>
+          <div class="ticket">
+            <div id="ticket-head" class="t-head"></div>
+            <div id="bet-type-tabs" class="t-types"></div>
+            <div class="bet-amount-row">
+              <input id="bet-amount" type="number" min="0" step="10" value="0" aria-label="배팅 금액" />
+              <button class="btn small alt bet-quick" data-add="10">+10</button>
+              <button class="btn small alt bet-quick" data-add="50">+50</button>
+              <button class="btn small alt bet-quick" data-add="100">+100</button>
+              <button id="bet-max" class="btn small alt">올인</button>
+              <button id="bet-clear" class="btn small ghost">0으로</button>
+            </div>
+            <div class="t-foot">
+              <span id="bet-limit-info"></span>
+            </div>
+            <div class="t-pay"><span>맞히면 받는 코인</span><b id="ticket-pay" class="zero">0</b></div>
+            <button id="btn-place-bet" class="btn bet-go"></button>
           </div>
-          <button id="btn-place-bet" class="btn bet-go"></button>
           <div id="my-bets"></div>
         </div>
         <div class="ready-row">

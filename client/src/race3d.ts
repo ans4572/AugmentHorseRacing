@@ -104,6 +104,10 @@ interface Rig {
   /** 꾸미기: 발자국(먼지) 종류 */
   trail: string;
   coat: THREE.MeshToonMaterial;
+  /** 강조할 때 빛을 얹는 재질들 (몸, 다리, 갈기). 얼룩말처럼 다리 재질이 따로인 말도 함께 빛난다 */
+  glowMats: THREE.MeshToonMaterial[];
+  /** 내가 이 말에 건 배팅 (이름표 위 표시). 없으면 빈 글자 */
+  betMark: string;
   coatBase: THREE.Color;
   discoOn: boolean;
   /** 변신 연출 수치 (0~1 또는 배율) */
@@ -156,6 +160,8 @@ interface Rig {
   lbottom: number;
   dot: HTMLDivElement;
   displayPos: number;
+  /** 결승선을 지난 뒤 멈출 때까지 더 달려 나간 거리 */
+  coast: number;
   targetPos: number;
   speed: number;
   phase: number;
@@ -975,6 +981,8 @@ export class Race3DView {
       propeller,
       trail: look?.trail ?? 'trail_dust',
       coat,
+      glowMats: [...new Set([coat, legMat, dark])],
+      betMark: '',
       coatBase: coat.color.clone(),
       discoOn: false,
       rear: 0,
@@ -1018,6 +1026,7 @@ export class Race3DView {
       lbottom: 0,
       dot,
       displayPos: 0,
+      coast: 0,
       targetPos: 0,
       speed: 0,
       phase: Math.random() * Math.PI * 2,
@@ -1032,6 +1041,7 @@ export class Race3DView {
   // ---------------- RaceView 구현 ----------------
 
   setupRace(infos: HorseInfo[]): void {
+    this.clearHighlightRings();
     for (const r of this.rigs) {
       this.scene.remove(r.root);
       disposeMerged(r);
@@ -1052,7 +1062,8 @@ export class Race3DView {
       const r = this.rigs.find((v) => v.info.id === snap.id);
       if (!r) continue;
       r.targetPos = snap.pos;
-      r.speed = snap.speed;
+      // 완주한 말은 서버가 마지막 속도를 그대로 보내므로 받지 않고, 화면에서 천천히 세운다
+      if (!snap.finished) r.speed = snap.speed;
       r.snap = snap;
       // 걸려 있는 증강의 연출 종류와 이름표 아이콘은 상태가 바뀔 때만 다시 계산한다 (1초에 10번)
       r.vis.clear();
@@ -1114,6 +1125,42 @@ export class Race3DView {
       const rig = this.rigs.find((v) => v.info.id === id);
       if (rig) rig.note = { text, by, byColor, hostile, until: this.elapsed + seconds };
     }
+  }
+
+  /** 내가 건 말의 이름표 위에 배팅 표시를 붙인다. marks: 말 번호 → 표시할 글자 */
+  setBetMarks(marks: Record<number, string>): void {
+    for (const r of this.rigs) {
+      const mark = marks[r.info.id] ?? '';
+      if (mark === r.betMark) continue;
+      r.betMark = mark;
+      r.dot.classList.toggle('mybet', mark !== '');
+    }
+  }
+
+  /** 증강 카드에 마우스를 올렸을 때 그 카드가 맞힐 말들을 띄워 보인다 (몸이 옅은 노란빛으로 깜빡 + 이름표 강조) */
+  private hlIds = new Set<number>();
+  private hlKey = '';
+
+  setHighlight(ids: number[], good = true): void {
+    const key = ids.join(',') + (good ? 'g' : 'b');
+    if (key === this.hlKey) return;
+    this.hlKey = key;
+    this.hlIds = new Set(ids);
+    for (const r of this.rigs) {
+      const on = this.hlIds.has(r.info.id);
+      r.label.classList.toggle('hl', on);
+      r.label.classList.toggle('hl-bad', on && !good);
+      r.label.classList.toggle('dim', ids.length > 0 && !on);
+      for (const m of r.glowMats) {
+        m.emissive.setHex(on ? HIGHLIGHT_GLOW : 0x000000);
+        if (!on) m.emissiveIntensity = 1;
+      }
+    }
+  }
+
+  private clearHighlightRings(): void {
+    this.hlIds.clear();
+    this.hlKey = '';
   }
 
   flashHorses(ids: number[], good: boolean): void {
@@ -1277,6 +1324,20 @@ export class Race3DView {
     r.root.position.x = r.displayPos * UNIT;
 
     const snap = r.snap;
+    // 결승선을 지난 말은 조금 더 달려 나가며 속도를 줄여 멈춘다.
+    // 먼저 들어온 말일수록 멀리 가서 서므로, 결승선 한 점에 몰려 서로 가리지 않는다
+    if (snap?.finished) {
+      const stopAt = 34 - (snap.rank - 1) * 5;
+      const left = stopAt - r.coast;
+      if (left > 0.05) {
+        const step = left * (1 - Math.exp(-rawDt * 1.7));
+        r.coast += step;
+        r.speed = rawDt > 0 ? Math.min(22, step / rawDt) : 0;
+      } else {
+        r.speed = 0;
+      }
+      r.root.position.x = (r.displayPos + r.coast) * UNIT;
+    }
     const anim: HorseAnim = snap?.anim ?? 'idle';
     const t = this.elapsed;
     const ease = (cur: number, target: number, rate: number): number =>
@@ -1340,7 +1401,6 @@ export class Race3DView {
     const theta = r.rear * 1.1; // 이족보행으로 몸을 세운 각도
 
     // 다리
-    const offsets = [0, 0.55, Math.PI + 0.35, Math.PI + 0.9];
     r.legs.forEach((leg, i) => {
       const knee = r.knees[i];
       const front = i < 2;
@@ -1388,8 +1448,28 @@ export class Race3DView {
         // 배터리 1%: 동작이 뚝뚝 끊긴다 / 급똥: 보폭이 줄어 종종걸음이 된다
         const ph = lowbat ? Math.floor(r.phase / 0.9) * 0.9 : r.phase;
         const stride = 1 - 0.6 * r.cross;
-        let swing = Math.sin(ph + offsets[i]) * 0.75 * runAmt * stride;
-        let bend = -Math.max(0, Math.sin(ph + offsets[i] + 1.1)) * 1.05 * runAmt * stride;
+        // 한 걸음(0~1) 안에서 이 다리의 위치. 뒷다리 둘 → 앞다리 둘 순서로 땅을 딛고, 마지막에 네 발이 다 뜬다
+        const u = (((ph / TAU - GALLOP_OFFSETS[i]) % 1) + 1) % 1;
+        // 다리가 움직이는 범위: 앞다리는 앞으로 더 뻗고, 뒷다리는 뒤로 더 민다
+        // 앞다리를 너무 뻗으면 발이 가슴 앞으로 튀어나와 보이므로 앞쪽 범위는 작게 둔다
+        const reach = front ? 0.46 : 0.58;
+        const push = front ? -0.62 : -0.74;
+        let swing: number;
+        let bend: number;
+        if (u < GALLOP_STANCE) {
+          // 딛는 동안: 발이 땅에 붙은 채 일정한 속도로 뒤로 밀린다 (무릎은 거의 편다)
+          const k = u / GALLOP_STANCE;
+          swing = reach + (push - reach) * k;
+          bend = -0.12 * Math.sin(Math.PI * k);
+        } else {
+          // 가져오는 동안: 발을 떼자마자 무릎을 접어 올렸다가 앞으로 뻗으며 편다
+          const k = (u - GALLOP_STANCE) / (1 - GALLOP_STANCE);
+          const e = k * k * (3 - 2 * k);
+          swing = push + (reach - push) * e;
+          bend = -1.25 * Math.sin(Math.PI * Math.pow(k, 0.72));
+        }
+        swing *= runAmt * stride;
+        bend *= runAmt * stride;
         if (theta > 0.01) {
           if (front) {
             // 이족보행: 앞다리는 팔처럼 허우적거린다
@@ -1412,8 +1492,10 @@ export class Race3DView {
     });
 
     // 몸통 출렁임과 기울기
-    let y = Math.abs(Math.sin(r.phase)) * 0.16 * runAmt;
-    let pitch = Math.sin(r.phase) * 0.07 * runAmt;
+    // 한 걸음에 한 번: 네 발이 뜨는 순간에 몸이 가장 높고, 뒷다리로 밀 때 앞이 들리고 앞다리로 디딜 때 숙여진다
+    const stridePos = r.phase / TAU;
+    let y = (0.5 + 0.5 * Math.cos(TAU * (stridePos - 0.86))) * 0.2 * runAmt;
+    let pitch = Math.cos(TAU * (stridePos - 0.15)) * 0.075 * runAmt;
     let roll = 0;
     if (flying) {
       y = 1.7 + Math.sin(t * 3) * 0.25;
@@ -1799,6 +1881,14 @@ export class Race3DView {
   }
 
   private updateRings(dt: number): void {
+    if (this.hlIds.size > 0) {
+      // 어떤 털색에서도 눈에 띄도록 빛의 세기를 천천히 오르내린다
+      const glow = 0.95 + Math.sin(this.elapsed * 6) * 0.4;
+      for (const r of this.rigs) {
+        if (!this.hlIds.has(r.info.id)) continue;
+        for (const m of r.glowMats) m.emissiveIntensity = glow;
+      }
+    }
     this.rings = this.rings.filter((ring) => {
       ring.life -= dt;
       if (ring.life <= 0) {
@@ -1922,6 +2012,13 @@ export class Race3DView {
       f.textContent = r.fxText;
       r.label.appendChild(f);
     }
+    if (r.betMark) {
+      // 내가 건 말: 노란 딱지 + 아래로 향한 꼬리
+      const bet = document.createElement('div');
+      bet.className = 'r3d-label-bet';
+      bet.textContent = r.betMark;
+      r.label.appendChild(bet);
+    }
     // 순위는 화면 왼쪽 위 등수표에서 보여 주므로 이름표에는 넣지 않는다
     const n = document.createElement('div');
     n.className = 'r3d-label-name';
@@ -1945,7 +2042,7 @@ export class Race3DView {
     for (const r of this.rigs) {
       // 라벨 내용 (바뀔 때만 DOM 갱신)
       if (r.note && this.elapsed > r.note.until) r.note = null;
-      const text = r.note ? `${r.fxText}|${r.note.text}${r.note.by}` : r.fxText;
+      const text = `${r.betMark}|${r.note ? `${r.fxText}|${r.note.text}${r.note.by}` : r.fxText}`;
       if (text !== r.labelText) {
         r.labelText = text;
         this.renderLabel(r);
@@ -2030,6 +2127,13 @@ const TMP_M = new THREE.Matrix4();
 const TMP_B = new THREE.Vector3();
 /** 증강을 맞았을 때 번쩍이는 고리 — 모양은 하나만 만들어 함께 쓴다 */
 const RING_GEO = new THREE.TorusGeometry(1.3, 0.13, 8, 32);
+const TAU = Math.PI * 2;
+/** 갤럽에서 다리별로 땅을 딛기 시작하는 때 (한 걸음 = 1). 앞다리 둘, 뒷다리 둘 순서로 적는다 */
+const GALLOP_OFFSETS = [0.3, 0.42, 0, 0.1];
+/** 한 걸음 중 발이 땅에 닿아 있는 비율 */
+const GALLOP_STANCE = 0.3;
+/** 강조된 말의 몸에 얹는 옅은 노란빛 */
+const HIGHLIGHT_GLOW = 0xfff0a0;
 const byLabelDist = (a: Rig, b: Rig): number => a.ldist - b.ldist;
 
 /** 이름표에 붙는 상태 아이콘 (방어막, 기절, 지침, 걸린 증강 등). 겹치는 것은 한 번만, 5개까지 */

@@ -595,7 +595,7 @@ export function initAudio(): void {
   unlock();
   // 버튼처럼 누를 수 있는 것은 모두 같은 딸깍 소리
   document.addEventListener('click', (e) => {
-    const el = (e.target as Element | null)?.closest?.('button, .horse-card, .bet-tab');
+    const el = (e.target as Element | null)?.closest?.('button, .horse-card, .horse-row');
     if (el && !(el as HTMLButtonElement).disabled) sfx('click');
   });
 }

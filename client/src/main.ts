@@ -4,7 +4,10 @@ import type {
   BetCount,
   Bet,
   BetType,
+  AugmentDefinition,
   HorseInfo,
+  HorseSnapshot,
+  TargetType,
   OddsTable,
   PlayerPublic,
   PlayerRoundResult,
@@ -30,7 +33,7 @@ import {
   PLAYER_COLORS
 } from '../../shared/src/constants';
 import { AUGMENT_BY_ID, AUGMENTS, TARGET_TYPE_LABELS } from '../../shared/src/augments';
-import { BREED_INFO, EMOTES } from '../../shared/src/names';
+import { BREED_INFO, EMOTES, conditionNote } from '../../shared/src/names';
 import { Net, loadToken, saveToken } from './net';
 import { Race3DView, type CameraTarget } from './race3d';
 import { claimGameBonus, claimRoundPrize, myHorseEntry, stable } from './stable';
@@ -73,6 +76,9 @@ const state = {
     /** 미리 고르기 단계인지, 예약해 둔 카드가 무엇인지 */
     preview: boolean;
     queuedKey: string | null;
+    /** 예약한 카드에 고른 말 (말을 고르는 카드일 때). sentTarget은 서버 답을 기다리는 동안의 값 */
+    queuedTarget?: number | null;
+    sentTarget?: number | null;
     /** 이미 새로고침한 카드 자리 */
     rerolled: string[];
   } | null,
@@ -206,6 +212,150 @@ function effectHtml(description: string): string {
   // 효과와 지속 시간은 쉼표 자리에서만 줄이 바뀌게 묶는다
   const parts = effect.split(', ').map((x) => `<span class="fx-part">${esc(x)}</span>`).join(', ');
   return `<span class="fl">${esc(flavor)}</span><span class="fx">${parts}</span>`;
+}
+
+/** 카드 안의 효과: 수치를 가장 크게, 지속 시간 같은 나머지는 작은 딱지로, 소개 문구는 맨 아래 작게 */
+function cardEffectHtml(description: string): string {
+  const [flavor, effect] = description.split('\n');
+  if (!effect) return `<div class="aug-fx"><span class="aug-fx-main">${esc(flavor)}</span></div>`;
+  const [main, ...rest] = effect.split(', ');
+  return `<div class="aug-fx"><span class="aug-fx-main">${esc(main)}</span>${rest.map((x) => `<span class="aug-fx-chip">${esc(x)}</span>`).join('')}</div>
+    <div class="aug-flav">${esc(flavor)}</div>`;
+}
+
+/** 서버가 마지막으로 보낸 말들의 상태. 카드의 "지금 대상"을 계산할 때 쓴다 */
+let lastSnaps: HorseSnapshot[] = [];
+
+/** 순위나 지구력처럼 경주 중에 계속 바뀌는 기준으로 대상을 정하는 카드 */
+const LIVE_TARGETS = new Set<TargetType>([
+  'front3', 'back3', 'rank1', 'rank2', 'rank6', 'rank23', 'rank34', 'mostStamina2', 'leastStamina2', 'swap16'
+]);
+
+/**
+ * 카드를 지금 쓰면 맞는 말들 (서버의 대상 해석과 같은 규칙).
+ * 직접 고르는 카드이거나 알 수 없으면 null.
+ */
+function targetsNow(def: AugmentDefinition): number[] | null {
+  if (def.targetType === 'single' || lastSnaps.length === 0) return null;
+  const live = lastSnaps.filter((h) => !h.finished);
+  const alive = (ids: number[]) => ids.filter((id) => live.some((h) => h.id === id));
+  const ranking = [...lastSnaps].sort((a, b) => a.rank - b.rank).map((h) => h.id);
+  const info = (id: number) => state.horses.find((h) => h.id === id);
+  const top = (key: (h: HorseSnapshot) => number, desc: boolean, n: number) =>
+    [...live]
+      .sort((a, b) => (desc ? key(b) - key(a) : key(a) - key(b)) || a.id - b.id)
+      .slice(0, n)
+      .map((h) => h.id);
+  const byBet = (types: BetType[] | null, most: boolean): number[] | null => {
+    if (betsHidden() || live.length === 0) return null; // 블라인드 방에서는 남의 배팅을 모른다
+    const sum = (id: number) =>
+      visibleBets().filter((b) => b.horseId === id && (!types || types.includes(b.type))).reduce((t, b) => t + b.amount, 0);
+    return [[...live].sort((a, b) => (most ? sum(b.id) - sum(a.id) : sum(a.id) - sum(b.id)) || a.id - b.id)[0].id];
+  };
+  switch (def.targetType) {
+    case 'odd': return alive([1, 3, 5]);
+    case 'even': return alive([2, 4, 6]);
+    case 'front3': return alive(ranking.slice(0, 3));
+    case 'back3': return alive(ranking.slice(3, 6));
+    case 'rank1': return alive(ranking.slice(0, 1));
+    case 'rank2': return alive(ranking.slice(1, 2));
+    case 'rank6': return alive(ranking.slice(5, 6));
+    case 'rank23': return alive(ranking.slice(1, 3));
+    case 'rank34': return alive(ranking.slice(2, 4));
+    case 'fastest2': return top((h) => info(h.id)?.stats.speed ?? 0, true, 2);
+    case 'slowest2': return top((h) => info(h.id)?.stats.speed ?? 0, false, 2);
+    case 'heaviest2': return top((h) => info(h.id)?.stats.weight ?? 0, true, 2);
+    case 'mostStamina2': return top((h) => h.stamina, true, 2);
+    case 'leastStamina2': return top((h) => h.stamina, false, 2);
+    case 'mostBetWin': return byBet(['winner'], true);
+    case 'leastBetWin': return byBet(['winner'], false);
+    case 'mostBetTotal': return byBet(null, true);
+    case 'swap16': {
+      const r = alive(ranking);
+      return r.length < 2 ? [] : [r[0], r[r.length - 1]];
+    }
+    default: return null;
+  }
+}
+
+/** 카드의 "지금 대상" 표시: 실제 말 번호. 내가 건 말은 노란 테두리 */
+function targetNowHtml(def: AugmentDefinition): string {
+  const ids = targetsNow(def);
+  if (!ids) return '';
+  if (ids.length === 0) return '<span class="aug-tgt-none">지금은 해당하는 말이 없음</span>';
+  const bibs = ids
+    .map((id) => {
+      const h = state.horses.find((x) => x.id === id);
+      if (!h) return '';
+      const mine = state.myBets.some((b) => b.horseId === id);
+      return `<span class="aug-tgt-horse${mine ? ' mybet' : ''}" title="${esc(h.name)}${mine ? ' (내가 건 말)' : ''}">${bib(h.id, h.color, 'sm')}</span>`;
+    })
+    .join('');
+  // 순위처럼 계속 바뀌는 기준이면 "지금"임을 밝힌다. 실제 대상은 발동하는 순간에 정해진다
+  return `${LIVE_TARGETS.has(def.targetType) ? '<span class="aug-tgt-live">지금</span>' : ''}${bibs}`;
+}
+
+/** 예약한 카드에 고른 말 */
+function queuedTargetHtml(): string {
+  const h = state.horses.find((x) => x.id === state.augment?.queuedTarget);
+  if (!h) return '';
+  const mine = state.myBets.some((b) => b.horseId === h.id);
+  return `<span class="aug-tgt-live">고른 말</span><span class="aug-tgt-horse${mine ? ' mybet' : ''}" title="${esc(h.name)}">${bib(h.id, h.color, 'sm')}</span>`;
+}
+
+/** 경주 화면의 말 이름표에 내가 건 배팅을 표시한다 */
+function syncBetMarks(): void {
+  const marks: Record<number, string> = {};
+  for (const b of state.myBets) {
+    marks[b.horseId] = marks[b.horseId] ? `${marks[b.horseId]}, ${BET_SHORT[b.type]}` : BET_SHORT[b.type];
+  }
+  view?.setBetMarks(marks);
+}
+
+/** 마우스를 올린 카드(또는 말 고르기 단추). 없으면 눌러서 고른 카드를 기준으로 삼는다 */
+let hoverCardKey: string | null = null;
+let hoverPick: number | null = null;
+
+/** 올려 둔 카드가 맞힐 말을 경주 화면과 등수표에서 띄워 보인다. 순위가 바뀌면 따라 바뀐다 */
+function applyAugmentHighlight(): void {
+  const aug = state.augment;
+  let ids: number[] = [];
+  let good = true;
+  if (aug && !aug.used && !augFolded) {
+    const key = hoverCardKey ?? aug.selectedKey;
+    const card = aug.cards.find((c) => c.cardKey === key);
+    const def = card ? AUGMENT_BY_ID[card.defId] : undefined;
+    if (def) {
+      good = !def.hostile;
+      if (def.targetType !== 'single') ids = targetsNow(def) ?? [];
+      else if (hoverPick != null && hoverCardKey === key) ids = [hoverPick];
+      else if (aug.queuedKey === key && aug.queuedTarget != null) ids = [aug.queuedTarget];
+    }
+  }
+  view?.setHighlight(ids, good);
+  const board = $('rank-board');
+  board.dataset.hl = ids.join(',');
+  board.dataset.hlKind = good ? 'good' : 'bad';
+  board.querySelectorAll<HTMLElement>('.rb-row').forEach((row) => {
+    row.classList.toggle('hl', ids.includes(Number(row.dataset.h)));
+  });
+}
+
+/** 순위가 바뀌면 열려 있는 카드의 "지금 대상"만 고쳐 쓴다 (바뀐 칸만) */
+function refreshAugmentTargets(): void {
+  const aug = state.augment;
+  if (!aug || aug.used || augFolded) return;
+  document.querySelectorAll<HTMLElement>('#augment-bar [data-tgt]').forEach((el) => {
+    const card = aug.cards.find((c) => c.cardKey === el.dataset.tgt);
+    const def = card ? AUGMENT_BY_ID[card.defId] : undefined;
+    if (!def || def.targetType === 'single') return;
+    const html = targetNowHtml(def);
+    if (el.dataset.html !== html) {
+      el.dataset.html = html;
+      el.innerHTML = html;
+    }
+  });
+  applyAugmentHighlight();
 }
 
 function addLog(html: string, cls = ''): void {
@@ -463,7 +613,7 @@ function renderRankBoard(snaps: { id: number; rank: number; finished: boolean }[
         .join('');
       // 노란 줄은 내가 건 말
       const myBet = state.myBets.some((b) => b.horseId === s.id);
-      return `<div class="rb-row${myBet ? ' mine' : ''}${s.finished ? ' done' : ''}">
+      return `<div class="rb-row${myBet ? ' mine' : ''}${s.finished ? ' done' : ''}${(el.dataset.hl ?? '').split(',').includes(String(s.id)) ? ' hl' : ''}" data-h="${s.id}">
         <span class="rb-rank">${s.rank}</span>${bib(h.id, h.color, 'sm')}<span class="rb-name">${esc(h.name)}</span>
         ${betHtml ? `<span class="rb-bets">${betHtml}</span>` : ''}
       </div>`;
@@ -480,55 +630,143 @@ function statBar(label: string, value: number, color: string): string {
   </div>`;
 }
 
+/** 컨디션 수치(1~100)를 화면에 보이는 1~10으로 */
+function conditionShown(luck: number): number {
+  return Math.max(1, Math.min(10, Math.round(luck / 10)));
+}
+
+/** 컨디션 사유 한 줄 */
+function condHtml(h: HorseInfo): string {
+  const c = conditionShown(h.stats.luck);
+  return `<div class="hc-cond ${c >= 7 ? 'good' : c <= 4 ? 'bad' : ''}">${esc(conditionNote(h))}</div>`;
+}
+
+/** 출마표를 볼 때는 카드, 배팅할 때는 한 줄씩(오른쪽에 마권을 크게 두기 위해) */
 function renderHorseCards(): void {
-  $('horse-cards').innerHTML = state.horses
+  const rows = state.phase === 'betting';
+  $('horse-cards').classList.toggle('as-rows', rows);
+  // 배팅할 때는 배당 열 바로 위에 전체 배당표를 여는 단추를 둔다
+  const oddsBtn = rows ? '<div class="hr-top"><button id="btn-odds-all" class="btn small alt">전체 배당 보기</button></div>' : '';
+  $('horse-cards').innerHTML = oddsBtn + state.horses
     .map((h) => {
       const odds = state.odds[h.id];
       const mine = isMyHorse(h);
-      return `<div class="horse-card${state.selHorse === h.id ? ' selected' : ''}${mine ? ' mine' : ''}" data-horse="${h.id}">
+      const sel = state.selHorse === h.id;
+      const oddsText = `×${odds ? odds[state.selBetType].toFixed(2) : '-'}`;
+      if (rows) {
+        return `<div class="horse-row${sel ? ' selected' : ''}${mine ? ' mine' : ''}" data-horse="${h.id}" role="button" tabindex="0" aria-pressed="${sel}">
+          ${bib(h.id, h.color, 'lg')}
+          <div class="hr-name"><span class="hc-name">${esc(h.name)}</span>${mine ? `<span class="tag mine">${icon('star')}내 말</span>` : ''}
+            <span class="hr-sub">${h.stats.weight}kg, 컨디션 ${conditionShown(h.stats.luck)}</span></div>
+          <div class="hr-stats">
+            ${statBar('속력', h.stats.speed, '#d92b22')}
+            ${statBar('가속', h.stats.accel, '#2447d6')}
+            ${statBar('지구력', h.stats.stamina, '#0f7a50')}
+          </div>
+          ${condHtml(h)}
+          <div class="hr-odds"><span>${BET_TYPE_INFO[state.selBetType].label} 배당</span><b>${oddsText}</b></div>
+        </div>`;
+      }
+      return `<div class="horse-card${sel ? ' selected' : ''}${mine ? ' mine' : ''}" data-horse="${h.id}">
         <div class="hc-head">
           ${bib(h.id, h.color, 'lg')}
           <span class="hc-name">${esc(h.name)}</span>
           ${mine ? `<span class="tag mine">${icon('star')}내 말</span>` : ''}
-          ${h.breed && h.breed !== 'horse' ? `<span class="tag">${BREED_INFO[h.breed].label}</span>` : ''}
         </div>
         ${statBar('속력', h.stats.speed, '#d92b22')}
         ${statBar('가속', h.stats.accel, '#2447d6')}
         ${statBar('지구력', h.stats.stamina, '#0f7a50')}
-        <div class="hc-extra">몸무게 ${h.stats.weight}kg, 행운 ${Math.max(1, Math.round(h.stats.luck / 10))}</div>
+        <div class="hc-extra">몸무게 ${h.stats.weight}kg, 컨디션 ${conditionShown(h.stats.luck)}</div>
+        ${condHtml(h)}
         <div class="hc-odds">
           <span>${BET_TYPE_INFO[state.selBetType].label} 배당</span>
-          <b>×${odds ? odds[state.selBetType].toFixed(2) : '-'}</b>
+          <b>${oddsText}</b>
         </div>
       </div>`;
     })
     .join('');
-  document.querySelectorAll<HTMLElement>('.horse-card').forEach((el) => {
-    el.onclick = () => {
+  const oddsAll = document.getElementById('btn-odds-all');
+  if (oddsAll) {
+    oddsAll.onclick = () => {
+      renderOddsTable();
+      show('modal-odds');
+    };
+  }
+  document.querySelectorAll<HTMLElement>('#horse-cards [data-horse]').forEach((el) => {
+    const pick = (byKey: boolean) => {
       state.selHorse = Number(el.dataset.horse);
       renderHorseCards();
-      updateBetSelInfo();
+      renderBetTabs();
+      // 다시 그리면 초점이 사라지므로 자판으로 골랐을 때는 같은 줄에 돌려 둔다
+      if (byKey) document.querySelector<HTMLElement>(`#horse-cards [data-horse="${state.selHorse}"]`)?.focus();
+      // 한 단 화면(폰 세로)에서는 마권이 목록 아래에 있어서, 말을 고르면 마권으로 내려 준다
+      else if (rows && window.matchMedia('(max-width: 759px)').matches) {
+        const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        document.querySelector('#bet-controls .ticket')?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+      }
+    };
+    el.onclick = () => pick(false);
+    el.onkeydown = (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault();
+      pick(true);
     };
   });
 }
 
+/** 마권: 고른 말, 종류 네 칸(그 말의 배당), 금액, 받을 코인 */
 function renderBetTabs(): void {
+  const horse = state.horses.find((h) => h.id === state.selHorse);
+  $('ticket-head').innerHTML = horse
+    ? `${bib(horse.id, horse.color, 'lg')}<div class="t-who"><b>${esc(horse.name)}</b><span>${esc(conditionNote(horse))}</span></div>`
+    : `<div class="t-who"><b>말을 고르세요</b><span>목록에서 말을 누르면 배당이 나옵니다.</span></div>`;
   $('bet-type-tabs').innerHTML = (Object.keys(BET_TYPE_INFO) as BetType[])
-    .map(
-      (t) =>
-        `<button class="bet-tab${state.selBetType === t ? ' active' : ''}" data-type="${t}" aria-pressed="${state.selBetType === t}">${BET_TYPE_INFO[t].label}</button>`
-    )
+    .map((t) => {
+      const o = horse ? state.odds[horse.id]?.[t] : undefined;
+      return `<button class="t-type${state.selBetType === t ? ' active' : ''}" data-type="${t}" aria-pressed="${state.selBetType === t}">
+        <span class="tt-label"><b>${BET_TYPE_INFO[t].label}</b><small>${BET_TYPE_INFO[t].desc.replace('고른 말이 ', '')}</small></span>
+        <span class="tt-odds${o ? '' : ' blank'}">${o ? `×${o.toFixed(2)}` : '×0.00'}</span>
+      </button>`;
+    })
     .join('');
-  $('bet-type-desc').textContent = `${BET_TYPE_INFO[state.selBetType].label}: ${BET_TYPE_INFO[state.selBetType].desc}이면 적중`;
-  document.querySelectorAll<HTMLElement>('.bet-tab').forEach((el) => {
+  document.querySelectorAll<HTMLElement>('#bet-type-tabs .t-type').forEach((el) => {
     el.onclick = () => {
       state.selBetType = el.dataset.type as BetType;
       renderBetTabs();
       renderHorseCards();
-      updateBetSelInfo();
     };
   });
   updateBetSelInfo();
+}
+
+/** 전체 배당표 창. 칸을 누르면 그 말과 종류가 마권에 적힌다 */
+function renderOddsTable(): void {
+  const types = Object.keys(BET_TYPE_INFO) as BetType[];
+  $('odds-table').innerHTML =
+    `<div class="od-row od-head"><span></span>${types.map((t) => `<span class="od-type"><b>${BET_TYPE_INFO[t].label}</b></span>`).join('')}</div>` +
+    state.horses
+      .map((h) => {
+        const cells = types
+          .map((t) => {
+            const o = state.odds[h.id]?.[t];
+            const sel = state.selHorse === h.id && state.selBetType === t;
+            const mine = state.myBets.some((b) => b.horseId === h.id && b.type === t);
+            return `<button class="od-cell${sel ? ' selected' : ''}${mine ? ' has-bet' : ''}${o && o >= 10 ? ' hot' : ''}" data-horse="${h.id}" data-type="${t}" aria-label="${esc(h.name)} ${BET_TYPE_INFO[t].label} 배당 ${o ? o.toFixed(2) : '-'}">${o ? `×${o.toFixed(2)}` : '-'}</button>`;
+          })
+          .join('');
+        return `<div class="od-row"><span class="od-horse">${bib(h.id, h.color, 'sm')}<span>${esc(h.name)}</span></span>${cells}</div>`;
+      })
+      .join('') +
+    `<p class="od-legend"><span class="od-mark"></span>이미 건 칸 <span class="od-hot">빨간 숫자</span>는 10배 이상</p>`;
+  document.querySelectorAll<HTMLElement>('#odds-table .od-cell').forEach((el) => {
+    el.onclick = () => {
+      state.selHorse = Number(el.dataset.horse);
+      state.selBetType = el.dataset.type as BetType;
+      renderHorseCards();
+      renderBetTabs();
+      hide('modal-odds');
+    };
+  });
 }
 
 function betLimitNow(): { limit: number; used: number } {
@@ -547,9 +785,12 @@ function updateBetSelInfo(): void {
   const amount = Math.floor(Number($<HTMLInputElement>('bet-amount').value) || 0);
   const horse = state.horses.find((h) => h.id === state.selHorse);
   const odds = horse ? state.odds[horse.id]?.[state.selBetType] : undefined;
+  const pay = horse && odds && amount >= BET_MIN ? Math.floor(amount * odds) : 0;
+  $('ticket-pay').textContent = pay.toLocaleString('ko-KR');
+  $('ticket-pay').classList.toggle('zero', pay === 0);
   if (!horse) {
     btn.disabled = true;
-    btn.textContent = '위에서 말을 고르세요';
+    btn.textContent = '말을 먼저 고르세요';
   } else if (amount < BET_MIN) {
     btn.disabled = true;
     btn.textContent = `금액을 정하세요 (최소 ${BET_MIN}코인)`;
@@ -558,8 +799,7 @@ function updateBetSelInfo(): void {
     btn.textContent = `${left}코인까지만 걸 수 있습니다`;
   } else {
     btn.disabled = false;
-    const win = odds ? Math.floor(amount * odds) - amount : 0;
-    btn.innerHTML = `${bib(horse.id, horse.color, 'sm')} ${esc(horse.name)} ${BET_TYPE_INFO[state.selBetType].label}에 ${amount}코인 걸기 <span class="btn-note">맞으면 +${win}</span>`;
+    btn.textContent = `${amount}코인 걸기`;
   }
 }
 
@@ -588,6 +828,16 @@ let augFolded = false;
 let augFoldPhase = -1;
 
 function renderAugmentBar(): void {
+  renderAugmentBarInner();
+  const aug = state.augment;
+  if (!aug || aug.used || augFolded) {
+    hoverCardKey = null;
+    hoverPick = null;
+  }
+  applyAugmentHighlight();
+}
+
+function renderAugmentBarInner(): void {
   const aug = state.augment;
   const bar = $('augment-bar');
   // 증강은 화면 가운데 창으로 뜨므로 카메라를 올릴 필요가 없다
@@ -623,12 +873,12 @@ function renderAugmentBar(): void {
   const livePct = Math.round((AUGMENT_PHASES.find((ph) => ph.phase === aug.phase)?.at ?? 0) * 100);
   const guide = aug.preview
     ? aug.queuedKey
-      ? `예약했습니다. 선두가 ${livePct}% 지점에 닿으면 발동합니다. 다른 카드로 바꿀 수 있습니다.`
-      : `미리 고르기. 지금 골라 두면 선두가 ${livePct}% 지점에 닿을 때 발동합니다.`
-    : '카드 한 장을 고르세요. 경주는 멈추지 않습니다.';
+      ? `예약 완료. 선두가 ${livePct}%에 닿으면 발동`
+      : `미리 고르기. 선두가 ${livePct}%에 닿으면 발동`
+    : '지금 한 장을 고르세요';
   const head = `<div class="augment-head">
-      <b>${aug.phase}차 증강 <span class="aug-tier-chip" style="background:${tierInfo.color}">${icon('gem')}${tierInfo.label}</span> ${guide}</b>
-      <span class="augment-head-right"><span id="augment-remain">${aug.preview ? '미리보기' : ''}</span><button class="aug-fold" data-fold title="창을 접고 경주 보기">접기</button></span>
+      <b>${aug.phase}차 증강 <span class="aug-tier-chip" style="background:${tierInfo.color}">${icon('gem')}${tierInfo.label}</span> <span class="aug-guide">${guide}</span></b>
+      <span class="augment-head-right"><span id="augment-remain"></span><button class="aug-fold" data-fold title="창을 접고 경주 보기">접기</button></span>
     </div>
     <div class="augment-timebar"><div id="augment-timefill"></div></div>`;
 
@@ -643,7 +893,7 @@ function renderAugmentBar(): void {
         pickRow = `<div class="augment-pickhorse">${state.horses
           .map(
             (h) =>
-              `<button class="pick${inkOn(h.color) ? ' dk' : ''}" style="background:${h.color}" data-pick="${h.id}" data-key="${c.cardKey}" title="${esc(h.name)}">${h.id}</button>`
+              `<button class="pick${inkOn(h.color) ? ' dk' : ''}${state.myBets.some((b) => b.horseId === h.id) ? ' mybet' : ''}" style="background:${h.color}" data-pick="${h.id}" data-key="${c.cardKey}" title="${esc(h.name)}" aria-label="${h.id}번 ${esc(h.name)}">${h.id}</button>`
           )
           .join('')}</div>`;
       } else if (selected) {
@@ -658,11 +908,12 @@ function renderAugmentBar(): void {
             ? ''
             : `<button class="aug-reroll" data-reroll="${c.cardKey}" title="다른 카드로 바꾸기 (한 번만)" aria-label="${esc(def.name)} 카드를 다른 카드로 바꾸기">${icon('refresh')}</button>`
         }
-        ${kindChip(def.hostile)}
-        <div class="aug-name">${esc(def.name)}</div>
-        <div class="aug-desc">${effectHtml(def.description)}</div>
-        <div class="aug-target">${icon('target')}${TARGET_TYPE_LABELS[def.targetType] ?? ''}</div>
-        ${pickRow}
+        <div class="aug-band"><b>${def.hostile ? '방해' : '도움'}</b><span>${esc(def.name)}</span></div>
+        <div class="aug-body">
+          ${cardEffectHtml(def.description)}
+          <div class="aug-tgt"><span class="aug-tgt-label">${icon('target')}${TARGET_TYPE_LABELS[def.targetType] ?? ''}</span><span class="aug-tgt-now" data-tgt="${c.cardKey}">${queued && def.targetType === 'single' ? queuedTargetHtml() : targetNowHtml(def)}</span></div>
+          ${pickRow}
+        </div>
       </div>`;
     })
     .join('');
@@ -699,6 +950,7 @@ function renderAugmentBar(): void {
 function sendAugment(cardKey: string, targetHorseId?: number): void {
   if (!state.augment) return;
   state.augment.pending = true;
+  state.augment.sentTarget = targetHorseId ?? null;
   renderAugmentBar();
   net.send({ type: 'SELECT_AUGMENT', cardKey, targetHorseId });
 }
@@ -1211,7 +1463,10 @@ net.on((msg: S2C) => {
 
     case 'RACE_STATE': {
       view?.pushState(msg.horses);
+      lastSnaps = msg.horses;
+      syncBetMarks();
       renderRankBoard(msg.horses);
+      refreshAugmentTargets();
       break;
     }
 
@@ -1271,6 +1526,7 @@ net.on((msg: S2C) => {
       if (msg.ok && msg.queued) {
         // 미리 고르기: 예약만 됐다. 증강 지점에서 발동하고, 그 전에는 바꿀 수 있다
         state.augment.queuedKey = msg.cardKey ?? null;
+        state.augment.queuedTarget = state.augment.sentTarget ?? null;
         state.augment.selectedKey = null;
         state.augment.pending = false;
       } else if (msg.ok) {
@@ -1459,6 +1715,28 @@ function bindUI(): void {
       if (t === $(modal) || t.closest('[data-close]')) hide(modal);
     };
   }
+  // 증강 카드에 마우스를 올리면 그 카드가 맞힐 말을 띄워 보인다 (다시 그려도 끊기지 않게 창 전체에서 받는다)
+  const augBar = $('augment-bar');
+  augBar.onmouseover = (ev) => {
+    const t = ev.target as HTMLElement;
+    const card = t.closest<HTMLElement>('.augment-card');
+    const pick = t.closest<HTMLElement>('[data-pick]');
+    const key = card?.dataset.card ?? null;
+    const horse = pick ? Number(pick.dataset.pick) : null;
+    if (key === hoverCardKey && horse === hoverPick) return;
+    hoverCardKey = key;
+    hoverPick = horse;
+    applyAugmentHighlight();
+  };
+  augBar.onmouseleave = () => {
+    hoverCardKey = null;
+    hoverPick = null;
+    applyAugmentHighlight();
+  };
+  $('modal-odds').onclick = (ev) => {
+    const t = ev.target as HTMLElement;
+    if (t === $('modal-odds') || t.closest('[data-close]')) hide('modal-odds');
+  };
   initAudio();
   // 한글 웹 글꼴은 글자 묶음별로 나뉘어 있어, 처음 보는 글자가 나오면 그때 내려받느라 잠깐 다른 글꼴로 보인다.
   // 경주 중에 뜨는 카드 이름과 설명의 글자를 미리 받아 둔다

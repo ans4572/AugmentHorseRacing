@@ -1510,3 +1510,156 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 
 /* 말 고르기: 이 카드로는 고를 수 없는 말 */
 #augment-bar .augment-pickhorse .pick:disabled { opacity: 0.28; cursor: not-allowed; filter: grayscale(1); }
+
+/* ================= 멀티: 데려온 말 ================= */
+/* 다른 사람의 말: 그 사람 색 테두리의 딱지 */
+.tag.owner { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 2px var(--pc); white-space: nowrap; }
+.lobby-horse { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+
+/* ================= 꾸미기 창 ================= */
+.overlay-inner.stable-popup { width: min(720px, 96vw); }
+.btn-row.end { justify-content: flex-end; }
+/* 대기방: 출전 단추와 꾸미기 단추를 한 줄에 */
+.lobby-horse-row { display: flex; gap: 8px; align-items: stretch; }
+.lobby-horse-row .seg { flex: 1; }
+.lobby-horse-row .btn { flex: none; }
+
+/* 소제목 오른쪽에 단추를 두는 줄 (대기방의 "내 말 출전" + "내 말 꾸미기") */
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.field-head .btn { flex: none; white-space: nowrap; }
+
+/* ================= 화면 다듬기 (멀티 출전, 꾸미기 창) ================= */
+/* 다른 사람이 쓰는 색: 색은 그대로 보이고, 그 사람 이름 첫 글자와 빗금으로 "쓰는 중"임을 알린다 */
+.swatch:disabled { opacity: 1; cursor: not-allowed; color: #fff; font-weight: 800; font-size: 14px; box-shadow: 0 0 0 2px var(--line); }
+/* 작은 주인 표시 */
+.owner-mark { display: inline-flex; align-items: center; flex: none; }
+.owner-mark.mine { color: #b45309; font-size: 14px; }
+.owner-mark .pmark { width: 18px; height: 18px; font-size: 12px; }
+.od-horse .owner-mark { margin-left: -2px; }
+.od-horse span.owner-mark:last-child { overflow: visible; }
+.rb-row.mine .owner-mark.mine { color: var(--ink); }
+/* 꾸미기 창: 닫기 단추는 늘 창 아래에 붙어 있어, 폰에서 끝까지 내리지 않아도 닫을 수 있다 */
+.stable-popup .btn-row.end { position: sticky; bottom: -20px; margin: 0 -24px -20px; padding: 10px 24px 14px; background: var(--paper); border-top: 2px solid var(--line); }
+@media (max-width: 640px) {
+  .stable-popup .btn-row.end { bottom: -14px; margin: 0 -14px -14px; padding: 8px 14px 12px; }
+  .stable-popup .btn-row.end .btn { width: 100%; }
+  /* 미리보기가 화면을 다 차지하지 않게 낮춘다: 꾸미기 항목이 바로 아래에 보인다 */
+  .stable-popup #stable-preview { aspect-ratio: 16 / 9; }
+}
+
+/* 배당표 범례: "10배 이상은 빨간 숫자"를 한 덩어리로 */
+.od-ten { margin-left: 10px; }
+.od-ten .od-hot { margin-left: 0; }
+
+/* ================= 등수표: 배팅이 많아도 말 이름은 줄이지 않는다 ================= */
+/* 이름은 제 폭을 그대로 쓰고, 배팅 딱지는 남는 자리에서 줄바꿈한다. 자리가 아주 모자라면 딱지가 통째로 다음 줄로 내려간다 */
+#rank-board .rb-row { flex-wrap: wrap; row-gap: 3px; }
+#rank-board .rb-name { flex: none; overflow: visible; text-overflow: clip; max-width: none; }
+#rank-board .rb-bets { flex: 1 1 96px; min-width: 0; }
+#rank-board { max-width: min(420px, 66%); }
+
+/* ================= 배팅: 말 이름 아래에 내 마권 딱지 ================= */
+/* 딱지 줄의 높이를 미리 잡아 둔다: 마권을 걸거나 취소해도 줄과 창의 높이가 변하지 않는다 */
+.horse-row .bib { grid-row: 1 / span 2; }
+.hr-bets { grid-column: 2 / -1; grid-row: 2; display: flex; flex-wrap: wrap; gap: 4px 5px; min-height: 24px; align-items: center; }
+.bet-chip { display: inline-flex; align-items: stretch; background: var(--ink); color: var(--hl); border-radius: 3px; font-size: 14px; font-weight: 800; line-height: 1; white-space: nowrap; overflow: hidden; }
+.bet-chip > span { padding: 5px 4px 5px 8px; }
+.bet-chip button { font: 800 16px/1 var(--body); color: #fff; background: transparent; border: 0; border-left: 1.5px solid rgba(255, 255, 255, 0.35); padding: 0 7px; cursor: pointer; box-shadow: none; }
+.bet-chip button:hover { background: var(--stamp); }
+.bet-chip button:focus-visible { outline: 3px solid var(--pen); outline-offset: -3px; }
+/* 오른쪽 아래: 목록 대신 합계 한 줄 */
+#my-bets, #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #my-bets {
+  height: auto; max-height: none; overflow: visible; flex-direction: row; justify-content: space-between; align-items: baseline;
+  border: 2px solid var(--ink); border-radius: var(--r); padding: 8px 12px; font-size: 14px; font-weight: 700;
+}
+#my-bets b { font-weight: 800; font-size: 16px; }
+#my-bets.empty { border-style: dashed; border-color: var(--ink-soft); }
+@media (max-width: 640px) {
+  /* 폰: 딱지 줄은 마권이 있을 때만 자리를 차지하고, 누르기 쉽게 키운다 */
+  .hr-bets { grid-column: 1 / -1; grid-row: 3; min-height: 0; }
+  .hr-bets:empty { display: none; }
+  .horse-row .bib { grid-row: 1; }
+  .bet-chip > span { padding: 8px 6px 8px 10px; }
+  .bet-chip button { padding: 0 11px; font-size: 18px; }
+}
+
+/* ================= 배팅: 두 줄짜리 말 줄 (이전 .horse-row를 대신한다) ================= */
+/* 윗줄: 이름, 주인 딱지, 능력치 세 개 / 아랫줄: 몸무게·컨디션, 컨디션 사유, 내 마권 딱지
+   아랫줄은 늘 글이 있으므로 마권을 걸어도 줄 높이가 변하지 않고, 빈자리도 생기지 않는다 */
+.horse-line {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; align-items: center;
+  border: 2px solid var(--line); border-radius: var(--r); padding: 7px 12px; cursor: pointer; background: var(--paper);
+  -webkit-tap-highlight-color: transparent;
+}
+.horse-line:hover { border-color: var(--ink-soft); }
+.horse-line.selected { background: var(--hl); border-color: var(--ink); box-shadow: 0 3px 0 var(--ink); }
+.horse-line:focus-visible { outline: 3px solid var(--pen); outline-offset: 2px; }
+.hl-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.hl-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hl-top .hc-name { font-weight: 800; font-size: 18px; white-space: nowrap; }
+.hl-top .tag { flex: none; }
+.hl-stats { margin-left: auto; display: flex; gap: 12px; flex: none; }
+.ms { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; }
+.ms-label { color: var(--ink-soft); white-space: nowrap; }
+.ms-track { width: 44px; height: 7px; background: rgba(26, 33, 80, 0.12); }
+.ms-track span { display: block; height: 100%; }
+.ms b { font-size: 14px; font-weight: 800; min-width: 1.2em; text-align: right; font-variant-numeric: tabular-nums; }
+.hl-bottom { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; min-height: 26px; }
+.hl-sub { font-size: 12px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+.hl-bottom .hc-cond { margin: 0; font-size: 14px; }
+.hl-bets { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px 5px; justify-content: flex-end; }
+.horse-line.selected .hl-sub, .horse-line.selected .ms-label, .horse-line.selected .hl-odds span { color: var(--ink); }
+.hl-odds { text-align: right; min-width: 94px; }
+.hl-odds span { display: block; font-size: 12px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+.hl-odds b { font-family: var(--display); font-weight: 400; font-size: 24px; font-variant-numeric: tabular-nums; }
+/* 좁은 두 단 화면: 막대는 빼고 숫자만 */
+@media (max-width: 1099px) {
+  .ms-track { display: none; }
+  .hl-stats { gap: 8px; }
+}
+@media (max-width: 899px) and (min-width: 641px) {
+  .hl-bottom .hc-cond { display: none; } /* 고르면 마권 머리에 나온다 */
+}
+@media (max-width: 640px) {
+  .horse-line { padding: 7px 9px; column-gap: 9px; align-items: start; }
+  .horse-line .bib { margin-top: 2px; }
+  .hl-top { flex-wrap: wrap; row-gap: 3px; }
+  .hl-top .hc-name { font-size: 16px; }
+  .hl-stats { margin-left: 0; flex-basis: 100%; gap: 10px; }
+  .hl-bets { margin-left: 0; flex-basis: 100%; justify-content: flex-start; }
+  .hl-bets:empty { display: none; }
+  .hl-odds { min-width: 0; }
+  .hl-odds b { font-size: 22px; }
+}
+/* 아랫줄은 한 줄을 지킨다: 딱지가 붙으면 컨디션 사유가 말줄임으로 줄고(전체 문구는 고르면 마권 머리에 나온다), 줄 높이는 그대로다 */
+@media (min-width: 641px) {
+  .hl-bottom { flex-wrap: nowrap; }
+  .hl-bottom .hc-cond { flex: 1 1 0; min-width: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 14px; position: relative; }
+  .hl-bottom .hc-cond::before { position: absolute; left: 0; top: 50%; margin-top: -4px; }
+  .hl-bets { flex: 0 1 auto; margin-left: 0; }
+}
+@media (max-width: 640px) {
+  .hl-stats { display: none; } /* 능력치는 출마표에서 이미 봤다 */
+}
+@media (min-width: 641px) {
+  .hl-bottom .hc-cond::before { width: 8px; }
+}
+/* 합계 줄은 마권이 있든 없든 같은 높이 */
+#my-bets { min-height: 42px; align-items: center; }
+@media (max-width: 640px) {
+  /* 폰: 아랫줄은 번호와 배당 아래까지 줄 전체를 쓴다 (딱지 두세 개가 한 줄에 들어간다) */
+  .hl-main { display: contents; }
+  .hl-top { grid-column: 2; grid-row: 1; align-self: center; }
+  .hl-odds { grid-column: 3; grid-row: 1; }
+  .hl-bottom { grid-column: 1 / -1; grid-row: 2; margin-top: 5px; }
+  .horse-line .bib { margin-top: 0; }
+  .horse-line { align-items: center; }
+}
+#my-bets, #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #my-bets { height: 44px; min-height: 44px; box-sizing: border-box; }
+/* 딱지가 많아 컨디션 사유가 한두 글자만 남을 때는 아예 비운다 (자리는 그대로 둬서 딱지 위치가 흔들리지 않는다) */
+@media (min-width: 641px) {
+  .hl-bottom:has(.bet-chip + .bet-chip + .bet-chip) .hc-cond { visibility: hidden; }
+}
+@media (min-width: 641px) and (max-width: 1099px) {
+  .hl-bottom:has(.bet-chip + .bet-chip) .hc-cond { visibility: hidden; }
+}

@@ -106,7 +106,7 @@
           <div class="muted">출전하는 내 말</div>
           <b id="solo-horse-summary"></b>
         </div>
-        <button id="btn-solo-stable" class="btn small alt">꾸미기</button>
+        <button id="btn-solo-stable" class="btn small alt">내 말 꾸미기</button>
       </div>
       <p class="muted">내 말은 여섯 마리 중 하나로 뛰고, 순위에 따라 당근을 받습니다. 능력치는 경기마다 새로 정해집니다.</p>
       <div class="tear"></div>
@@ -118,33 +118,6 @@
   </div>
 
   <!-- 화면: 내 마구간 (내 말 꾸미기) -->
-  <div id="scr-stable" class="screen hidden">
-    <div class="slip wide">
-      <div class="row-between">
-        <h2>내 마구간</h2>
-        <div id="stable-carrots" class="carrot-chip big"></div>
-      </div>
-      <div class="stable-body">
-        <div class="stable-left">
-          <div id="stable-preview"></div>
-          <label>말 이름 <input id="stable-name" type="text" maxlength="8" placeholder="8자까지" /></label>
-        </div>
-        <div class="stable-right">
-          <div id="stable-tabs" class="stable-tabs"></div>
-          <div id="stable-items" class="stable-items"></div>
-          <div id="stable-buybar" class="stable-buybar hidden"></div>
-        </div>
-      </div>
-      <div id="stable-stats" class="muted"></div>
-      <p class="muted">당근은 혼자 하기에서 내 말의 순위 상금과 게임 종료 보너스로 모읍니다. 꾸미기는 겉모습만 바꿉니다.</p>
-      <div class="tear"></div>
-      <div class="btn-row">
-        <button id="btn-stable-back" class="btn ghost">뒤로</button>
-        <button id="btn-stable-solo" class="btn">이 말로 출전</button>
-      </div>
-    </div>
-  </div>
-
   <!-- 화면 3: 방 참가 -->
   <div id="scr-join" class="screen hidden">
     <div class="slip">
@@ -170,6 +143,17 @@
         <span class="field-name" id="lobby-colors-name">내 색</span>
         <div id="lobby-colors" class="swatches" role="radiogroup" aria-labelledby="lobby-colors-name"></div>
         <p class="field-help">경주 중 내 배팅과 내가 쓴 증강이 이 색으로 표시됩니다.</p>
+      </div>
+      <div class="field">
+        <div class="field-head">
+          <span class="field-name" id="lobby-horse-name">내 말 출전</span>
+          <button id="btn-lobby-stable" class="btn small alt">내 말 꾸미기</button>
+        </div>
+        <div id="lobby-horse" class="seg" role="radiogroup" aria-labelledby="lobby-horse-name">
+          <button type="button" role="radio" data-value="on" aria-checked="true" class="active">출전</button>
+          <button type="button" role="radio" data-value="off" aria-checked="false">안 함</button>
+        </div>
+        <p class="field-help" id="lobby-horse-help"></p>
       </div>
       <p id="lobby-wait-msg" class="muted">방장이 게임을 시작하면 바로 넘어갑니다.</p>
       <div class="tear"></div>
@@ -237,7 +221,7 @@
     <div id="modal-odds" class="game-overlay popup hidden">
       <div class="overlay-inner narrow odds-popup">
         <div class="row-between"><h2>전체 배당</h2><button class="btn small ghost" data-close>닫기</button></div>
-        <p class="muted">칸을 누르면 그 말과 종류로 마권을 적습니다.</p>
+        <p class="muted">칸을 누르면 그 말과 종류가 마권에 적힙니다.</p>
         <div id="odds-table"></div>
       </div>
     </div>
@@ -289,6 +273,32 @@
     <!-- 라운드/최종 결과 오버레이 -->
     <div id="overlay-result" class="game-overlay hidden">
       <div class="overlay-inner" id="result-inner"></div>
+    </div>
+  </div>
+
+  <!-- 내 마구간(꾸미기) 창: 타이틀, 혼자 하기, 대기방 어디서든 화면을 떠나지 않고 연다 -->
+  <div id="modal-stable" class="game-overlay popup hidden">
+    <div class="overlay-inner stable-popup" role="dialog" aria-modal="true" aria-labelledby="stable-title">
+      <div class="row-between">
+        <h2 id="stable-title">내 마구간</h2>
+        <div id="stable-carrots" class="carrot-chip big"></div>
+      </div>
+      <div class="stable-body">
+        <div class="stable-left">
+          <div id="stable-preview"></div>
+          <label>말 이름 <input id="stable-name" type="text" maxlength="8" placeholder="8자까지" /></label>
+        </div>
+        <div class="stable-right">
+          <div id="stable-tabs" class="stable-tabs"></div>
+          <div id="stable-items" class="stable-items"></div>
+          <div id="stable-buybar" class="stable-buybar hidden"></div>
+        </div>
+      </div>
+      <div id="stable-stats" class="muted"></div>
+      <p class="muted">당근은 내 말의 순위 상금과 게임 종료 보너스로 모읍니다. 꾸미기는 겉모습만 바꿉니다.</p>
+      <div class="btn-row end">
+        <button id="btn-stable-close" class="btn">닫기</button>
+      </div>
     </div>
   </div>
 

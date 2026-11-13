@@ -151,3 +151,8 @@ export const MAX_ROUNDS = 5;
 
 /** 서버 포트 */
 export const SERVER_PORT = 3001;
+
+/** 멀티에서 한 사람의 말이 한 게임에 출전하는 횟수 (라운드 수가 이보다 적으면 라운드 수만큼) */
+export const OWNER_HORSE_APPEARANCES = 2;
+/** 한 경주에 나오는 말의 수 */
+export const HORSES_PER_RACE = 6;

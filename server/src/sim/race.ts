@@ -474,14 +474,14 @@ export class RaceSim {
       const order = this.currentRanking().filter((id) => !this.horse(id).finished);
       const idx = order.indexOf(targetIds[0]);
       if (this.currentRanking().indexOf(targetIds[0]) < 3 || idx < 2) {
-        return { ok: false, targets: [], blocked: [], message: '4등 아래의 말에게만 쓸 수 있습니다.' };
+        return { ok: false, targets: [], blocked: [], message: '4~6등인 말에게만 쓸 수 있습니다.' };
       }
       linkId = order[idx - 2];
     }
     if (def.effectType === 'piggyback') {
       const order = this.currentRanking().filter((id) => !this.horse(id).finished);
       const idx = order.indexOf(targetIds[0]);
-      if (idx < 1) return { ok: false, targets: [], blocked: [], message: '맨 앞의 말은 업힐 말이 없습니다.' };
+      if (idx < 1) return { ok: false, targets: [], blocked: [], message: '맨 앞의 말은 업힐 상대가 없습니다.' };
       const carrier = this.horse(order[idx - 1]);
       // 업는 쪽은 느려지므로 방해로 본다: 비행 중이거나 방어막이 있으면 못 업힌다
       if (carrier.effects.some((e) => e.effectType === 'fly')) {

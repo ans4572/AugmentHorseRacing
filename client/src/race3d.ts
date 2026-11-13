@@ -973,7 +973,7 @@ export class Race3DView {
     dot.className = 'r3d-dot';
     dot.style.background = info.color;
     dot.textContent = String(info.id);
-    if (info.ownerId) dot.classList.add('mine');
+    if (info.ownerId && info.ownerId === this.myId) dot.classList.add('mine');
     if (inkOn(info.color)) dot.classList.add('dk');
     this.minimap.appendChild(dot);
 
@@ -1059,7 +1059,11 @@ export class Race3DView {
 
   // ---------------- RaceView 구현 ----------------
 
-  setupRace(infos: HorseInfo[]): void {
+  /** 내 말만 이름표를 노랗게 하려고 기억해 둔다 (멀티에서는 다른 사람의 말도 함께 달린다) */
+  private myId: string | null = null;
+
+  setupRace(infos: HorseInfo[], myId: string | null = null): void {
+    this.myId = myId;
     this.clearHighlightRings();
     this.setFinishLine();
     for (const r of this.rigs) {
@@ -2297,7 +2301,7 @@ export class Race3DView {
     n.className = 'r3d-label-name';
     n.style.borderColor = r.info.color;
     n.textContent = `${r.info.id}번 ${r.info.name}`;
-    n.classList.toggle('mine', !!r.info.ownerId);
+    n.classList.toggle('mine', !!r.info.ownerId && r.info.ownerId === this.myId);
     r.label.appendChild(n);
     r.labelW = 0; // 다음 표시 때 크기를 다시 잰다
   }

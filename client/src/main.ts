@@ -26,6 +26,8 @@ import {
   BET_LIMIT_RATIO,
   BET_MIN,
   COURSE_LENGTH,
+  HORSES_PER_RACE,
+  OWNER_HORSE_APPEARANCES,
   BET_TYPE_INFO,
   TIER_INFO,
   TIER_OF_RARITY,
@@ -103,16 +105,20 @@ function hide(id: string): void {
   $(id).classList.add('hidden');
 }
 
-const SCREENS = ['scr-main', 'scr-create', 'scr-solo', 'scr-stable', 'scr-join', 'scr-lobby', 'scr-game'];
+const SCREENS = ['scr-main', 'scr-create', 'scr-solo', 'scr-join', 'scr-lobby', 'scr-game'];
 function showScreen(id: string): void {
   for (const s of SCREENS) {
     if (s === id) show(s);
     else hide(s);
   }
   document.body.dataset.screen = id;
+  // 화면이 바뀌면 열려 있던 꾸미기 창은 닫는다
+  if (!$('modal-stable').classList.contains('hidden')) {
+    hide('modal-stable');
+    closeStable();
+  }
   if (id === 'scr-main') startTitleBg();
   else stopTitleBg();
-  if (id !== 'scr-stable') closeStable();
   refreshStableBadges();
   // 모바일 세로 화면에서는 게임 중에만 가로 모드 안내를 띄운다
   syncMusic();
@@ -159,6 +165,15 @@ function esc(s: string): string {
 // 색은 서버가 방 안에서 겹치지 않게 나눠 주고, 대기 로비에서 각자 바꿀 수 있다
 const playerSlot = new Map<string, number>();
 const COLOR_KEY = 'augment-derby-color';
+/** 멀티에서 내 말을 출전시킬지 (기본: 출전). 한 번 고르면 다음 방에서도 기억한다 */
+const HORSE_KEY = 'augment-derby-enter-horse';
+function enterHorse(): boolean {
+  try {
+    return localStorage.getItem(HORSE_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
 /** 이번 방에서 내가 좋아하는 색을 이미 요청했는지 */
 let colorWished = false;
 
@@ -318,9 +333,13 @@ function queuedTargetHtml(): string {
 /** 경주 화면의 말 이름표에 내가 건 배팅을 표시한다 */
 function syncBetMarks(): void {
   const marks: Record<number, string> = {};
+  // 같은 종류를 여러 번 걸었어도 종류는 한 번만 적는다
+  const kinds: Record<number, string[]> = {};
   for (const b of state.myBets) {
-    marks[b.horseId] = marks[b.horseId] ? `${marks[b.horseId]}, ${BET_SHORT[b.type]}` : BET_SHORT[b.type];
+    const list = (kinds[b.horseId] ??= []);
+    if (!list.includes(BET_SHORT[b.type])) list.push(BET_SHORT[b.type]);
   }
+  for (const id of Object.keys(kinds)) marks[Number(id)] = kinds[Number(id)].join(', ');
   view?.setBetMarks(marks);
 }
 
@@ -382,6 +401,51 @@ function addLog(html: string, cls = ''): void {
 function refreshStableBadges(): void {
   $('main-carrots').innerHTML = `${icon('carrot')}${stable().carrots}`;
   $('solo-horse-summary').innerHTML = `${icon('star')}${esc(horseSummary())}`;
+}
+
+/** 꾸미기 창을 연다. 뒤의 화면은 그대로 두고, 타이틀의 배경 경주만 잠시 멈춘다 */
+function openStablePopup(): void {
+  if (document.body.dataset.screen === 'scr-main') stopTitleBg();
+  show('modal-stable');
+  openStable();
+  $('btn-stable-close').focus({ preventScroll: true });
+  $('modal-stable').querySelector('.overlay-inner')?.scrollTo(0, 0);
+}
+
+/** 꾸미기 창을 닫는다. 대기방에서 말을 출전시키는 중이면 바뀐 이름과 꾸미기를 방에 알린다 */
+function closeStablePopup(): void {
+  if ($('modal-stable').classList.contains('hidden')) return;
+  hide('modal-stable');
+  closeStable();
+  refreshStableBadges();
+  if (document.body.dataset.screen === 'scr-main') startTitleBg();
+  const inLobby = document.body.dataset.screen === 'scr-lobby' && state.phase === 'lobby';
+  if (inLobby && state.players.find((p) => p.id === state.myId)?.horseName) {
+    net.send({ type: 'SET_HORSE', myHorse: myHorseEntry() });
+  }
+}
+
+/** 말 이름 옆에 붙이는 작은 주인 표시: 내 말은 별, 다른 사람의 말은 그 사람 색 표식 */
+function ownerMark(h: HorseInfo | undefined): string {
+  if (!h?.ownerId) return '';
+  if (h.ownerId === state.myId) return `<span class="owner-mark mine" title="내 말">${icon('star')}</span>`;
+  const owner = state.players.find((p) => p.id === h.ownerId);
+  return owner ? `<span class="owner-mark">${playerMark(owner.id, owner.name)}</span>` : '';
+}
+
+/** 말 주인 딱지: 내 말은 "내 말", 다른 사람이 데려온 말은 "○○의 말" */
+function ownerTag(h: HorseInfo | undefined): string {
+  if (!h?.ownerId) return '';
+  if (h.ownerId === state.myId) return `<span class="tag mine">${icon('star')}내 말</span>`;
+  const owner = state.players.find((p) => p.id === h.ownerId);
+  return owner ? `<span class="tag owner" style="--pc:${playerColor(owner.id)}">${esc(owner.name)}의 말</span>` : '';
+}
+
+/** 이름 끝 글자에 받침이 있으면 '은', 없으면 '는' */
+function topicParticle(word: string): string {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return '은(는)';
+  return code % 28 === 0 ? '는' : '은';
 }
 
 function isMyHorse(h: HorseInfo | undefined): boolean {
@@ -507,15 +571,29 @@ function renderLobby(): void {
       <span class="dot${p.connected || p.isNpc ? '' : ' off'}"></span>
       ${playerChip(p.id, p.name + (p.id === state.myId ? ' (나)' : ''))}
       ${p.isHost ? icon('crown') : ''}${p.isNpc ? NPC_TAG : ''}
+      ${p.horseName ? `<span class="lobby-horse">${icon('star')}${esc(p.horseName)}</span>` : ''}
     </div>`
     )
     .join('');
+  // 내 말 출전: 켜고 끌 수 있고, 켜 두면 몇 번 나오는지 알려 준다
+  const myHorseName = state.players.find((p) => p.id === state.myId)?.horseName;
+  const shows = Math.min(OWNER_HORSE_APPEARANCES, state.settings.totalRounds);
+  const owners = state.players.filter((p) => p.horseName).length;
+  $('lobby-horse').querySelectorAll<HTMLElement>('button').forEach((b) => {
+    const on = (b.dataset.value === 'on') === !!myHorseName;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+    b.tabIndex = on ? 0 : -1;
+  });
+  $('lobby-horse-help').textContent = myHorseName
+    ? `${myHorseName}${topicParticle(myHorseName)} 게임 중 ${owners > HORSES_PER_RACE ? `최대 ${shows}번 출전합니다. 말이 ${HORSES_PER_RACE}마리보다 많아 못 나오는 라운드가 생길 수 있습니다.` : `${shows}번 출전합니다.`} 순위에 따라 당근을 받습니다.`
+    : '내 말은 나오지 않습니다. 배팅과 증강만 합니다.';
   // 내 색 고르기: 다른 사람이 쓰는 색은 고를 수 없다
   const me = state.players.find((p) => p.id === state.myId);
   $('lobby-colors').innerHTML = PLAYER_COLORS.map((c, i) => {
     const holder = state.players.find((p) => p.color === i && p.id !== state.myId && !p.isNpc);
     const mine = me?.color === i;
-    return `<button type="button" class="swatch${mine ? ' active' : ''}" role="radio" aria-checked="${mine}" style="background:${c}" data-color="${i}" ${holder ? 'disabled' : ''} aria-label="${i + 1}번 색${holder ? `, ${esc(holder.name)} 사용 중` : ''}" title="${holder ? esc(holder.name) + ' 사용 중' : '이 색으로 바꾸기'}">${mine ? esc([...(me?.name ?? '').trim()][0] ?? '') : ''}</button>`;
+    return `<button type="button" class="swatch${mine ? ' active' : ''}" role="radio" aria-checked="${mine}" style="background:${c}" data-color="${i}" ${holder ? 'disabled' : ''} aria-label="${i + 1}번 색${holder ? `, ${esc(holder.name)} 사용 중` : ''}" title="${holder ? esc(holder.name) + ' 사용 중' : '이 색으로 바꾸기'}">${mine ? esc([...(me?.name ?? '').trim()][0] ?? '') : holder ? esc([...holder.name.trim()][0] ?? '') : ''}</button>`;
   }).join('');
   $('lobby-colors').querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
     b.onclick = () => {
@@ -628,7 +706,7 @@ function renderRankBoard(snaps: { id: number; rank: number; finished: boolean }[
       // 노란 줄은 내가 건 말
       const myBet = state.myBets.some((b) => b.horseId === s.id);
       return `<div class="rb-row${myBet ? ' mine' : ''}${s.finished ? ' done' : ''}${(el.dataset.hl ?? '').split(',').includes(String(s.id)) ? ' hl' : ''}" data-h="${s.id}">
-        <span class="rb-rank">${s.rank}</span>${bib(h.id, h.color, 'sm')}<span class="rb-name">${esc(h.name)}</span>
+        <span class="rb-rank">${s.rank}</span>${bib(h.id, h.color, 'sm')}<span class="rb-name">${esc(h.name)}</span>${ownerMark(h)}
         ${betHtml ? `<span class="rb-bets">${betHtml}</span>` : ''}
       </div>`;
     })
@@ -679,6 +757,12 @@ function renderRankTip(): void {
   }
 }
 
+/** 배팅 줄에 쓰는 한 줄짜리 능력치: 이름, 짧은 막대, 숫자 */
+function miniStat(label: string, value: number, color: string): string {
+  const shown = Math.max(1, Math.round(value / 10));
+  return `<span class="ms"><span class="ms-label">${label}</span><span class="ms-track"><span style="width:${shown * 10}%;background:${color}"></span></span><b>${shown}</b></span>`;
+}
+
 function statBar(label: string, value: number, color: string): string {
   const shown = Math.max(1, Math.round(value / 10));
   return `<div class="statbar">
@@ -699,6 +783,17 @@ function condHtml(h: HorseInfo): string {
   return `<div class="hc-cond ${c >= 7 ? 'good' : c <= 4 ? 'bad' : ''}">${esc(conditionNote(h))}</div>`;
 }
 
+/** 이 말에 내가 건 마권들: 종류와 금액을 딱지로 보여 주고, 딱지의 ×로 취소한다 */
+function myBetChips(horseId: number): string {
+  return state.myBets
+    .filter((b) => b.horseId === horseId)
+    .map(
+      (b) =>
+        `<span class="bet-chip" title="배당 ×${b.odds.toFixed(2)}, 맞히면 ${Math.floor(b.amount * b.odds).toLocaleString('ko-KR')}코인"><span>${BET_SHORT[b.type]} ${b.amount}</span><button type="button" data-bet="${b.betId}" aria-label="${BET_TYPE_INFO[b.type].label} ${b.amount}코인 마권 취소">×</button></span>`
+    )
+    .join('');
+}
+
 /** 출마표를 볼 때는 카드, 배팅할 때는 한 줄씩(오른쪽에 마권을 크게 두기 위해) */
 function renderHorseCards(): void {
   const rows = state.phase === 'betting';
@@ -712,24 +807,28 @@ function renderHorseCards(): void {
       const sel = state.selHorse === h.id;
       const oddsText = `×${odds ? odds[state.selBetType].toFixed(2) : '-'}`;
       if (rows) {
-        return `<div class="horse-row${sel ? ' selected' : ''}${mine ? ' mine' : ''}" data-horse="${h.id}" role="button" tabindex="0" aria-pressed="${sel}">
+        // 두 줄짜리 낮은 줄: 윗줄에 이름과 능력치, 아랫줄에 몸무게·컨디션과 내 마권 딱지
+        return `<div class="horse-line${sel ? ' selected' : ''}" data-horse="${h.id}" role="button" tabindex="0" aria-pressed="${sel}">
           ${bib(h.id, h.color, 'lg')}
-          <div class="hr-name"><span class="hc-name">${esc(h.name)}</span>${mine ? `<span class="tag mine">${icon('star')}내 말</span>` : ''}
-            <span class="hr-sub">${h.stats.weight}kg, 컨디션 ${conditionShown(h.stats.luck)}</span></div>
-          <div class="hr-stats">
-            ${statBar('속력', h.stats.speed, '#d92b22')}
-            ${statBar('가속', h.stats.accel, '#2447d6')}
-            ${statBar('지구력', h.stats.stamina, '#0f7a50')}
+          <div class="hl-main">
+            <div class="hl-top">
+              <span class="hc-name">${esc(h.name)}</span>${ownerTag(h)}
+              <span class="hl-stats">${miniStat('속력', h.stats.speed, '#d92b22')}${miniStat('가속', h.stats.accel, '#2447d6')}${miniStat('지구력', h.stats.stamina, '#0f7a50')}</span>
+            </div>
+            <div class="hl-bottom">
+              <span class="hl-sub">${h.stats.weight}kg, 컨디션 ${conditionShown(h.stats.luck)}</span>
+              ${condHtml(h)}
+              <span class="hl-bets">${myBetChips(h.id)}</span>
+            </div>
           </div>
-          ${condHtml(h)}
-          <div class="hr-odds"><span>${BET_TYPE_INFO[state.selBetType].label} 배당</span><b>${oddsText}</b></div>
+          <div class="hl-odds"><span>${BET_TYPE_INFO[state.selBetType].label} 배당</span><b>${oddsText}</b></div>
         </div>`;
       }
       return `<div class="horse-card${sel ? ' selected' : ''}${mine ? ' mine' : ''}" data-horse="${h.id}">
         <div class="hc-head">
           ${bib(h.id, h.color, 'lg')}
           <span class="hc-name">${esc(h.name)}</span>
-          ${mine ? `<span class="tag mine">${icon('star')}내 말</span>` : ''}
+          ${ownerTag(h)}
         </div>
         ${statBar('속력', h.stats.speed, '#d92b22')}
         ${statBar('가속', h.stats.accel, '#2447d6')}
@@ -750,6 +849,14 @@ function renderHorseCards(): void {
       show('modal-odds');
     };
   }
+  // 딱지의 ×: 그 마권을 취소한다 (줄을 고르는 동작으로 번지지 않게 한다)
+  document.querySelectorAll<HTMLElement>('#horse-cards .bet-chip button').forEach((btn) => {
+    btn.onclick = (ev) => {
+      ev.stopPropagation();
+      net.send({ type: 'CANCEL_BET', betId: btn.dataset.bet! });
+    };
+    btn.onkeydown = (ev) => ev.stopPropagation();
+  });
   document.querySelectorAll<HTMLElement>('#horse-cards [data-horse]').forEach((el) => {
     const pick = (byKey: boolean) => {
       state.selHorse = Number(el.dataset.horse);
@@ -812,10 +919,10 @@ function renderOddsTable(): void {
             return `<button class="od-cell${sel ? ' selected' : ''}${mine ? ' has-bet' : ''}${o && o >= 10 ? ' hot' : ''}" data-horse="${h.id}" data-type="${t}" aria-label="${esc(h.name)} ${BET_TYPE_INFO[t].label} 배당 ${o ? o.toFixed(2) : '-'}">${o ? `×${o.toFixed(2)}` : '-'}</button>`;
           })
           .join('');
-        return `<div class="od-row"><span class="od-horse">${bib(h.id, h.color, 'sm')}<span>${esc(h.name)}</span></span>${cells}</div>`;
+        return `<div class="od-row"><span class="od-horse">${bib(h.id, h.color, 'sm')}<span>${esc(h.name)}</span>${ownerMark(h)}</span>${cells}</div>`;
       })
       .join('') +
-    `<p class="od-legend"><span class="od-mark"></span>이미 건 칸 <span class="od-hot">빨간 숫자</span>는 10배 이상</p>`;
+    `<p class="od-legend"><span class="od-mark"></span>이미 건 칸 <span class="od-ten">10배 이상은 <span class="od-hot">빨간 숫자</span></span></p>`;
   document.querySelectorAll<HTMLElement>('#odds-table .od-cell').forEach((el) => {
     el.onclick = () => {
       state.selHorse = Number(el.dataset.horse);
@@ -837,6 +944,7 @@ function updateBetSelInfo(): void {
   const { limit, used } = betLimitNow();
   const left = Math.max(0, Math.min(limit - used, state.coins));
   $('bet-limit-info').textContent = `더 걸 수 있는 코인 ${left}`;
+  $<HTMLInputElement>('bet-amount').max = String(left);
 
   // 배팅 버튼 하나에 "누구에게, 무엇을, 얼마"를 모두 적는다
   const btn = $<HTMLButtonElement>('btn-place-bet');
@@ -861,22 +969,15 @@ function updateBetSelInfo(): void {
   }
 }
 
+/** 내 마권: 자세한 내용은 말 줄의 딱지에 있으므로 여기에는 합계만 적고, 말 줄의 딱지를 다시 그린다 */
 function renderMyBets(): void {
-  if (state.myBets.length === 0) {
-    $('my-bets').innerHTML = '<p class="muted">아직 건 마권이 없습니다.</p>';
-    return;
-  }
-  $('my-bets').innerHTML = state.myBets
-    .map(
-      (b) => `<div class="my-bet-item">
-        <span class="mb-main">${BET_TYPE_INFO[b.type].label} ${horseChip(b.horseId)} ${coinHtml(b.amount)} <span class="muted">배당 ×${b.odds.toFixed(2)}</span></span>
-        ${state.phase === 'betting' ? `<button data-bet="${b.betId}">취소</button>` : ''}
-      </div>`
-    )
-    .join('');
-  document.querySelectorAll<HTMLElement>('.my-bet-item button').forEach((el) => {
-    el.onclick = () => net.send({ type: 'CANCEL_BET', betId: el.dataset.bet! });
-  });
+  const count = state.myBets.length;
+  const total = state.myBets.reduce((sum, b) => sum + b.amount, 0);
+  $('my-bets').innerHTML = count
+    ? `<span>내 마권 <b>${count}장</b></span><span>합계 <b>${total.toLocaleString('ko-KR')}</b>코인</span>`
+    : '<span class="muted">아직 건 마권이 없습니다.</span>';
+  $('my-bets').classList.toggle('empty', count === 0);
+  if (state.phase === 'betting' && !$('overlay-betting').classList.contains('hidden')) renderHorseCards();
 }
 
 // ============ 증강 UI ============
@@ -1021,9 +1122,10 @@ function renderRoundResult(data: {
   standings: Standing[];
   isFinal: boolean;
   ownerPrize?: OwnerPrize;
+  ownerPrizes?: OwnerPrize[];
 }): void {
-  // 내 말의 순위 상금 (당근) — 같은 상금은 한 번만 받는다
-  const prize = data.ownerPrize && data.ownerPrize.playerId === state.myId ? data.ownerPrize : null;
+  // 내 말의 순위 상금 (당근) — 같은 상금은 한 번만 받는다. 멀티에서는 여러 사람의 상금 중 내 것을 찾는다
+  const prize = [...(data.ownerPrizes ?? []), ...(data.ownerPrize ? [data.ownerPrize] : [])].find((x) => x.playerId === state.myId) ?? null;
   if (prize && claimRoundPrize(prize)) {
     sfx('carrot', 0, 1.5);
     toast(`내 말 ${prize.rank}위, 당근 +${prize.carrots}`, false);
@@ -1094,9 +1196,9 @@ function renderRoundResult(data: {
   if (btn) btn.onclick = () => net.send({ type: 'NEXT_ROUND' });
 }
 
-function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus }): void {
+function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus; ownerBonuses?: OwnerBonus[] }): void {
   // 게임 종료 당근 보너스 — 한 번만 받는다
-  const bonus = data.ownerBonus && data.ownerBonus.playerId === state.myId ? data.ownerBonus : null;
+  const bonus = [...(data.ownerBonuses ?? []), ...(data.ownerBonus ? [data.ownerBonus] : [])].find((x) => x.playerId === state.myId) ?? null;
   if (bonus && claimGameBonus(bonus)) {
     sfx('carrot', 0, 2.6);
     toast(`게임 보너스, 당근 +${bonus.placementCarrots + bonus.profitCarrots}`, false);
@@ -1161,8 +1263,7 @@ function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerB
     toStable.onclick = () => {
       net.send({ type: 'LEAVE_ROOM' });
       leaveToMain();
-      showScreen('scr-stable');
-      openStable();
+      openStablePopup();
     };
   }
 }
@@ -1261,7 +1362,7 @@ function applySnapshot(snap: RoomSnapshot): void {
   }
 
   enterGameScreen();
-  if (snap.horses) view?.setupRace(snap.horses);
+  if (snap.horses) view?.setupRace(snap.horses, state.myId);
   state.cameraSel = 'leader';
   renderCameraSelect();
 
@@ -1443,7 +1544,7 @@ net.on((msg: S2C) => {
       state.cameraSel = 'leader';
       enterGameScreen();
       view?.clearBanner();
-      view?.setupRace(msg.horses);
+      view?.setupRace(msg.horses, state.myId);
       renderRankBoard(null);
       view?.setCameraTarget('leader');
       renderCameraSelect();
@@ -1470,7 +1571,10 @@ net.on((msg: S2C) => {
     }
 
     case 'BET_ACCEPTED': {
-      state.myBets.push(msg.bet);
+      // 같은 말에 같은 종류로 또 걸면 서버가 금액을 합친 마권을 같은 번호로 보낸다
+      const at = state.myBets.findIndex((b) => b.betId === msg.bet.betId);
+      if (at >= 0) state.myBets[at] = msg.bet;
+      else state.myBets.push(msg.bet);
       sfx('coin');
       state.coins = msg.coins;
       renderMyBets();
@@ -1886,17 +1990,17 @@ function bindUI(): void {
   $('btn-solo-back').onclick = () => showScreen('scr-main');
   // 마구간 (내 말 꾸미기)
   initStableUi({ toast, onChange: refreshStableBadges });
-  const gotoStable = () => {
-    showScreen('scr-stable');
-    openStable();
+  // 꾸미기는 어디서든 지금 화면 위에 창으로 연다 (타이틀, 혼자 하기, 대기방)
+  $('btn-goto-stable').onclick = openStablePopup;
+  $('btn-solo-stable').onclick = openStablePopup;
+  $('btn-lobby-stable').onclick = openStablePopup;
+  $('btn-stable-close').onclick = closeStablePopup;
+  $('modal-stable').onclick = (ev) => {
+    if (ev.target === $('modal-stable')) closeStablePopup();
   };
-  $('btn-goto-stable').onclick = gotoStable;
-  $('btn-solo-stable').onclick = gotoStable;
-  $('btn-stable-back').onclick = () => showScreen('scr-main');
-  $('btn-stable-solo').onclick = () => {
-    playerName();
-    showScreen('scr-solo');
-  };
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !$('modal-stable').classList.contains('hidden')) closeStablePopup();
+  });
   $('btn-solo-go').onclick = () => {
     net.send({
       type: 'CREATE_ROOM',
@@ -1922,6 +2026,18 @@ function bindUI(): void {
   restore(maxInput, 'max');
   restore(npcInput, 'npc');
   // 배팅 공개 방식: 둘 중 하나를 고르는 단추
+  // 로비: 내 말 출전 여부
+  $('lobby-horse').querySelectorAll<HTMLElement>('button').forEach((b) => {
+    b.onclick = () => {
+      const on = b.dataset.value === 'on';
+      try {
+        localStorage.setItem(HORSE_KEY, on ? 'on' : 'off');
+      } catch {
+        /* 저장하지 못해도 이번 방에는 적용된다 */
+      }
+      net.send({ type: 'SET_HORSE', myHorse: on ? myHorseEntry() : null });
+    };
+  });
   const blindSeg = $('create-blind');
   const BLIND_HELP: Record<string, string> = {
     open: '배팅이 끝나면 누가 어디에 걸었는지 모두에게 보여 줍니다.',
@@ -1979,7 +2095,8 @@ function bindUI(): void {
       blindBets: $('create-blind').dataset.value === 'blind',
       maxPlayers: Number(maxInput.value),
       totalRounds: Number(roundsInput.value),
-      npcCount: Number(npcInput.value)
+      npcCount: Number(npcInput.value),
+      ...(enterHorse() ? { myHorse: myHorseEntry() } : {})
     });
   };
 
@@ -1996,7 +2113,7 @@ function bindUI(): void {
   $('btn-join-code').onclick = () => {
     const code = $<HTMLInputElement>('join-code').value.trim().toUpperCase();
     if (code.length < 4) return toast('초대 코드를 입력하세요.');
-    net.send({ type: 'JOIN_ROOM', playerName: playerName(), code });
+    net.send({ type: 'JOIN_ROOM', playerName: playerName(), code, ...(enterHorse() ? { myHorse: myHorseEntry() } : {}) });
   };
 
   // 로비
@@ -2017,19 +2134,27 @@ function bindUI(): void {
     amountInput.value = '0';
     updateBetSelInfo();
   };
-  amountInput.oninput = updateBetSelInfo;
-  document.querySelectorAll<HTMLElement>('.bet-quick').forEach((el) => {
-    el.onclick = () => {
-      amountInput.value = String(Number(amountInput.value || 0) + Number(el.dataset.add));
-      updateBetSelInfo();
-    };
-  });
-  $('bet-max').onclick = () => {
+  /** 지금 더 걸 수 있는 코인. 금액 칸은 이 값을 넘지 못한다 */
+  const maxBet = (): number => {
     const { limit, used } = betLimitNow();
-    const max = Math.floor(Math.min(limit - used, state.coins) / 10) * 10;
-    amountInput.value = String(Math.max(0, max));
+    return Math.max(0, Math.floor(Math.min(limit - used, state.coins)));
+  };
+  /** 금액 칸의 값을 0과 걸 수 있는 최대 사이의 정수로 맞춘다 */
+  const setAmount = (value: number): void => {
+    const next = Math.min(maxBet(), Math.max(0, Math.floor(Number.isFinite(value) ? value : 0)));
+    if (amountInput.value !== String(next)) amountInput.value = String(next);
     updateBetSelInfo();
   };
+  amountInput.oninput = () => {
+    // 지우는 중(빈 칸)에는 그대로 두고, 숫자가 들어오면 최대를 넘지 않게 맞춘다
+    if (amountInput.value === '') updateBetSelInfo();
+    else setAmount(Number(amountInput.value));
+  };
+  amountInput.onblur = () => setAmount(Number(amountInput.value || 0));
+  document.querySelectorAll<HTMLElement>('.bet-quick').forEach((el) => {
+    el.onclick = () => setAmount(Number(amountInput.value || 0) + Number(el.dataset.add));
+  });
+  $('bet-max').onclick = () => setAmount(maxBet());
   // 금액 초기화
   $('bet-clear').onclick = () => {
     amountInput.value = '0';

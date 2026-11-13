@@ -264,6 +264,8 @@ export type NpcPersona =
 export interface PlayerPublic {
   id: string;
   name: string;
+  /** 이 사람이 데려온 말의 이름 (멀티 로비에 보여 준다) */
+  horseName?: string;
   isNpc: boolean;
   connected: boolean;
   coins: number;
@@ -357,21 +359,23 @@ export interface RoomSnapshot {
   race?: { startedAt: number; horses: HorseSnapshot[] };
   augment?: { phase: number; tier: AugmentTier; endsAt: number; cards: AugmentCardView[]; used: boolean; preview?: boolean; queuedKey?: string; /** 이미 새로고침한 카드 자리 */ rerolled?: string[] };
   rankings?: RankingEntry[];
-  roundResult?: { round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize };
-  gameResult?: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus };
+  roundResult?: { round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize; ownerPrizes?: OwnerPrize[] };
+  gameResult?: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus; ownerBonuses?: OwnerBonus[] };
 }
 
 // ---------------- 메시지: 클라이언트 → 서버 ----------------
 
 export type C2S =
-  | { type: 'CREATE_ROOM'; playerName: string; roomName: string; isPrivate: boolean; maxPlayers: number; totalRounds: number; npcCount: number; blindBets?: boolean; /** 싱글 모드: 방을 만들자마자 게임을 시작한다 */ autoStart?: boolean; /** 싱글 모드: 6마리 중 하나로 출전시킬 내 말 */ myHorse?: MyHorseEntry }
-  | { type: 'JOIN_ROOM'; playerName: string; roomId?: string; code?: string }
+  | { type: 'CREATE_ROOM'; playerName: string; roomName: string; isPrivate: boolean; maxPlayers: number; totalRounds: number; npcCount: number; blindBets?: boolean; /** 싱글 모드: 방을 만들자마자 게임을 시작한다 */ autoStart?: boolean; /** 내가 키운 말. 싱글은 매 라운드, 멀티는 게임 중 몇 라운드에 출전한다 */ myHorse?: MyHorseEntry }
+  | { type: 'JOIN_ROOM'; playerName: string; roomId?: string; code?: string; /** 내가 키운 말. 게임 중 몇 라운드에 출전한다 */ myHorse?: MyHorseEntry }
   | { type: 'LIST_ROOMS' }
   | { type: 'LEAVE_ROOM' }
   | { type: 'ADD_NPC' }
   | { type: 'REMOVE_NPC' }
   | { type: 'START_GAME' }
   | { type: 'SET_COLOR'; color: number }
+  /** 로비에서 내 말을 출전시킬지 바꾼다. myHorse가 없으면 출전시키지 않는다 */
+  | { type: 'SET_HORSE'; myHorse?: MyHorseEntry | null }
   | { type: 'READY'; phase: 'preview' | 'betting'; /** false면 준비 완료를 취소한다 (기본 true) */ ready?: boolean }
   | { type: 'PLACE_BET'; betType: BetType; horseId: number; amount: number }
   | { type: 'CANCEL_BET'; betId: string }
@@ -407,8 +411,8 @@ export type S2C =
   | { type: 'AUGMENT_USED'; playerId: string; playerName: string; defId: string; targets: number[]; blocked: number[] }
   | { type: 'AUGMENT_RESULT'; ok: boolean; message?: string; cardKey?: string; /** 미리 고르기로 예약만 된 상태 */ queued?: boolean }
   | { type: 'RACE_FINISH'; rankings: RankingEntry[] }
-  | { type: 'ROUND_RESULT'; round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize }
-  | { type: 'GAME_RESULT'; standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus }
+  | { type: 'ROUND_RESULT'; round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize; /** 이번 라운드에 출전한 말 주인들의 상금 (멀티) */ ownerPrizes?: OwnerPrize[] }
+  | { type: 'GAME_RESULT'; standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus; ownerBonuses?: OwnerBonus[] }
   | { type: 'EMOTE'; playerName: string; emoji: string }
   | { type: 'LOBBY_RETURN' }
   | { type: 'ROOM_CLOSED'; reason: string };

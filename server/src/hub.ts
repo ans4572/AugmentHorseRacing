@@ -134,6 +134,10 @@ export class GameHub {
         rooms.set(id, room);
 
         const player = this.makePlayer(session, sanitizeName(msg.playerName), sendRaw);
+        // 멀티: 데려온 말은 게임 중 몇 라운드에 출전한다 (싱글 모드는 아래에서 따로 등록한다)
+        if (msg.myHorse && !msg.autoStart) {
+          player.horse = { name: sanitizeHorseName(msg.myHorse.name), look: sanitizeLook(msg.myHorse.look) };
+        }
         room.addPlayer(player);
         session.roomId = id;
 
@@ -168,6 +172,9 @@ export class GameHub {
         if (room.players.size >= room.settings.maxPlayers) return sendError('방이 가득 찼습니다.');
 
         const player = this.makePlayer(session, sanitizeName(msg.playerName), sendRaw);
+        if (msg.myHorse) {
+          player.horse = { name: sanitizeHorseName(msg.myHorse.name), look: sanitizeLook(msg.myHorse.look) };
+        }
         room.addPlayer(player);
         session.roomId = room.id;
         send({ type: 'ROOM_JOINED', snapshot: room.buildSnapshot(session.playerId), you: session.playerId });
@@ -231,6 +238,17 @@ export class GameHub {
         const room = currentRoom();
         if (!room) return;
         const err = room.setColor(session.playerId, Math.floor(msg.color));
+        if (err) sendError(err);
+        break;
+      }
+
+      case 'SET_HORSE': {
+        const room = currentRoom();
+        if (!room) return;
+        const err = room.setHorse(
+          session.playerId,
+          msg.myHorse ? { name: sanitizeHorseName(msg.myHorse.name), look: sanitizeLook(msg.myHorse.look) } : null
+        );
         if (err) sendError(err);
         break;
       }

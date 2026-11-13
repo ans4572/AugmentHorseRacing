@@ -277,3 +277,113 @@ describe('NPC의 내 말 견제', () => {
     expect(targetRate(2, true)).toBe(0);
   });
 });
+
+describe('멀티: 데려온 말의 출전', () => {
+  /** 사람 n명이 각자 말을 데려온 방. withHorse로 말을 데려온 사람 수를 줄일 수 있다 */
+  function multiRoom(humans: number, totalRounds: number, withHorse = humans): { room: Room; inbox: S2C[] } {
+    const room = new Room('MULTI1', { roomName: '멀티', isPrivate: true, maxPlayers: 8, totalRounds }, 'p1');
+    cleanups.push(room);
+    const inbox: S2C[] = [];
+    for (let i = 1; i <= humans; i++) {
+      const p = makeHuman(`p${i}`, `사람${i}`, i === 1 ? inbox : undefined);
+      if (i <= withHorse) p.horse = { name: `말${i}`, look: LOOK };
+      room.addPlayer(p);
+    }
+    return { room, inbox };
+  }
+  /** 번호 순서대로 들어온 것으로 하고 라운드를 정산한다 */
+  function settle(room: Room): void {
+    const internals = room as unknown as Internals;
+    internals.lastRankings = room.horses.map((h, i) => ({ horseId: h.id, rank: i + 1, timeMs: 40000 + i * 500 }));
+    internals.settleRound();
+  }
+  /** 게임을 끝까지 돌리며 라운드마다 출전한 말 주인들을 모은다 */
+  function playAll(room: Room, totalRounds: number): string[][] {
+    const perRound: string[][] = [];
+    expect(room.startGame('p1')).toBeNull();
+    for (let r = 1; r <= totalRounds; r++) {
+      perRound.push(room.horses.filter((h) => h.ownerId).map((h) => h.ownerId!));
+      settle(room);
+      room.nextRound('p1');
+    }
+    return perRound;
+  }
+
+  it('8명이 1라운드만 하면 6마리만 무작위로 뽑혀 나온다', () => {
+    const { room, inbox } = multiRoom(8, 1);
+    const [owners] = playAll(room, 1);
+    expect(owners).toHaveLength(6);
+    expect(new Set(owners).size).toBe(6);
+    expect(room.horses.every((h) => h.ownerId)).toBe(true);
+    const result = inbox.find((m) => m.type === 'ROUND_RESULT') as Extract<S2C, { type: 'ROUND_RESULT' }>;
+    expect(result.ownerPrizes).toHaveLength(6);
+    expect(result.ownerPrize).toBeUndefined(); // 싱글 모드 전용 칸은 쓰지 않는다
+  });
+
+  it('여러 번 해 보면 8명 모두 뽑힐 기회가 있다', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 30; i++) for (const id of playAll(multiRoom(8, 1).room, 1)[0]) seen.add(id);
+    expect(seen.size).toBe(8);
+  });
+
+  it('4명이 3라운드를 하면 각자의 말이 정확히 2번씩 나온다', () => {
+    for (let i = 0; i < 10; i++) {
+      const rounds = playAll(multiRoom(4, 3).room, 3);
+      const count = new Map<string, number>();
+      for (const owners of rounds) {
+        expect(new Set(owners).size).toBe(owners.length); // 한 라운드에 같은 말이 두 번 나오지 않는다
+        for (const id of owners) count.set(id, (count.get(id) ?? 0) + 1);
+      }
+      expect([...count.values()].sort()).toEqual([2, 2, 2, 2]);
+    }
+  });
+
+  it('8명이 2라운드를 하면 12자리를 모두 채우고, 누구나 한 번은 나온다', () => {
+    for (let i = 0; i < 10; i++) {
+      const rounds = playAll(multiRoom(8, 2).room, 2);
+      expect(rounds.map((o) => o.length)).toEqual([6, 6]);
+      expect(new Set(rounds.flat()).size).toBe(8);
+    }
+  });
+
+  it('말을 데려오지 않은 사람과 NPC의 말은 나오지 않고, 이름과 꾸미기는 주인의 것이다', () => {
+    const { room } = multiRoom(3, 1, 2);
+    room.addNpc();
+    const [owners] = playAll(room, 1);
+    expect(owners.sort()).toEqual(['p1', 'p2']);
+    for (const h of room.horses.filter((x) => x.ownerId)) {
+      expect(h.name).toBe(`말${h.ownerId!.slice(1)}`);
+      expect(h.look).toEqual(LOOK);
+      expect(h.breed).toBe('zebra');
+    }
+  });
+
+  it('게임이 끝나면 말을 데려온 사람마다 당근 보너스가 나온다', () => {
+    const { room, inbox } = multiRoom(3, 2);
+    playAll(room, 2);
+    const final = inbox.find((m) => m.type === 'GAME_RESULT') as Extract<S2C, { type: 'GAME_RESULT' }>;
+    expect(final.ownerBonuses?.map((b) => b.playerId).sort()).toEqual(['p1', 'p2', 'p3']);
+    // 각자 두 번씩 출전했으므로 라운드 상금 합계가 0보다 크다
+    for (const b of final.ownerBonuses!) expect(b.roundCarrots).toBeGreaterThan(0);
+  });
+});
+
+describe('멀티: 내 말 출전 여부 고르기', () => {
+  it('로비에서 끄면 그 사람의 말은 나오지 않고, 게임이 시작된 뒤에는 바꿀 수 없다', () => {
+    const room = new Room('MULTI2', { roomName: '멀티', isPrivate: true, maxPlayers: 4, totalRounds: 1 }, 'p1');
+    cleanups.push(room);
+    for (const id of ['p1', 'p2']) {
+      const p = makeHuman(id, id);
+      p.horse = { name: `${id}의말`, look: LOOK };
+      room.addPlayer(p);
+    }
+    expect(room.setHorse('p2', null)).toBeNull();
+    expect(room.buildSnapshot('p1').players.find((p) => p.id === 'p2')?.horseName).toBeUndefined();
+    // 다시 켤 수도 있다
+    expect(room.setHorse('p2', { name: '다시', look: LOOK })).toBeNull();
+    expect(room.setHorse('p2', null)).toBeNull();
+    expect(room.startGame('p1')).toBeNull();
+    expect(room.horses.filter((h) => h.ownerId).map((h) => h.ownerId)).toEqual(['p1']);
+    expect(room.setHorse('p2', { name: '늦음', look: LOOK })).not.toBeNull();
+  });
+});

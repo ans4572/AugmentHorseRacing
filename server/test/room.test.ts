@@ -75,6 +75,30 @@ describe('방 / 라운드 / 코인', () => {
     expect(solo.startGame('p1')).toBeNull(); // 사람 1 + NPC 1 = 시작 가능
   });
 
+  it('같은 말에 같은 종류로 또 걸면 마권 하나로 합쳐지고, 취소하면 합친 금액이 모두 돌아온다', () => {
+    const room = makeRoom(1);
+    cleanups.push(room);
+    room.startGame('p1');
+    room.setReady('p1', 'preview');
+    room.setReady('p2', 'preview');
+    const start = room.players.get('p1')!.coins;
+    expect(room.placeBet('p1', 'winner', 1, 50)).toBeNull();
+    expect(room.placeBet('p1', 'winner', 1, 30)).toBeNull();
+    expect(room.placeBet('p1', 'top3', 1, 20)).toBeNull(); // 종류가 다르면 따로
+    expect(room.placeBet('p1', 'winner', 2, 10)).toBeNull(); // 말이 다르면 따로
+    expect(room.placeBet('p2', 'winner', 1, 40)).toBeNull(); // 다른 사람의 마권과는 합쳐지지 않는다
+    const mine = room.bets.filter((b) => b.playerId === 'p1');
+    expect(mine.map((b) => [b.type, b.horseId, b.amount])).toEqual([
+      ['winner', 1, 80],
+      ['top3', 1, 20],
+      ['winner', 2, 10]
+    ]);
+    expect(room.players.get('p1')!.coins).toBe(start - 110);
+    room.cancelBet('p1', mine[0].betId);
+    expect(room.players.get('p1')!.coins).toBe(start - 30);
+    expect(room.bets.filter((b) => b.playerId === 'p1')).toHaveLength(2);
+  });
+
   it('배팅 단계가 아니면 배팅할 수 없고, 배팅 종료 후 수정이 불가능하다', () => {
     const room = makeRoom(1);
     cleanups.push(room);

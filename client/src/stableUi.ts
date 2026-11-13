@@ -38,13 +38,9 @@ function shownLook(): HorseLook {
   return { ...stable().look, ...tryOn };
 }
 
-/** 내 말을 한 줄로 설명한다 (혼자 하기 화면용) */
+/** 혼자 하기 화면에 보여 줄 내 말의 이름 */
 export function horseSummary(): string {
-  const s = stable();
-  const parts = SLOT_ORDER.filter((k) => s.look[k] !== DEFAULT_LOOK[k]).map(
-    (k) => COSMETIC_BY_ID[s.look[k]].name
-  );
-  return `${s.name}${parts.length ? ` (${parts.join(', ')})` : ''}`;
+  return stable().name;
 }
 
 function refreshPreview(): void {
@@ -94,7 +90,7 @@ function render(): void {
   el('stable-stats').textContent =
     s.stats.races > 0
       ? `출전 ${s.stats.races}회, 우승 ${s.stats.wins}회, 1~3위 ${s.stats.podiums}회. 지금까지 번 당근 ${s.stats.earned}개.`
-      : '아직 출전 기록이 없습니다. 혼자 하기에서 첫 경주를 뛰어 보세요.';
+      : '아직 출전 기록이 없습니다. 게임에 출전시켜 첫 경주를 뛰어 보세요.';
 
   el('stable-tabs').innerHTML = SLOT_ORDER.map(
     (k) => `<button class="stable-tab${k === slot ? ' active' : ''}" data-slot="${k}">${SLOT_LABELS[k]}</button>`
@@ -162,7 +158,7 @@ function render(): void {
         sfx('buy');
         notify(`${item.name}${objectParticle(item.name)} 사서 바로 입혔습니다.`, false);
       } else if (result === 'poor') {
-        notify('당근이 부족합니다. 혼자 하기에서 모을 수 있습니다.');
+        notify('당근이 부족합니다. 게임에 내 말을 출전시키면 모을 수 있습니다.');
       }
       render();
       refreshPreview();

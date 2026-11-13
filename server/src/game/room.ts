@@ -28,6 +28,8 @@ import {
   AUGMENT_PREVIEW_LEAD,
   BROADCAST_EVERY_TICKS,
   COURSE_LENGTH,
+  HORSES_PER_RACE,
+  OWNER_HORSE_APPEARANCES,
   LOW_COIN_THRESHOLD,
   MIN_PLAYERS_TO_START,
   ROUND_COINS,
@@ -74,6 +76,8 @@ export interface Player {
   color?: number;
   /** 게임 도중 스스로 나간 플레이어 (연결이 잠깐 끊긴 것과 구분) */
   left?: boolean;
+  /** 이 사람이 데려온 말 (멀티). 게임 중 몇 라운드에 출전한다 */
+  horse?: { name: string; look: HorseLook };
 }
 
 interface AugmentPhaseState {
@@ -127,15 +131,18 @@ export class Room {
   private raceInterval: ReturnType<typeof setInterval> | null = null;
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private tickCount = 0;
-  private lastRoundResult: { round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize } | null = null;
-  private lastGameResult: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus } | null = null;
+  private lastRoundResult: { round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize; ownerPrizes?: OwnerPrize[] } | null = null;
+  private lastGameResult: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus; ownerBonuses?: OwnerBonus[] } | null = null;
   /** 싱글 모드에서 6마리 중 하나로 출전하는 플레이어의 말 */
   ownerHorse: { playerId: string; name: string; look: HorseLook } | null = null;
   /** 이번 게임에서 이미 출전한 말 이름. 라운드가 바뀌어도 같은 이름이 다시 나오지 않게 한다 */
   private usedHorseNames = new Set<string>();
   /** 게임(시작~최종 결과)마다 새로 만드는 ID — 당근 중복 지급 방지 키에 쓴다 */
   private gameId = '';
-  private ownerRoundCarrots = 0;
+  /** 이번 게임에서 말 주인별로 받은 라운드 상금(당근) 합계 */
+  private ownerRoundCarrots = new Map<string, number>();
+  /** 멀티: 라운드 번호 → 그 라운드에 말이 출전하는 사람들 */
+  private horseSchedule = new Map<number, string[]>();
   private lastRankings: RankingEntry[] | null = null;
   private roundTopUps: { playerId: string; playerName: string; amount: number }[] = [];
 
@@ -190,6 +197,7 @@ export class Room {
       id: p.id,
       name: p.name,
       isNpc: p.isNpc,
+      ...(p.horse ? { horseName: p.horse.name } : {}),
       connected: p.connected,
       coins: p.coins,
       isHost: p.id === this.hostId,
@@ -230,6 +238,17 @@ export class Room {
     // NPC가 쓰던 색이면 서로 맞바꾼다
     if (holder) holder.color = player.color;
     player.color = color;
+    this.broadcastRoomUpdate();
+    return null;
+  }
+
+  /** 로비에서 말을 출전시킬지 바꾼다 (null이면 출전시키지 않는다) */
+  setHorse(playerId: string, horse: { name: string; look: HorseLook } | null): string | null {
+    const player = this.players.get(playerId);
+    if (!player || player.isNpc) return null;
+    if (this.phase !== 'lobby') return '게임이 시작된 뒤에는 바꿀 수 없습니다.';
+    if (horse) player.horse = horse;
+    else delete player.horse;
     this.broadcastRoomUpdate();
     return null;
   }
@@ -360,7 +379,8 @@ export class Room {
     this.round = 0;
     this.lastGameResult = null;
     this.gameId = uid('g');
-    this.ownerRoundCarrots = 0;
+    this.ownerRoundCarrots.clear();
+    this.planOwnerHorses();
     this.broadcast({ type: 'GAME_START', totalRounds: this.settings.totalRounds, startCoins });
     this.startRound(1);
     return null;
@@ -419,27 +439,76 @@ export class Room {
   }
 
   /**
-   * 내 말을 무작위 레인에 출전시킨다. 능력치는 그 레인에 뽑힌 값을 그대로 쓰고
-   * (매 경기 무작위) 이름·종류·꾸미기만 내 말의 것으로 바꾼다.
+   * 멀티: 누구의 말이 몇 라운드에 나올지 게임을 시작할 때 정한다.
+   * 한 사람의 말은 OWNER_HORSE_APPEARANCES번(라운드 수가 적으면 그만큼) 나오고, 한 라운드에는 6마리까지다.
+   * 자리가 모자라면 무작위로 뽑히며, 모두가 한 번씩 나온 뒤에 두 번째 차례를 채운다.
    */
-  private enterOwnerHorse(rng: () => number = Math.random): void {
-    const owner = this.ownerHorse;
-    if (!owner) return;
-    const player = this.players.get(owner.playerId);
-    if (!player || player.left) return;
-    const horse = this.horses[Math.floor(rng() * this.horses.length)];
-    // 같은 이름의 출전마가 있으면 그 말의 이름과 맞바꿔 겹치지 않게 한다
-    const clash = this.horses.find((h) => h !== horse && h.name === owner.name);
-    if (clash) clash.name = horse.name;
-    horse.name = owner.name;
-    horse.breed = lookBreed(owner.look);
-    horse.ownerId = owner.playerId;
-    horse.look = owner.look;
+  private planOwnerHorses(rng: () => number = Math.random): void {
+    this.horseSchedule.clear();
+    if (this.ownerHorse) return; // 싱글 모드는 매 라운드 출전한다
+    const owners = [...this.players.values()].filter((p) => !p.isNpc && p.horse).map((p) => p.id);
+    if (owners.length === 0) return;
+    const rounds = Array.from({ length: this.settings.totalRounds }, (_, i) => i + 1);
+    for (const r of rounds) this.horseSchedule.set(r, []);
+    const shuffled = <T>(list: T[]): T[] => {
+      const a = [...list];
+      for (let i = a.length - 1; i > 0; i--) {
+        const k = Math.floor(rng() * (i + 1));
+        [a[i], a[k]] = [a[k], a[i]];
+      }
+      return a;
+    };
+    const times = Math.min(OWNER_HORSE_APPEARANCES, rounds.length);
+    for (let turn = 0; turn < times; turn++) {
+      for (const id of shuffled(owners)) {
+        // 아직 자리가 있고 이 말이 안 나온 라운드 중에서, 덜 찬 라운드를 먼저 고른다
+        const open = rounds.filter((r) => this.horseSchedule.get(r)!.length < HORSES_PER_RACE && !this.horseSchedule.get(r)!.includes(id));
+        if (open.length === 0) continue;
+        const fewest = Math.min(...open.map((r) => this.horseSchedule.get(r)!.length));
+        const pick = shuffled(open.filter((r) => this.horseSchedule.get(r)!.length === fewest))[0];
+        this.horseSchedule.get(pick)!.push(id);
+      }
+    }
   }
 
-  /** 지금 출전 중인 내 말의 번호 (없으면 null) */
+  /**
+   * 이번 라운드에 나올 사람들의 말을 무작위 레인에 출전시킨다. 능력치는 그 레인에 뽑힌 값을 그대로 쓰고
+   * (매 경기 무작위) 이름·종류·꾸미기만 그 사람 말의 것으로 바꾼다.
+   */
+  private enterOwnerHorse(rng: () => number = Math.random): void {
+    const entries: { playerId: string; name: string; look: HorseLook }[] = [];
+    if (this.ownerHorse) entries.push(this.ownerHorse);
+    else {
+      for (const id of this.horseSchedule.get(this.round) ?? []) {
+        const p = this.players.get(id);
+        if (p?.horse) entries.push({ playerId: id, ...p.horse });
+      }
+    }
+    // 레인을 섞어 앞에서부터 한 마리씩 내준다
+    const lanes = this.horses.map((_, i) => i);
+    for (let i = lanes.length - 1; i > 0; i--) {
+      const k = Math.floor(rng() * (i + 1));
+      [lanes[i], lanes[k]] = [lanes[k], lanes[i]];
+    }
+    let next = 0;
+    for (const owner of entries) {
+      const player = this.players.get(owner.playerId);
+      if (!player || player.left || next >= lanes.length) continue;
+      const horse = this.horses[lanes[next++]];
+      // 같은 이름의 일반 출전마가 있으면 그 말의 이름과 맞바꿔 겹치지 않게 한다
+      const clash = this.horses.find((h) => h !== horse && !h.ownerId && h.name === owner.name);
+      if (clash) clash.name = horse.name;
+      horse.name = owner.name;
+      horse.breed = lookBreed(owner.look);
+      horse.ownerId = owner.playerId;
+      horse.look = owner.look;
+    }
+  }
+
+  /** 싱글 모드에서 지금 출전 중인 내 말의 번호 (없으면 null). NPC가 견제할 대상을 고를 때 쓴다 */
   private ownerHorseId(): number | null {
-    return this.horses.find((h) => h.ownerId)?.id ?? null;
+    if (!this.ownerHorse) return null;
+    return this.horses.find((h) => h.ownerId === this.ownerHorse!.playerId)?.id ?? null;
   }
 
   private startBetting(): void {
@@ -572,8 +641,13 @@ export class Room {
     const error = validateBet(amount, existingTotal, player.coinsAtBettingStart, player.coins);
     if (error) return error;
 
-    const bet: Bet = { betId: uid('bet'), playerId, type: betType, horseId, amount, odds };
-    this.bets.push(bet);
+    // 같은 말에 같은 종류로 또 걸면 마권을 새로 만들지 않고 금액을 합친다 (배당은 라운드 동안 고정이라 같다)
+    let bet = this.bets.find((b) => b.playerId === playerId && b.type === betType && b.horseId === horseId);
+    if (bet) bet.amount += amount;
+    else {
+      bet = { betId: uid('bet'), playerId, type: betType, horseId, amount, odds };
+      this.bets.push(bet);
+    }
     player.coins -= amount;
     this.send(player, { type: 'BET_ACCEPTED', bet, coins: player.coins });
     return null;
@@ -871,26 +945,21 @@ export class Room {
     const isFinal = this.round >= this.settings.totalRounds;
     const standings = this.computeStandings();
 
-    // 내 말의 순위 상금 (당근)
-    let ownerPrize: OwnerPrize | undefined;
-    const mine = this.horses.find((h) => h.ownerId);
-    const mineRank = mine ? this.lastRankings.find((r) => r.horseId === mine.id)?.rank : undefined;
-    if (mine && mine.ownerId && mineRank) {
-      const carrots = roundPrizeCarrots(mineRank);
-      this.ownerRoundCarrots += carrots;
-      ownerPrize = {
-        key: `${this.gameId}:r${this.round}`,
-        playerId: mine.ownerId,
-        horseId: mine.id,
-        horseName: mine.name,
-        rank: mineRank,
-        carrots
-      };
+    // 출전한 말 주인들의 순위 상금 (당근)
+    const ownerPrizes: OwnerPrize[] = [];
+    for (const h of this.horses) {
+      const rank = h.ownerId ? this.lastRankings.find((r) => r.horseId === h.id)?.rank : undefined;
+      if (!h.ownerId || !rank) continue;
+      const carrots = roundPrizeCarrots(rank);
+      this.ownerRoundCarrots.set(h.ownerId, (this.ownerRoundCarrots.get(h.ownerId) ?? 0) + carrots);
+      ownerPrizes.push({ key: `${this.gameId}:r${this.round}`, playerId: h.ownerId, horseId: h.id, horseName: h.name, rank, carrots });
     }
+    // 싱글 모드와 맞추기 위해 첫 상금은 따로도 싣는다
+    const ownerPrize: OwnerPrize | undefined = this.ownerHorse ? ownerPrizes[0] : undefined;
 
-    this.lastRoundResult = { round: this.round, results, standings, isFinal, ownerPrize };
+    this.lastRoundResult = { round: this.round, results, standings, isFinal, ownerPrize, ...(ownerPrizes.length ? { ownerPrizes } : {}) };
     this.phase = 'roundResult';
-    this.broadcast({ type: 'ROUND_RESULT', round: this.round, results, standings, isFinal, ownerPrize });
+    this.broadcast({ type: 'ROUND_RESULT', round: this.round, results, standings, isFinal, ownerPrize, ...(ownerPrizes.length ? { ownerPrizes } : {}) });
   }
 
   computeStandings(): Standing[] {
@@ -961,24 +1030,29 @@ export class Room {
       });
     }
 
-    // 내 말을 출전시킨 플레이어의 게임 종료 보너스 (당근)
-    let ownerBonus: OwnerBonus | undefined;
-    const owner = this.ownerHorse ? this.players.get(this.ownerHorse.playerId) : undefined;
-    const ownerStanding = owner ? standings.find((s) => s.playerId === owner.id) : undefined;
-    if (owner && !owner.left && ownerStanding) {
-      ownerBonus = {
+    // 말을 데려온 사람들의 게임 종료 보너스 (당근)
+    const ownerIds = this.ownerHorse
+      ? [this.ownerHorse.playerId]
+      : [...this.players.values()].filter((p) => !p.isNpc && p.horse).map((p) => p.id);
+    const ownerBonuses: OwnerBonus[] = [];
+    for (const id of ownerIds) {
+      const owner = this.players.get(id);
+      const standing = owner ? standings.find((x) => x.playerId === id) : undefined;
+      if (!owner || owner.left || !standing) continue;
+      ownerBonuses.push({
         key: `${this.gameId}:final`,
-        playerId: owner.id,
-        placement: ownerStanding.rank,
-        placementCarrots: placementCarrots(ownerStanding.rank),
+        playerId: id,
+        placement: standing.rank,
+        placementCarrots: placementCarrots(standing.rank),
         profitCarrots: profitCarrots(owner.netProfit),
-        roundCarrots: this.ownerRoundCarrots
-      };
+        roundCarrots: this.ownerRoundCarrots.get(id) ?? 0
+      });
     }
+    const ownerBonus: OwnerBonus | undefined = this.ownerHorse ? ownerBonuses[0] : undefined;
 
-    this.lastGameResult = { standings, awards, ownerBonus };
+    this.lastGameResult = { standings, awards, ownerBonus, ...(ownerBonuses.length ? { ownerBonuses } : {}) };
     this.phase = 'gameResult';
-    this.broadcast({ type: 'GAME_RESULT', standings, awards, ownerBonus });
+    this.broadcast({ type: 'GAME_RESULT', standings, awards, ownerBonus, ...(ownerBonuses.length ? { ownerBonuses } : {}) });
   }
 
   restart(byPlayerId: string): string | null {

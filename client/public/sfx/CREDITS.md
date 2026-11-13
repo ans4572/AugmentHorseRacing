@@ -60,3 +60,16 @@
 | 식곤증 | Fast Snore .wav | bsmacbride | CC0 1.0 | https://freesound.org/people/bsmacbride/sounds/108519 |
 | 지름길 발견 | teleport | Leszek_Szary | CC0 1.0 | https://freesound.org/people/Leszek_Szary/sounds/172207 |
 | 무관심이 약 | Tada Fanfare A | plasterbrain | CC0 1.0 | https://freesound.org/people/plasterbrain/sounds/397355 |
+| 한눈팔기 | Whistle.wav | Exchanger | CC0 1.0 | https://freesound.org/people/Exchanger/sounds/415500 |
+| 자석 | magnets crackling together | gecop | CC0 1.0 | https://freesound.org/people/gecop/sounds/522116 |
+| 나란히 달리기 | Horse Gallop - Loopable.mp3 | HebronTheatre | CC0 1.0 | https://freesound.org/people/HebronTheatre/sounds/197212 |
+| 어부바 | Boing Spring Mouth harp downward 1.wav | pan14 | CC0 1.0 | https://freesound.org/people/pan14/sounds/334031 |
+| 치어리더 등장 | pompoms | LightningMan711 | CC0 1.0 | https://freesound.org/people/LightningMan711/sounds/795896 |
+| 당근 낚싯대 | Fishing Rod Cast - Swoosh | mwchristian95 | CC0 1.0 | https://freesound.org/people/mwchristian95/sounds/725426 |
+| 재채기 릴레이 | Sneezing.wav | edsward | CC0 1.0 | https://freesound.org/people/edsward/sounds/464232 |
+| 결승선 당기기 | Bell ringing loudly.wav | Fenodyrie | CC0 1.0 | https://freesound.org/people/Fenodyrie/sounds/583950 |
+| 결승선 통과 | Air Horn Hype.wav | zar.265 | CC0 1.0 | https://freesound.org/people/zar.265/sounds/581334 |
+| 결과 창이 뜰 때 | buzz roll.wav | bigjoedrummer | CC0 1.0 | https://freesound.org/people/bigjoedrummer/sounds/77305 |
+| 내 배팅 적중 | Cash register | MaoDin204 | CC0 1.0 | https://freesound.org/people/MaoDin204/sounds/721774 |
+| 내 배팅 빗나감 | wah wah sad trombone.wav | kirbydx | CC0 1.0 | https://freesound.org/people/kirbydx/sounds/175409 |
+| 최종 우승 | TaDa!.aif | jimhancock | CC0 1.0 | https://freesound.org/people/jimhancock/sounds/256128 |

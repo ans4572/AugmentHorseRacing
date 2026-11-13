@@ -267,9 +267,16 @@ function pickSingleTarget(
   const sign = def.hostile ? -1 : 1;
   const w = (id: number) => want.get(id) ?? 0;
   // 방해 카드는 내가 밀어주는 말을, 도움 카드는 내가 지길 바라는 말을 대상에서 뺀다
-  const allowed = ranking.filter((id) => sign * w(id) >= 0);
+  // 4등 아래만 고를 수 있는 카드(자석)는 그 안에서만 고른다
+  const eligible =
+    def.targetRule === 'back3'
+      ? ranking.filter((id) => ctx.sim.currentRanking().indexOf(id) >= 3)
+      : def.targetRule === 'notFirst'
+        ? ranking.slice(1)
+        : ranking;
+  const allowed = eligible.filter((id) => sign * w(id) >= 0);
   if (allowed.length === 0) {
-    const least = [...ranking].sort((a, b) => sign * w(b) - sign * w(a))[0];
+    const least = [...(eligible.length > 0 ? eligible : ranking)].sort((a, b) => sign * w(b) - sign * w(a))[0];
     return { horseId: least, gain: -6 };
   }
 

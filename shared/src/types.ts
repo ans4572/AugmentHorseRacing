@@ -84,6 +84,10 @@ export interface EffectView {
   emoji: string;
   hostile: boolean;
   remainMs: number;
+  /** 이 효과가 묶어 둔 상대 말 (자석, 나란히 달리기, 업히기) */
+  link?: number;
+  /** 겉모습 연출 없이 수치만 걸린 효과 (예: 업은 쪽 말의 감속) */
+  quiet?: boolean;
 }
 
 export interface HorseSnapshot {
@@ -150,7 +154,8 @@ export type TargetType =
   | 'mostBetWin'   // 우승 배팅금 최다 말
   | 'leastBetWin'  // 우승 배팅금 최소 말
   | 'mostBetTotal' // 전체 배팅금 최다 말
-  | 'swap16';      // 현재 1등과 6등 위치 교환
+  | 'swap16'       // 현재 1등과 6등 위치 교환
+  | 'all';         // 달리는 말 전부 (판 전체를 바꾸는 카드)
 
 export type EffectType =
   | 'speedMult'          // value: 증감률(+0.2 = +20%)
@@ -165,6 +170,14 @@ export type EffectType =
   | 'shield'             // 방해 1회 무효
   | 'swapPositions'      // 위치 교환
   | 'rankBasedSpeed'     // 순위 기반 속력 증가 (최후의 질주)
+  | 'magnet'             // 두 등수 앞의 말 바로 뒤까지 끌려감 (value: 붙는 거리)
+  | 'pairUp'             // 가까운 옆 레인 말과 중간 지점으로 모임
+  | 'finishLine'         // 결승선을 옮김 (value: 코스 비율)
+  | 'shuffleAll'         // 달리는 말 전부의 위치를 무작위로 섞음
+  | 'piggyback'          // 바로 앞 말 등에 업혀 감 (value: 업은 말의 속력 증감률)
+  | 'cheer'              // 대상 속력 증가(value) + 지금 선두는 조금 느려짐
+  | 'carrotRod'          // 속력 증가(value) 뒤 잠깐 멈춤
+  | 'sneeze'             // 속력 감소(value), 끝나면 한 등수 뒤 말에게 옮음
   | 'cosmetic';          // 연출 전용 표시 — 즉시 효과 카드의 모습을 잠깐 보여 준다 (능력치 영향 없음)
 
 export interface AugmentDefinition {
@@ -184,9 +197,24 @@ export interface AugmentDefinition {
   visual?: AugmentVisual;
   /** 즉시 효과 카드(durationMs 0)의 연출을 보여 줄 시간 */
   visualMs?: number;
+  /** 말을 고르는 카드에서 고를 수 있는 말의 조건. back3 = 지금 4등 아래, notFirst = 맨 앞이 아닌 말 */
+  targetRule?: 'back3' | 'notFirst';
+  /** 같은 희귀도 안에서 뽑힐 비중 (기본 1). 판을 크게 뒤집는 카드는 낮춘다 */
+  drawWeight?: number;
 }
 
 export type AugmentVisual =
+  | 'whistle' // 고개를 돌려 휘파람
+  | 'magnet' // 자석에 끌려감
+  | 'pair' // 옆 말과 나란히
+  | 'ride' // 앞 말 등에 업힘
+  | 'cheer' // 응원단
+  | 'carrot' // 눈앞에 매달린 당근
+  | 'sneeze' // 재채기
+  | 'carry' // 다른 말을 업고 낑낑댐 (어부바의 업은 쪽)
+  | 'annoyed' // 시끄러워 고개를 젓는다 (치어리더 등장의 선두)
+  | 'sulk' // 허탈해서 고개를 떨군다 (당근 낚싯대가 끝난 뒤)
+  | 'surprise' // 깜짝 놀라 펄쩍 뛴다 (결승선 당기기)
   | 'bulk' // 몸집이 커짐
   | 'slim' // 몸집이 작아짐
   | 'muscle' // 살짝 커짐
@@ -371,7 +399,7 @@ export type S2C =
   | { type: 'BET_REVEAL'; bets: RevealedBet[]; betCounts: BetCount[]; blind: boolean; endsAt: number }
   | { type: 'COUNTDOWN'; endsAt: number }
   | { type: 'RACE_START'; startedAt: number }
-  | { type: 'RACE_STATE'; t: number; horses: HorseSnapshot[] }
+  | { type: 'RACE_STATE'; t: number; horses: HorseSnapshot[]; /** 결승선이 옮겨졌을 때만: 새 결승선 위치 (코스 단위) */ finish?: number }
   | { type: 'AUGMENT_PHASE'; phase: number; tier: AugmentTier; endsAt: number; cards: AugmentCardView[]; /** 미리 고르기 단계: 고른 카드는 증강 지점에서 발동한다 */ preview?: boolean }
   | { type: 'AUGMENT_LIVE'; phase: number; endsAt: number }
   | { type: 'AUGMENT_REROLLED'; cardKey: string; defId: string }

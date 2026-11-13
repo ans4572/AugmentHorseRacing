@@ -325,7 +325,7 @@ describe('증강 카드 드로우 (등급제)', () => {
     }
   });
 
-  it('6마리 전체를 대상으로 하는 증강은 카드 풀에 없다', () => {
+  it('6마리 전체가 대상인 카드는 판 자체를 바꾸는 전설 카드뿐이다 (능력치를 바꾸는 전체 카드는 없다)', () => {
     const groupSizes: Record<string, number> = {
       odd: 3, even: 3, front3: 3, back3: 3,
       rank1: 1, rank2: 1, rank6: 1, rank23: 2, rank34: 2,
@@ -333,6 +333,12 @@ describe('증강 카드 드로우 (등급제)', () => {
       mostBetWin: 1, leastBetWin: 1, mostBetTotal: 1, swap16: 2, single: 1
     };
     for (const def of AUGMENTS) {
+      if (def.targetType === 'all') {
+        expect(['finishLine', 'shuffleAll']).toContain(def.effectType);
+        expect(def.rarity).toBe('legendary');
+        expect(def.allowedPhases).not.toContain(5); // 마지막 구간에는 나오지 않는다
+        continue;
+      }
       expect(groupSizes[def.targetType]).toBeLessThan(6);
     }
   });

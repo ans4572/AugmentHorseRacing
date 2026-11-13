@@ -641,7 +641,12 @@ export class Room {
 
     // 상태 브로드캐스트 (10Hz)
     if (this.tickCount % BROADCAST_EVERY_TICKS === 0 || sim.allFinished()) {
-      this.broadcast({ type: 'RACE_STATE', t: sim.now, horses: sim.snapshot() });
+      this.broadcast({
+        type: 'RACE_STATE',
+        t: sim.now,
+        horses: sim.snapshot(),
+        ...(sim.finishLine < COURSE_LENGTH ? { finish: sim.finishLine } : {})
+      });
     }
 
     // 전원 완주 → 경주 종료

@@ -160,6 +160,16 @@ interface Rig {
   lbottom: number;
   dot: HTMLDivElement;
   displayPos: number;
+  /** 당근 낚싯대: 머리에 단 낚싯대와 줄 끝의 당근 (처음 쓸 때 만든다) */
+  rod: THREE.Group | null;
+  rodLine: THREE.Group | null;
+  /** 나란히 달리기: 짝 쪽으로 몸을 튼 각도 */
+  pairTurn: number;
+  /** 자석: 앞뒤로 늘어난 정도 */
+  stretch: number;
+  /** 어부바: 앞 말 등에 올라탄 정도(0~1)와 그 말의 레인 위치 */
+  ride: number;
+  rideZ: number;
   /** 결승선을 지난 뒤 멈출 때까지 더 달려 나간 거리 */
   coast: number;
   targetPos: number;
@@ -409,6 +419,7 @@ export class Race3DView {
     finish.rotation.x = -Math.PI / 2;
     finish.position.set(TRACK_LEN + 0.8, 0.02, 0);
     this.scene.add(finish);
+    this.finishParts.push(finish);
     this.buildGate(TRACK_LEN + 0.8);
 
     // 증강이 열리는 10/30/50/70/90% 표지판과 바닥선, 그 사이 10% 단위 작은 표지
@@ -459,6 +470,7 @@ export class Race3DView {
       post.scale.set(0.3, 7, 0.3);
       post.position.set(x, 3.5, z);
       this.scene.add(post);
+      this.finishParts.push(post);
     }
     const tex = canvasTexture(1024, 128, (g) => {
       g.fillStyle = '#2b2c34';
@@ -478,6 +490,7 @@ export class Race3DView {
       banner.position.set(x + dir * 0.05, 6.4, 0);
       banner.rotation.y = (dir * Math.PI) / 2;
       this.scene.add(banner);
+      this.finishParts.push(banner);
     }
   }
 
@@ -1026,6 +1039,12 @@ export class Race3DView {
       lbottom: 0,
       dot,
       displayPos: 0,
+      rod: null,
+      rodLine: null,
+      pairTurn: 0,
+      stretch: 0,
+      ride: 0,
+      rideZ: laneZ(info.id),
       coast: 0,
       targetPos: 0,
       speed: 0,
@@ -1042,6 +1061,7 @@ export class Race3DView {
 
   setupRace(infos: HorseInfo[]): void {
     this.clearHighlightRings();
+    this.setFinishLine();
     for (const r of this.rigs) {
       this.scene.remove(r.root);
       disposeMerged(r);
@@ -1069,6 +1089,12 @@ export class Race3DView {
       r.vis.clear();
       for (const e of snap.effects) {
         const v = AUGMENT_BY_ID[e.defId]?.visual;
+        if (e.quiet) {
+          // 수치만 걸린 효과는 카드의 주인공이 아니라 "당하는 쪽"의 모습을 한다
+          const side = v ? QUIET_VISUAL[v] : undefined;
+          if (side) r.vis.add(side);
+          continue;
+        }
         if (v) r.vis.add(v);
       }
       r.fxText = labelFxText(snap, r.vis);
@@ -1124,6 +1150,83 @@ export class Race3DView {
     for (const id of ids) {
       const rig = this.rigs.find((v) => v.info.id === id);
       if (rig) rig.note = { text, by, byColor, hostile, until: this.elapsed + seconds };
+    }
+  }
+
+  /** 결승선(바닥 체크무늬, 기둥, 현수막)과 지금 결승선 위치(코스 단위) */
+  private finishParts: THREE.Object3D[] = [];
+  private finishAt = COURSE_LENGTH;
+
+  /**
+   * 결승선을 옮긴다 ('결승선 당기기' 카드). 값이 없으면 원래 자리.
+   * @returns 이번에 위치가 바뀌었으면 true
+   */
+  setFinishLine(units?: number): boolean {
+    const next = units ?? COURSE_LENGTH;
+    if (next === this.finishAt) return false;
+    this.finishAt = next;
+    // 결승문은 한 번에 옮기지 않고 스르륵 끌려오게 한다 (update에서 조금씩 옮긴다). 원래 자리로는 바로 돌린다
+    this.finishShiftTarget = (next - COURSE_LENGTH) * UNIT;
+    if (next === COURSE_LENGTH) this.slideFinish(1);
+    const flag = this.minimap.querySelector<HTMLElement>('.r3d-minimap-flag');
+    if (flag) {
+      flag.style.right = 'auto';
+      flag.style.left = next === COURSE_LENGTH ? 'calc(100% + 4px)' : `${(next / COURSE_LENGTH) * 100}%`;
+    }
+    return next !== COURSE_LENGTH;
+  }
+
+  /** 머리에 다는 낚싯대: 머리 위에서 앞으로 뻗은 장대, 그 끝에 늘어진 줄과 당근 */
+  private buildCarrotRod(r: Rig): void {
+    const rod = new THREE.Group();
+    const wood = new THREE.MeshToonMaterial({ color: 0x9c6b3f });
+    const tip: [number, number] = [3.0, 1.0];
+    const base: [number, number] = [-0.1, 0.5];
+    const len = Math.hypot(tip[0] - base[0], tip[1] - base[1]);
+    const stick = new THREE.Mesh(GEO.cylLo, wood);
+    stick.scale.set(0.055, len, 0.055);
+    stick.position.set((tip[0] + base[0]) / 2, (tip[1] + base[1]) / 2, 0);
+    stick.rotation.z = Math.atan2(tip[1] - base[1], tip[0] - base[0]) - Math.PI / 2;
+    rod.add(stick);
+    // 머리띠: 낚싯대를 머리에 묶은 끈
+    const band = new THREE.Mesh(GEO.cylLo, new THREE.MeshToonMaterial({ color: 0xe8453c }));
+    band.scale.set(0.16, 0.16, 0.16);
+    band.position.set(base[0], base[1], 0);
+    rod.add(band);
+    const line = new THREE.Group();
+    line.position.set(tip[0], tip[1], 0);
+    const string = new THREE.Mesh(GEO.cylLo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    string.scale.set(0.02, 0.85, 0.02);
+    string.position.y = -0.425;
+    line.add(string);
+    const carrot = new THREE.Mesh(GEO.coneLo, new THREE.MeshToonMaterial({ color: 0xff8a1f }));
+    carrot.scale.set(0.32, 1.05, 0.32);
+    carrot.rotation.z = Math.PI; // 뾰족한 쪽이 아래로
+    carrot.position.y = -0.85 - 0.525;
+    line.add(carrot);
+    const leaf = new THREE.Mesh(GEO.coneLo, new THREE.MeshToonMaterial({ color: 0x2f9e44 }));
+    leaf.scale.set(0.26, 0.42, 0.26);
+    leaf.position.y = -0.8;
+    line.add(leaf);
+    rod.add(line);
+    r.head.add(rod);
+    r.rod = rod;
+    r.rodLine = line;
+  }
+
+  /** 결승문이 원래 자리에서 옮겨진 거리: 지금 값과 가야 할 값 */
+  private finishShift = 0;
+  private finishShiftTarget = 0;
+
+  private slideFinish(k: number): void {
+    const step = (this.finishShiftTarget - this.finishShift) * k;
+    if (Math.abs(step) < 0.0005) return;
+    this.finishShift += step;
+    for (const o of this.finishParts) {
+      o.position.x += step;
+      // 배경은 행렬을 한 번만 계산해 두므로 옮긴 뒤 다시 계산한다
+      o.updateMatrix();
+      o.updateMatrixWorld(true);
     }
   }
 
@@ -1311,6 +1414,7 @@ export class Race3DView {
   };
 
   private update(dt: number, rawDt: number): void {
+    if (this.finishShift !== this.finishShiftTarget) this.slideFinish(1 - Math.exp(-rawDt * 2.2));
     for (const r of this.rigs) this.updateRig(r, dt, rawDt);
     this.updateParticles(dt);
     this.updateEmojis(dt);
@@ -1385,17 +1489,36 @@ export class Race3DView {
     const nap = vis.has('nap') && anim === 'stunned';
     const backpedal = vis.has('backpedal');
     const jitter = vis.has('jitter');
+    // ---- 판을 흔드는 카드들의 연출 ----
+    const whistle = vis.has('whistle'); // 한눈팔기
+    const magnet = vis.has('magnet'); // 자석
+    const pairing = vis.has('pair'); // 나란히 달리기
+    const carrying = vis.has('carry'); // 어부바: 업은 쪽
+    const cheering = vis.has('cheer'); // 치어리더 등장: 응원받는 꼴찌
+    const annoyed = vis.has('annoyed'); // 치어리더 등장: 시끄러운 선두
+    const carrot = vis.has('carrot'); // 당근 낚싯대
+    const sulk = vis.has('sulk'); // 당근을 놓치고 허탈
+    const sneezing = vis.has('sneeze'); // 재채기 릴레이
+    const surpriseK = oneShot('surprise'); // 결승선 당기기: 다 같이 펄쩍
+    // 재채기 한 번(0.95초): 고개를 천천히 젖혔다가(에… 에…) 확 숙이며 온몸이 튄다(취!)
+    const sneezeK = sneezing ? (t * 1.05 + r.info.id * 0.37) % 1 : 0;
+    const sneezeSnap = sneezing && sneezeK > 0.62 && sneezeK < 0.8 ? Math.sin(((sneezeK - 0.62) / 0.18) * Math.PI) : 0;
+    // 한눈팔다 발을 헛디딘다 (1.4초에 한 번)
+    const tripK = whistle ? (t * 0.72 + r.info.id * 0.2) % 1 : 0;
+    const trip = whistle && tripK > 0.82 ? Math.sin(((tripK - 0.82) / 0.18) * Math.PI) : 0;
     // 에너지 드링크: 다리가 두 배로 빨리 돈다
     if (jitter) r.phase += dt * (2.5 + speedNorm * 13);
     r.dive = ease(r.dive, rocket ? 1 : 0, 7);
-    r.lookBack = ease(r.lookBack, backpedal ? 1 : 0, 9);
-    r.droop = ease(r.droop, vis.has('droop') && !flying ? 1 : 0, 5);
+    // 한눈팔기: 고개를 옆(관중석 쪽)으로 돌린다
+    r.lookBack = ease(r.lookBack, backpedal ? 1 : vis.has('whistle') ? 0.5 : 0, 9);
+    r.droop = ease(r.droop, vis.has('droop') && !flying ? 1 : sulk ? 0.7 : 0, 5);
     const diveAng = -0.52 * r.dive; // 엉덩이를 들어 올린 각도
 
     // 변신 수치 (부드럽게 변하도록 보간)
     r.rear = ease(r.rear, vis.has('bipedal') ? 1 : 0, 7);
     r.legScale = ease(r.legScale, vis.has('pony') ? 0.55 : 1, 7);
-    r.neckStretch = ease(r.neckStretch, vis.has('giraffe') ? 1 : 0, 6);
+    // 당근 낚싯대: 당근을 향해 목을 뺀다 / 자석: 코부터 끌려가느라 목이 늘어난다
+    r.neckStretch = ease(r.neckStretch, vis.has('giraffe') ? 1 : carrot ? 0.5 + Math.sin(t * 9) * 0.08 : magnet ? 0.35 : 0, 6);
     r.inflate = ease(r.inflate, vis.has('balloon') ? 1 : 0, 5);
     r.flat = ease(r.flat, vis.has('paper') ? 1 : 0, 8);
     const theta = r.rear * 1.1; // 이족보행으로 몸을 세운 각도
@@ -1491,6 +1614,49 @@ export class Race3DView {
       }
     });
 
+    // 새 카드의 다리 동작 (기본 달리기 위에 덮어쓴다)
+    if (!flipping && !sitting && !nap && anim !== 'fallen') {
+      r.legs.forEach((leg, i) => {
+        const knee = r.knees[i];
+        const front = i < 2;
+        if (surpriseK != null) {
+          // 깜짝: 네 다리를 쫙 벌리고 뛴다
+          leg.rotation.z = front ? 1.0 : -1.0;
+          knee.rotation.z = -0.15;
+        } else if (magnet) {
+          // 자석: 다리가 뒤로 쓸려 질질 끌린다
+          leg.rotation.z = -1.15 + Math.sin(t * 22 + i * 1.9) * 0.14;
+          knee.rotation.z = -0.2 - Math.max(0, Math.sin(t * 17 + i)) * 0.25;
+        } else if (r.ride > 0.4) {
+          // 어부바(업힌 쪽): 다리를 축 늘어뜨리고, 앞다리 하나로 손을 흔든다
+          // 다리로 업은 말의 몸통을 감싸듯 양옆으로 벌려 늘어뜨린다
+          leg.rotation.z = (front ? 0.3 : -0.25) + Math.sin(t * 3 + i * 1.3) * 0.12;
+          leg.rotation.x = (i % 2 === 0 ? 1 : -1) * -0.5;
+          knee.rotation.z = -0.55;
+          if (i === 0) {
+            leg.rotation.z = 1.7 + Math.sin(t * 10) * 0.35;
+            knee.rotation.z = -0.5;
+          }
+        } else if (carrying) {
+          // 어부바(업은 쪽): 무릎이 굽은 채 후들거린다
+          knee.rotation.z -= 0.45 + Math.sin(t * 31 + i * 2) * 0.08;
+        } else if (pairing) {
+          // 나란히 달리기: 하나 둘, 하나 둘 — 무릎을 높이 드는 발맞춤 행진
+          const beat = Math.sin(t * 10 + (i === 0 || i === 3 ? 0 : Math.PI));
+          leg.rotation.z = beat * 0.45 + (front ? 0.25 : -0.1);
+          knee.rotation.z = -Math.max(0, beat) * 1.45;
+        } else if (cheering && front) {
+          // 치어리더 등장: 앞다리로 번갈아 주먹을 치켜든다
+          leg.rotation.z = 1.25 + Math.sin(t * 15 + i * Math.PI) * 0.55;
+          knee.rotation.z = -1.1 + Math.sin(t * 15 + i * Math.PI) * 0.4;
+        } else if (sulk) {
+          // 허탈: 다리에 힘이 풀린다
+          leg.rotation.z = front ? 0.12 : -0.12;
+          knee.rotation.z = -0.3;
+        }
+      });
+    }
+
     // 몸통 출렁임과 기울기
     // 한 걸음에 한 번: 네 발이 뜨는 순간에 몸이 가장 높고, 뒷다리로 밀 때 앞이 들리고 앞다리로 디딜 때 숙여진다
     const stridePos = r.phase / TAU;
@@ -1546,6 +1712,57 @@ export class Race3DView {
       flipAng = swapK * Math.PI * 2;
     }
     if (lowbat) y = 0;
+    // ---- 새 카드의 몸 동작 ----
+    if (whistle) {
+      // 한눈팔기: 어깨를 흔들며 걷다가 발을 헛디뎌 앞으로 고꾸라질 뻔한다
+      roll += Math.sin(t * 5) * 0.09;
+      pitch -= trip * 0.32;
+      y -= trip * 0.12;
+    }
+    if (magnet) {
+      // 자석: 코부터 끌려가느라 몸이 떠서 앞으로 쏠린다
+      y = 0.75 + Math.sin(t * 26) * 0.05;
+      pitch = -0.2 + Math.sin(t * 19) * 0.04;
+    }
+    if (pairing) {
+      y = Math.abs(Math.sin(t * 10)) * 0.3;
+      pitch = 0.06;
+    }
+    if (carrying) {
+      // 업은 말: 등이 눌려 주저앉고 부들부들 떤다
+      y = -0.42 + Math.sin(t * 29) * 0.03;
+      pitch = -0.07;
+      roll += Math.sin(t * 23) * 0.03;
+    }
+    if (r.ride > 0.4) {
+      // 업힌 말: 등에 찰싹 엎드려 업은 말의 걸음에 맞춰 흔들린다
+      y = Math.sin(t * 6) * 0.03;
+      pitch = 0.1;
+      roll += Math.sin(t * 3) * 0.05;
+    }
+    if (cheering) {
+      y = Math.abs(Math.sin(t * 7.5)) * 0.75;
+      pitch += 0.16;
+    }
+    if (sneezing) {
+      // 에… 에… 하며 몸을 젖혔다가, 취! 하고 튀어 오르며 숙인다
+      pitch += sneezeK < 0.62 ? (sneezeK / 0.62) * 0.16 : 0;
+      pitch -= sneezeSnap * 0.4;
+      y += sneezeSnap * 0.55;
+    }
+    if (carrot) {
+      // 당근을 쫓아 몸을 앞으로 내던지듯 달린다
+      pitch -= 0.1 + Math.abs(Math.sin(t * 8)) * 0.06;
+    }
+    if (sulk) {
+      y = -0.2;
+      pitch = -0.12;
+    }
+    if (surpriseK != null) {
+      // 결승선 당기기: 다 같이 펄쩍
+      y = Math.sin(Math.PI * surpriseK) * 1.6;
+      pitch = 0.12;
+    }
     // 비틀비틀: 몸이 좌우로 기우뚱거린다
     if (vis.has('wobble') && anim !== 'fallen') roll += Math.sin(t * 9) * 0.26;
     r.bobY = ease(r.bobY, y, 12);
@@ -1561,7 +1778,9 @@ export class Race3DView {
     const s = r.bodyScale;
     // 칼퇴 워프: 납작하게 눌렸다가 앞뒤로 길게 늘어난다
     const warp = warpK != null ? Math.sin(Math.PI * warpK) : 0;
-    r.inner.scale.set(s * (1 + 1.3 * warp), s * (1 - 0.5 * warp), s * (1 - 0.88 * r.flat)); // 종이 말은 옆으로 납작해진다
+    // 자석에 끌려갈 때도 앞뒤로 쭉 늘어난다
+    r.stretch = ease(r.stretch, magnet ? 0.28 : 0, 8);
+    r.inner.scale.set(s * (1 + 1.3 * warp + r.stretch), s * (1 - 0.5 * warp - r.stretch * 0.35), s * (1 - 0.88 * r.flat)); // 종이 말은 옆으로 납작해진다
 
     // 조랑말: 다리가 짧아진 만큼 몸을 내린다
     const legDrop = (1 - r.legScale) * (HIP_Y + HIP_UP) * s;
@@ -1577,7 +1796,15 @@ export class Race3DView {
     // 공중제비는 몸 한가운데를 축으로 돈다
     const cy = 1.8;
     r.inner.position.x = (px - rotX + diveX + cy * Math.sin(flipAng)) * s + (jitter ? Math.sin(t * 71) * 0.04 : 0);
-    r.inner.position.y = r.bobY - legDrop + (py - rotY + diveY + cy * (1 - Math.cos(flipAng))) * s;
+    // 어부바: 앞 말의 레인으로 건너가 등 위에 올라탄다
+    const rideFx = vis.has('ride') ? snap?.effects.find((e) => e.link != null && !e.quiet && AUGMENT_BY_ID[e.defId]?.visual === 'ride') : undefined;
+    const carrier = rideFx ? this.rigs.find((v) => v.info.id === rideFx.link) : undefined;
+    r.ride = ease(r.ride, carrier ? 1 : 0, 6);
+    if (carrier) r.rideZ = carrier.root.position.z;
+    r.root.position.z = laneZ(r.info.id) + (r.rideZ - laneZ(r.info.id)) * r.ride;
+    // 업은 말의 등 높이에 맞춘다: 업은 말이 주저앉은 만큼 같이 내려가고, 배가 등에 닿게 낮춘다
+    const rideLift = r.ride * (1.42 * (carrier?.bodyScale ?? 1) + (carrier ? carrier.bobY : 0));
+    r.inner.position.y = r.bobY - legDrop + rideLift + (py - rotY + diveY + cy * (1 - Math.cos(flipAng))) * s;
     r.inner.rotation.z = pitch + theta + diveAng + flipAng;
     r.inner.rotation.x = ease(r.inner.rotation.x, roll, 10);
     // 옆으로 누울 때 몸이 옆 레인으로 넘어가지 않게 당겨 준다
@@ -1595,7 +1822,11 @@ export class Race3DView {
       r.spin = ease(r.spin, r.spin > Math.PI ? Math.PI * 2 : 0, 10);
       if (r.spin < 0.02 || Math.PI * 2 - r.spin < 0.02) r.spin = 0;
     }
-    r.root.rotation.y = r.facing + r.spin + (disco ? Math.sin(t * 6) * 0.7 : 0);
+    // 나란히 달리기: 짝을 향해 몸을 살짝 틀고 눈을 맞춘다
+    const mate = pairing ? snap?.effects.find((e) => e.link != null && AUGMENT_BY_ID[e.defId]?.visual === 'pair')?.link : undefined;
+    const towardMate = mate != null ? Math.sign(r.info.id - mate) * 0.32 : 0;
+    r.pairTurn = ease(r.pairTurn, towardMate, 6);
+    r.root.rotation.y = r.facing + r.spin + r.pairTurn + (disco ? Math.sin(t * 6) * 0.7 : 0);
 
     // 머리 끄덕임 / 처짐 (몸을 세워도 앞을 보도록 되돌린다)
     let droop = 0;
@@ -1608,6 +1839,15 @@ export class Race3DView {
     if (disco) headTarget = Math.sin(t * 10) * 0.25;
     if (pose) headTarget = 0.22; // 턱을 든다
     if (eat) headTarget = -0.55 + Math.sin(t * 14) * 0.18; // 고개를 숙이고 우물우물
+    if (whistle) headTarget = 0.18 + Math.sin(t * 5) * 0.1; // 턱을 들고 건들건들
+    if (carrot) headTarget = -0.05 + Math.abs(Math.sin(t * 8 + 0.6)) * 0.42; // 흔들리는 당근을 향해 덥석덥석
+    if (magnet) headTarget = 0.35; // 코가 앞으로 들린다
+    if (pairing) headTarget = Math.sin(t * 10) * 0.16; // 박자에 맞춰 끄덕
+    if (carrying) headTarget = -0.5 + Math.sin(t * 27) * 0.04;
+    if (r.ride > 0.4) headTarget = 0.3;
+    if (cheering) headTarget = 0.3 + Math.sin(t * 15) * 0.12;
+    if (sneezing) headTarget = (sneezeK < 0.62 ? (sneezeK / 0.62) * 0.55 : 0) - sneezeSnap * 0.95;
+    if (surpriseK != null) headTarget = 0.4;
     r.head.rotation.z = ease(r.head.rotation.z, headTarget, 10);
 
     // 기린 목: 목을 늘리고 머리를 그만큼 올린다
@@ -1634,13 +1874,24 @@ export class Race3DView {
     r.head.position.x = NECK_BASE_X + Math.cos(r.heliAng) * reach;
     r.head.position.z = -Math.sin(r.heliAng) * reach;
     r.head.position.y = NECK_BASE_Y + Math.cos(tilt) * 2 * neckH - 0.18 * (1 - r.heli);
-    r.head.rotation.y = r.heliAng + r.lookBack * 2.75;
+    // 당근 낚싯대: 머리에 낚싯대가 달려 있어, 아무리 달려도 당근은 늘 코앞에서 달랑거린다
+    if (carrot && !r.rod) this.buildCarrotRod(r);
+    if (r.rod && r.rodLine) {
+      r.rod.visible = carrot;
+      if (carrot) {
+        // 줄은 머리가 끄덕여도 아래로 늘어지고, 달리는 박자에 맞춰 앞뒤로 흔들린다
+        r.rodLine.rotation.z = -r.head.rotation.z - 0.25 + Math.sin(t * 8) * 0.38;
+        r.rodLine.rotation.x = Math.sin(t * 5.3) * 0.15;
+      }
+    }
+    // 시끄러운 응원에 선두가 고개를 세차게 젓는다
+    r.head.rotation.y = r.heliAng + r.lookBack * 2.75 + (annoyed ? Math.sin(t * 17) * 0.55 : 0);
 
     // 풍선: 몸통이 둥글게 부푼다
     r.body.scale.set(1.0 + 0.15 * r.inflate, 0.56 + 0.5 * r.inflate, 0.5 + 0.5 * r.inflate);
 
     // 꼬리는 속도가 붙을수록 뒤로 날린다
-    r.tail.rotation.z = -runAmt * 0.65 + Math.sin(r.phase * 1.2) * 0.18;
+    r.tail.rotation.z = -runAmt * 0.65 + Math.sin(r.phase * 1.2) * 0.18 + (whistle || cheering ? Math.sin(t * 22) * 0.5 : 0); // 신나면 꼬리를 흔든다
 
     // 눈 (기절·졸림이면 감는다. 춤출 때는 뜬다)
     let eyeScale = 1;
@@ -1648,6 +1899,9 @@ export class Race3DView {
     else if (anim === 'tired' || anim === 'slow') eyeScale = 0.55;
     if (jitter) eyeScale = 1.55; // 카페인으로 눈이 번쩍
     if (lowbat) eyeScale = 0.28;
+    if (whistle || carrot || cheering || surpriseK != null) eyeScale = 1.5; // 눈이 휘둥그레
+    if (carrying || annoyed || sulk) eyeScale = 0.4; // 찡그린다
+    if (sneezing) eyeScale = sneezeK > 0.5 && sneezeK < 0.85 ? 0.1 : 0.8; // 재채기 순간 질끈
     for (const eye of r.eyes) eye.scale.y = ease(eye.scale.y, eyeScale, 14);
 
     // 날개, 선글라스
@@ -1715,6 +1969,25 @@ export class Race3DView {
       if (siren) pop(4, ['🪢', '✋'], headX, headY + 1.0, 0.8, 0.8); // 고삐 당기기
       if (vis.has('eat')) pop(5, ['🥕', '😋'], headX + 0.5, headY - 0.2, 0.7, 0.9); // 당근 먹방
       if (disco) pop(7, ['🎵', '🎶', '🪩'], X + rnd(2), 3.2, 0.8); // 디스코 타임
+      if (whistle) {
+        // 한눈팔기: 눈과 얼굴 둘레에 하트가 다닥다닥 붙고, 휘파람 음표가 흘러나온다
+        for (let n = 0; n < 2; n++) {
+          if (Math.random() < dt * 16) {
+            this.spawnEmoji(['❤️', '💕', '💗', '💘', '😍'][Math.floor(Math.random() * 5)], headX + 0.15 + rnd(0.75), headY + 0.25 + rnd(0.7), Z + 0.55 + rnd(0.5), 0.55 + Math.random() * 0.35, 0.35);
+          }
+        }
+        pop(4, ['🎵', '🎶'], headX + 0.9, headY + 0.2, 0.7, 1.0);
+      }
+      if (magnet) pop(9, ['🧲', '⚡'], headX + 1.2 + rnd(0.5), headY + rnd(0.5), 0.85, 0.2); // 자석: 코앞에서 당긴다
+      if (vis.has('pair')) pop(3, ['🤝', '👣'], X + rnd(0.8), 3.4 * s, 0.8, 0.6); // 나란히 달리기
+      if (vis.has('ride')) pop(3, ['🙌', '😌'], headX, headY + 0.9, 0.75, 0.6); // 어부바
+      if (vis.has('cheer')) pop(7, ['📣', '🎉', '👏'], X + rnd(2.2), 3.4 * s + rnd(1), 0.85); // 치어리더 등장
+      if (vis.has('carrot')) pop(4, ['🤤', '💦'], headX + 0.2, headY + 0.5, 0.7, 0.7); // 당근 낚싯대: 군침
+      if (sneezeSnap > 0.5) pop(40, ['💦', '💨', '🤧'], headX + 1.0 + Math.random() * 0.8, headY - 0.2 + rnd(0.5), 0.8, 0.2); // 취! 하는 순간에만 튄다
+      if (carrying) pop(6, ['💦', '😵'], headX, headY + 0.8, 0.75, 0.7); // 업은 말: 진땀
+      if (annoyed) pop(4, ['🙉', '💢'], headX, headY + 1.0, 0.8, 0.7); // 시끄러워!
+      if (sulk) pop(3, ['😮‍💨', '🥕'], headX + 0.2, headY + 0.7, 0.75, 0.5); // 당근을 놓쳤다
+      if (surpriseK != null) pop(14, ['❗', '❓', '🏁'], headX + rnd(0.6), headY + 1.1, 0.9, 0.9); // 결승선이 왜 저기에?
       if (vis.has('bighead')) pop(3, ['👑', '✨'], headX + rnd(1.5), headY + rnd(1.2), 0.8, 0.3); // 우승 후보 병: 벌써 왕관
       if (vis.has('giant')) pop(3, ['🦖', '💢'], X + rnd(2), 5.2, 1.2, 0.8); // 거대화
       if (fart) pop(4, ['💨', '🤢'], rearX - 0.6, 1.8 * s, 0.9); // 방귀 부스터: 뒤따르는 말의 심정
@@ -2128,6 +2401,8 @@ const TMP_B = new THREE.Vector3();
 /** 증강을 맞았을 때 번쩍이는 고리 — 모양은 하나만 만들어 함께 쓴다 */
 const RING_GEO = new THREE.TorusGeometry(1.3, 0.13, 8, 32);
 const TAU = Math.PI * 2;
+/** 수치만 걸린(quiet) 효과가 보여 줄 모습: 업은 말, 응원이 시끄러운 선두, 당근을 놓친 말 */
+const QUIET_VISUAL: Partial<Record<AugmentVisual, AugmentVisual>> = { ride: 'carry', cheer: 'annoyed', carrot: 'sulk' };
 /** 갤럽에서 다리별로 땅을 딛기 시작하는 때 (한 걸음 = 1). 앞다리 둘, 뒷다리 둘 순서로 적는다 */
 const GALLOP_OFFSETS = [0.3, 0.42, 0, 0.1];
 /** 한 걸음 중 발이 땅에 닿아 있는 비율 */

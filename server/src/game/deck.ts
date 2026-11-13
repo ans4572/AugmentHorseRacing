@@ -44,12 +44,8 @@ export function drawCards(
   bets: BetTotals,
   rng: () => number = Math.random
 ): AugmentDefinition[] {
-  const hasUnfinished = sim.horses.some((h) => !h.finished);
-  const valid = AUGMENTS.filter((def) => {
-    if (!def.allowedPhases.includes(phase)) return false;
-    if (def.targetType === 'single') return hasUnfinished;
-    return sim.resolveTargets(def, { bets }).length > 0;
-  });
+  // 쓸 수 있는 말이 한 마리도 없는 카드는 뽑지 않는다 (조건이 붙은 카드, 이미 옮긴 결승선 등)
+  const valid = AUGMENTS.filter((def) => def.allowedPhases.includes(phase) && sim.usableNow(def, { bets }));
 
   const hand: AugmentDefinition[] = [];
   for (const t of [tier, ...TIER_FALLBACK[tier]]) {
@@ -71,8 +67,18 @@ export function drawCards(
           break;
         }
       }
+      // 같은 희귀도 안에서는 카드별 비중(drawWeight)대로 뽑는다
       const ofRarity = candidates.filter((c) => c.rarity === chosen);
-      hand.push(ofRarity[Math.floor(rng() * ofRarity.length)]);
+      let pick = rng() * ofRarity.reduce((s, c) => s + (c.drawWeight ?? 1), 0);
+      let card = ofRarity[ofRarity.length - 1];
+      for (const c of ofRarity) {
+        pick -= c.drawWeight ?? 1;
+        if (pick < 0) {
+          card = c;
+          break;
+        }
+      }
+      hand.push(card);
     }
     if (hand.length >= CARDS_PER_PHASE) break;
   }

@@ -48,7 +48,10 @@ export function auditAll(): AuditRow[] {
   return AUGMENTS.map((def) => {
     const test = warmedUp();
     const ctrl = warmedUp();
-    const result = test.applyAugment(def, { targetHorseId: 3, bets });
+    // 고를 수 있는 말에 조건이 붙은 카드는 조건에 맞는 말에게 쓴다 (4등 아래 → 5등, 맨 앞 제외 → 3등)
+    const order = test.currentRanking();
+    const targetHorseId = def.targetRule === 'back3' ? order[4] : def.targetRule === 'notFirst' ? order[2] : 3;
+    const result = test.applyAugment(def, { targetHorseId, bets });
     const id = result.targets[0] ?? 3;
     const startPos = test.horse(id).pos;
     const staminaDelta = test.horse(id).stamina - ctrl.horse(id).stamina;

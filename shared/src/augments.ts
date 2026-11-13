@@ -6,7 +6,7 @@ const PERMANENT = 10 * 60 * 1000;
 
 // ============================================================
 // 증강 카드 풀 — 기획서 15장 기준
-// 6마리 전체 대상 증강은 존재하지 않는다.
+// 능력치를 바꾸는 6마리 전체 대상 증강은 없다. 전체 대상은 판 자체를 바꾸는 전설 카드 두 장뿐이다.
 // 위치 교환(swap16)은 75% 구간(3차)에서 등장하지 않는다.
 // ============================================================
 
@@ -66,6 +66,17 @@ export const AUGMENTS: AugmentDefinition[] = [
   { id: 'escape_last', name: '꼴찌 탈출 넘버원', description: '꼴찌는 이제 그만!\n코스 2% 건너뛰기', rarity: 'rare', targetType: 'rank6', effectType: 'teleport', value: 0.02, durationMs: 0, allowedPhases: ALL_PHASES, hostile: false, emoji: '🏃' },
   { id: 'rival_duel', name: '라이벌 대결', description: '너한텐 못 져!\n속력 +30%, 3초', rarity: 'common', targetType: 'rank23', effectType: 'speedMult', value: 0.3, durationMs: 3000, allowedPhases: ALL_PHASES, hostile: false, emoji: '⚔️' },
   { id: 'popularity_crash', name: '관중 야유', description: '우우우~ 야유가 쏟아져 급제동한다.\n속도 -70% 후 가속력 -50%, 5초', rarity: 'common', targetType: 'mostBetTotal', effectType: 'accelMult', value: -0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: true, emoji: '👎' },
+  // ---------- 판을 흔드는 카드 (추가) ----------
+  { id: 'love_whistle', name: '한눈팔기', description: '예쁜 말을 보고 휘파람을 분다.\n속력 -35%, 4초', rarity: 'rare', targetType: 'single', effectType: 'speedMult', value: -0.35, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: true, emoji: '😗', anim: 'slow', visual: 'whistle' },
+  { id: 'magnet', name: '자석', description: '두 등수 앞의 말에게 철썩 달라붙는다. 4등 아래의 말만 고를 수 있다.\n두 등수 앞 말 바로 뒤까지 끌려감, 3초', rarity: 'epic', targetType: 'single', effectType: 'magnet', value: 6, durationMs: 3000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🧲', visual: 'magnet', targetRule: 'back3' },
+  { id: 'side_by_side', name: '나란히 달리기', description: '옆 레인 말과 발을 맞춘다.\n가까운 옆 레인 말과 중간 지점으로 모임, 3초', rarity: 'rare', targetType: 'single', effectType: 'pairUp', value: 0, durationMs: 3000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🤝', visual: 'pair' },
+  { id: 'piggyback', name: '어부바', description: '바로 앞 말 등에 업혀 간다. 업은 말은 무거워서 느려진다.\n앞 말과 함께 이동, 지구력 10% 회복, 4초', rarity: 'rare', targetType: 'single', effectType: 'piggyback', value: -0.1, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🙌', visual: 'ride', targetRule: 'notFirst' },
+  { id: 'cheer_squad', name: '치어리더 등장', description: '꼴찌에게 응원단이 붙는다. 선두는 시끄러워서 집중이 안 된다.\n6등 속력 +40%, 1등 속력 -10%, 4초', rarity: 'rare', targetType: 'rank6', effectType: 'cheer', value: 0.4, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '📣', anim: 'boost', visual: 'cheer' },
+  { id: 'carrot_rod', name: '당근 낚싯대', description: '눈앞에 당근이 매달렸다. 끝내 못 먹고 허탈해한다.\n속력 +50%, 5초 뒤 정지 0.8초', rarity: 'rare', targetType: 'single', effectType: 'carrotRod', value: 0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🎣', anim: 'boost', visual: 'carrot' },
+  { id: 'sneeze_relay', name: '재채기 릴레이', description: '에취! 재채기가 뒤따르는 말에게 옮는다.\n속력 -25%, 2초. 끝나면 한 등수 뒤 말도 속력 -25%, 2초', rarity: 'common', targetType: 'single', effectType: 'sneeze', value: -0.25, durationMs: 2000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🤧', anim: 'slow', visual: 'sneeze' },
+  { id: 'short_course', name: '결승선 당기기', description: '누가 결승선을 옮겨 놨다.\n결승선이 80% 지점으로 바뀜', rarity: 'legendary', targetType: 'all', effectType: 'finishLine', value: 0.8, durationMs: 0, allowedPhases: [1, 2, 3], hostile: false, emoji: '🏁', visual: 'surprise', visualMs: 900 },
+  { id: 'musical_chairs', name: '자리 뽑기', description: '모두 제비를 뽑아 자리를 바꾼다.\n달리는 말 전부의 위치를 무작위로 섞음', rarity: 'legendary', targetType: 'all', effectType: 'shuffleAll', value: 0, durationMs: 0, allowedPhases: [1, 2, 3, 4], hostile: true, emoji: '🎲', visual: 'swap', visualMs: 1000, drawWeight: 0.5 },
+
   // ---------- 코믹 변신 (기획서 외 추가) — 효과는 단순하지만 말의 모습이 바뀐다 ----------
   { id: 'cool_shades', name: '간지 폭발', description: '선글라스를 쓴다.\n속력 +20%, 5초', rarity: 'common', targetType: 'single', effectType: 'speedMult', value: 0.2, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🕶️', visual: 'shades' },
   { id: 'paper_horse', name: '종이 말', description: '종이처럼 납작해져 바람을 가른다.\n속력 +25%, 4초', rarity: 'common', targetType: 'single', effectType: 'speedMult', value: 0.25, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '📄', visual: 'paper' },
@@ -105,5 +116,6 @@ export const TARGET_TYPE_LABELS: Record<string, string> = {
   mostBetWin: '우승 배팅금 최다 말',
   leastBetWin: '우승 배팅금 최소 말',
   mostBetTotal: '전체 배팅금 최다 말',
-  swap16: '현재 1등 ↔ 6등'
+  swap16: '현재 1등 ↔ 6등',
+  all: '달리는 말 전부'
 };

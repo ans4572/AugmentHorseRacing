@@ -56,4 +56,13 @@ export const CARD_SAMPLE_IDS: readonly string[] = [
   'sudden_sleep',
   'teleport',
   'unpopular_rebellion',
+  // 판을 흔드는 카드
+  'love_whistle',
+  'magnet',
+  'side_by_side',
+  'piggyback',
+  'cheer_squad',
+  'carrot_rod',
+  'sneeze_relay',
+  'short_course'
 ];

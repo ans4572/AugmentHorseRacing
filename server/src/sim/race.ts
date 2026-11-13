@@ -20,6 +20,14 @@ export interface ActiveEffect {
   hostile: boolean;
   emoji: string;
   anim?: HorseAnim;
+  /** 자석·나란히 달리기·업히기: 이 효과가 묶어 둔 상대 말 */
+  linkId?: number;
+  /** 겉모습 연출 없이 수치만 걸린 효과 */
+  quiet?: boolean;
+  /** 이 효과가 끝나면 이만큼 멈춘다 (당근 낚싯대의 허탈함) */
+  afterStopMs?: number;
+  /** 이 효과가 끝나면 한 등수 뒤 말에게 같은 감속이 옮는다 (재채기 릴레이) */
+  relay?: boolean;
 }
 
 export interface SimHorse {
@@ -60,6 +68,13 @@ export interface BetTotals {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/** 자석에 끌려가는 속도 (코스 단위/초, 달리는 속도에 더해진다) */
+const MAGNET_PULL = 55;
+/** 업히러 앞 말을 따라잡는 속도 (코스 단위/초) */
+const PIGGYBACK_CATCH = 90;
+/** 나란히 달리기에서 두 말이 가운데로 모이는 빠르기 */
+const PAIR_RATE = 1.6;
+
 /** 지구력이 이 비율 아래로 내려가면 느려지기 시작한다 */
 export const FATIGUE_START = 1.0;
 /** 지구력이 0일 때의 속력 배율 */
@@ -71,6 +86,8 @@ export const FATIGUE_FLOOR = 0.78;
  */
 export class RaceSim {
   now = 0; // 시뮬레이션 경과 시간 (ms)
+  /** 결승선 위치 (코스 단위). '결승선 당기기' 카드로 앞당겨질 수 있다 */
+  finishLine = COURSE_LENGTH;
   horses: SimHorse[];
   private rng: () => number;
 
@@ -116,7 +133,14 @@ export class RaceSim {
       }
       h.prevPos = h.pos;
 
-      // 만료된 효과 제거
+      // 만료된 효과 제거. 끝나면서 뒤따르는 일이 있는 효과는 여기서 처리한다
+      for (const e of h.effects) {
+        if (e.expiresAt > this.now) continue;
+        if (e.afterStopMs) {
+          h.effects.push({ defId: e.defId, effectType: 'stop', value: 0, expiresAt: this.now + e.afterStopMs, hostile: false, emoji: '😮‍💨', anim: 'stunned', quiet: true });
+        }
+        if (e.relay) this.passSneeze(h, e);
+      }
       h.effects = h.effects.filter((e) => e.expiresAt > this.now);
 
       // 행운: 주기적으로 소규모 배율 재추출
@@ -191,13 +215,38 @@ export class RaceSim {
 
       if (!stopped) h.pos = Math.max(0, h.pos + h.speed * dt);
 
+      // 다른 말과 묶인 효과: 자석(앞 말 뒤로 끌려감), 나란히 달리기(옆 말과 가운데로 모임)
+      if (!stopped) {
+        for (const e of h.effects) {
+          if (e.linkId == null) continue;
+          const other = this.horse(e.linkId);
+          if (e.effectType === 'magnet') {
+            const goal = Math.min(other.pos - e.value, this.finishLine - 1);
+            if (h.pos < goal) h.pos += Math.min(goal - h.pos, MAGNET_PULL * dt);
+            else e.expiresAt = this.now; // 다 붙었으면 끝
+          } else if (e.effectType === 'piggyback') {
+            // 업힌 말은 업은 말 바로 뒤에 붙어 함께 간다. 업은 말이 들어오면 내려서 제 발로 달린다
+            if (other.finished) e.expiresAt = this.now;
+            else {
+              const seat = other.pos - 0.5;
+              h.pos = h.pos < seat ? Math.min(seat, h.pos + PIGGYBACK_CATCH * dt) : seat;
+              h.speed = other.speed;
+            }
+          } else if (e.effectType === 'pairUp' && !other.finished) {
+            const d = ((other.pos - h.pos) / 2) * (1 - Math.exp(-dt * PAIR_RATE));
+            h.pos = Math.max(0, h.pos + d);
+            other.pos = Math.max(0, other.pos - d);
+          }
+        }
+      }
+
       // 결승선 판정 (틱 사이 통과 시각 보간)
-      if (h.pos >= COURSE_LENGTH) {
+      if (h.pos >= this.finishLine) {
         const travelled = h.pos - h.prevPos;
-        const f = travelled > 0 ? (COURSE_LENGTH - h.prevPos) / travelled : 1;
+        const f = travelled > 0 ? Math.min(1, Math.max(0, (this.finishLine - h.prevPos) / travelled)) : 1;
         h.finishTime = this.now - dtMs + f * dtMs;
         h.finished = true;
-        h.pos = COURSE_LENGTH;
+        h.pos = this.finishLine;
         h.anim = 'finished';
         continue;
       }
@@ -328,6 +377,8 @@ export class RaceSim {
         return byBet(opts.bets?.win, false);
       case 'mostBetTotal':
         return byBet(opts.bets?.total, true);
+      case 'all':
+        return unfinished.map((h) => h.info.id);
       case 'swap16': {
         // 미완주 말 중 최상위와 최하위
         const aliveRank = ranking.filter((id) =>
@@ -340,6 +391,29 @@ export class RaceSim {
   }
 
   /**
+   * 지금 이 카드를 쓸 수 있는 말이 한 마리라도 있는지. 카드를 뽑을 때 써서, 쓸 수 없는 카드는 손에 들어오지 않게 한다.
+   * (방어막이나 비행으로 막히는 것은 "쓸 수 없음"이 아니라 승부의 일부라서 따지지 않는다)
+   */
+  usableNow(def: AugmentDefinition, opts: { bets?: BetTotals } = {}): boolean {
+    const unfinished = this.horses.filter((h) => !h.finished);
+    if (unfinished.length === 0) return false;
+    if (def.effectType === 'finishLine') {
+      const line = COURSE_LENGTH * def.value;
+      return this.finishLine > line && this.leaderPos() < line - 30;
+    }
+    if (def.effectType === 'shuffleAll') return unfinished.length >= 2;
+    if (def.targetType !== 'single') return this.resolveTargets(def, opts).length > 0;
+    const full = this.currentRanking();
+    const order = full.filter((id) => !this.horse(id).finished);
+    if (def.effectType === 'magnet') return order.some((id, idx) => idx >= 2 && full.indexOf(id) >= 3);
+    if (def.effectType === 'piggyback') return order.length >= 2;
+    if (def.effectType === 'pairUp') {
+      return unfinished.some((h) => unfinished.some((o) => Math.abs(o.info.id - h.info.id) === 1));
+    }
+    return true;
+  }
+
+  /**
    * 증강 적용. 대상은 적용 시점에 한 번 확정되며 이후 바뀌지 않는다.
    */
   applyAugment(
@@ -349,6 +423,83 @@ export class RaceSim {
     const targetIds = this.resolveTargets(def, opts);
     if (targetIds.length === 0) {
       return { ok: false, targets: [], blocked: [], message: '카드를 쓸 수 있는 말이 없습니다.' };
+    }
+
+    // 결승선 옮기기: 말이 아니라 코스를 바꾼다
+    if (def.effectType === 'finishLine') {
+      const line = COURSE_LENGTH * def.value;
+      if (this.finishLine <= line) return { ok: false, targets: [], blocked: [], message: '결승선은 이미 옮겨졌습니다.' };
+      if (this.leaderPos() >= line - 30) return { ok: false, targets: [], blocked: [], message: '결승선을 옮기기에는 너무 늦었습니다.' };
+      this.finishLine = line;
+      // 다들 깜짝 놀라 펄쩍 뛴다 (연출만)
+      if (def.visualMs) for (const id of targetIds) this.horse(id).effects.push(this.makeCosmetic(def));
+      return { ok: true, targets: targetIds, blocked: [] };
+    }
+
+    // 전체 자리 섞기: 방어막이나 비행 중인 말은 제자리를 지킨다
+    if (def.effectType === 'shuffleAll') {
+      const blocked: number[] = [];
+      const movable: SimHorse[] = [];
+      for (const id of targetIds) {
+        const h = this.horse(id);
+        if (h.effects.some((e) => e.effectType === 'fly')) blocked.push(id);
+        else if (h.shield > 0) {
+          h.shield--;
+          blocked.push(id);
+        } else movable.push(h);
+      }
+      if (movable.length < 2) return { ok: true, targets: [], blocked, message: '자리를 바꿀 말이 모자랍니다.' };
+      const before = movable.map((h) => h.pos);
+      let after = before;
+      // 아무도 안 움직이는 결과는 다시 뽑는다
+      for (let tries = 0; tries < 12; tries++) {
+        after = [...before];
+        for (let i = after.length - 1; i > 0; i--) {
+          const j = Math.floor(this.rng() * (i + 1));
+          [after[i], after[j]] = [after[j], after[i]];
+        }
+        if (after.some((v, i) => v !== before[i])) break;
+      }
+      movable.forEach((h, i) => {
+        h.pos = after[i];
+        h.prevPos = h.pos;
+        if (def.visualMs) h.effects.push(this.makeCosmetic(def));
+      });
+      return { ok: true, targets: movable.map((h) => h.info.id), blocked };
+    }
+
+    // 말을 고르는 카드 중 조건이 붙은 것: 조건에 안 맞으면 카드를 잃지 않고 안내만 한다
+    let linkId: number | undefined;
+    if (def.effectType === 'magnet') {
+      const order = this.currentRanking().filter((id) => !this.horse(id).finished);
+      const idx = order.indexOf(targetIds[0]);
+      if (this.currentRanking().indexOf(targetIds[0]) < 3 || idx < 2) {
+        return { ok: false, targets: [], blocked: [], message: '4등 아래의 말에게만 쓸 수 있습니다.' };
+      }
+      linkId = order[idx - 2];
+    }
+    if (def.effectType === 'piggyback') {
+      const order = this.currentRanking().filter((id) => !this.horse(id).finished);
+      const idx = order.indexOf(targetIds[0]);
+      if (idx < 1) return { ok: false, targets: [], blocked: [], message: '맨 앞의 말은 업힐 말이 없습니다.' };
+      const carrier = this.horse(order[idx - 1]);
+      // 업는 쪽은 느려지므로 방해로 본다: 비행 중이거나 방어막이 있으면 못 업힌다
+      if (carrier.effects.some((e) => e.effectType === 'fly')) {
+        return { ok: true, targets: [], blocked: [carrier.info.id], message: '날고 있는 말에게는 업힐 수 없습니다.' };
+      }
+      if (carrier.shield > 0) {
+        carrier.shield--;
+        return { ok: true, targets: [], blocked: [carrier.info.id], message: '방어막 때문에 업히지 못했습니다.' };
+      }
+      linkId = carrier.info.id;
+    }
+    if (def.effectType === 'pairUp') {
+      const me = this.horse(targetIds[0]);
+      const sides = this.horses.filter((h) => !h.finished && Math.abs(h.info.id - me.info.id) === 1);
+      if (sides.length === 0) return { ok: false, targets: [], blocked: [], message: '옆 레인에 달리는 말이 없습니다.' };
+      // 더 가까운 쪽. 같으면 앞서 있는 쪽
+      sides.sort((a, b) => Math.abs(a.pos - me.pos) - Math.abs(b.pos - me.pos) || b.pos - a.pos);
+      linkId = sides[0].info.id;
     }
 
     // 위치 교환은 별도 처리
@@ -380,6 +531,7 @@ export class RaceSim {
     const applied: number[] = [];
     const blocked: number[] = [];
     let capped = 0; // 같은 카드가 이미 최대로 걸려 있어 건너뛴 말 수
+    const alsoHit: number[] = []; // 고른 말 말고 함께 영향을 받은 말
 
     for (const id of targetIds) {
       const h = this.horse(id);
@@ -407,8 +559,8 @@ export class RaceSim {
       switch (def.effectType) {
         case 'teleport': {
           h.pos += COURSE_LENGTH * def.value;
-          if (h.pos >= COURSE_LENGTH) {
-            h.pos = COURSE_LENGTH;
+          if (h.pos >= this.finishLine) {
+            h.pos = this.finishLine;
             h.finished = true;
             h.finishTime = this.now;
             h.anim = 'finished';
@@ -464,12 +616,57 @@ export class RaceSim {
           h.effects.push(this.makeEffect(def));
           break;
         }
+        case 'magnet': {
+          h.effects.push({ ...this.makeEffect(def), linkId });
+          break;
+        }
+        case 'pairUp': {
+          h.effects.push({ ...this.makeEffect(def), linkId });
+          // 상대 말도 같은 동작을 하도록 연출만 걸어 둔다 (위치는 고른 말 쪽 효과가 함께 옮긴다)
+          this.horse(linkId!).effects.push({ ...this.makeEffect(def), effectType: 'cosmetic', value: 0, linkId: h.info.id });
+          break;
+        }
+        case 'cheer': {
+          h.effects.push({ ...this.makeEffect(def), effectType: 'speedMult' });
+          // 선두는 응원 소리에 집중이 흐트러진다 (비행 중이면 안 들리고, 방어막은 한 번 막아 준다)
+          const leader = this.horse(this.currentRanking().find((x) => !this.horse(x).finished)!);
+          if (leader !== h && !leader.effects.some((e) => e.effectType === 'fly')) {
+            if (leader.shield > 0) {
+              leader.shield--;
+              blocked.push(leader.info.id);
+            } else {
+              leader.effects.push({ ...this.makeEffect(def), effectType: 'speedMult', value: -0.1, hostile: true, quiet: true, emoji: '🙉', anim: undefined });
+              alsoHit.push(leader.info.id);
+            }
+          }
+          break;
+        }
+        case 'carrotRod': {
+          h.effects.push({ ...this.makeEffect(def), effectType: 'speedMult', afterStopMs: 800 });
+          break;
+        }
+        case 'sneeze': {
+          h.effects.push({ ...this.makeEffect(def), effectType: 'speedMult', relay: true });
+          break;
+        }
+        case 'piggyback': {
+          h.effects.push({ ...this.makeEffect(def), linkId });
+          // 업혀 쉬는 동안 숨을 돌린다
+          h.stamina = Math.min(h.staminaMax, h.stamina + h.staminaMax * 0.1);
+          // 업은 말은 그동안 느려진다 (겉모습 연출은 없다)
+          this.horse(linkId!).effects.push({ ...this.makeEffect(def), effectType: 'speedMult', value: def.value, hostile: true, quiet: true });
+          break;
+        }
         default: {
           // speedMult / weightMult / reverse
           h.effects.push(this.makeEffect(def));
         }
       }
       applied.push(id);
+      // 함께 영향을 받은 말은 고른 말 뒤에 적는다 (첫 번째가 늘 카드의 주인공)
+      applied.push(...alsoHit.splice(0));
+      // 나란히 달리기는 상대 말도 함께 움직이므로 대상으로 알린다
+      if ((def.effectType === 'pairUp' || def.effectType === 'piggyback') && linkId != null) applied.push(linkId);
     }
 
     if (applied.length === 0 && blocked.length === 0) {
@@ -481,6 +678,20 @@ export class RaceSim {
       };
     }
     return { ok: true, targets: applied, blocked };
+  }
+
+  /** 재채기가 끝나면 한 등수 뒤에서 달리는 말에게 같은 감속을 한 번 옮긴다 */
+  private passSneeze(from: SimHorse, e: ActiveEffect): void {
+    const order = this.currentRanking().filter((id) => !this.horse(id).finished);
+    const next = order[order.indexOf(from.info.id) + 1];
+    if (next == null) return;
+    const h = this.horse(next);
+    if (h.effects.some((x) => x.effectType === 'fly')) return;
+    if (h.shield > 0) {
+      h.shield--;
+      return;
+    }
+    h.effects.push({ ...e, expiresAt: this.now + 2000, relay: false });
   }
 
   /** 능력치에 영향이 없는 연출 전용 표시 */
@@ -515,7 +726,9 @@ export class RaceSim {
         defId: e.defId,
         emoji: e.emoji,
         hostile: e.hostile,
-        remainMs: Math.max(0, e.expiresAt - this.now)
+        remainMs: Math.max(0, e.expiresAt - this.now),
+        ...(e.linkId != null ? { link: e.linkId } : {}),
+        ...(e.quiet ? { quiet: true } : {})
       })),
       shield: h.shield
     }));

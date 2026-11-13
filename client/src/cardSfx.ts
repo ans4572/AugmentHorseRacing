@@ -474,6 +474,86 @@ export const CARD_SFX: Record<string, CardSound> = {
     hiss(ac, out, t + 0.42, 0.3, 0.16, 'highpass', 3000, { attack: 0.05 });
     ding(ac, out, t + 0.5, 1319, 0.12);
     return 0.85;
+  },
+
+  // ---------- 판을 흔드는 카드 ----------
+  love_whistle: (ac, out, t) => {
+    // 휘이~ 휘잇! (늑대 휘파람) + 두근
+    tone(ac, out, t, 0.28, 'sine', [[0, 900], [1, 2100]], 0.22, { attack: 0.03 });
+    tone(ac, out, t + 0.34, 0.42, 'sine', [[0, 1100], [0.35, 2300], [1, 800]], 0.24, { attack: 0.03, vibrato: [7, 30] });
+    tone(ac, out, t + 0.82, 0.1, 'sine', [150, 70], 0.3);
+    tone(ac, out, t + 0.96, 0.1, 'sine', [150, 70], 0.22);
+    return 1.1;
+  },
+  magnet: (ac, out, t) => {
+    // 지이잉 끌려가다가 철썩
+    tone(ac, out, t, 0.5, 'sawtooth', [[0, 90], [1, 520]], 0.16, { tremolo: [40, 0.7], attack: 0.04, hold: true });
+    tone(ac, out, t, 0.5, 'sine', [[0, 300], [1, 1500]], 0.1, { attack: 0.05 });
+    click(ac, out, t + 0.52, 0.5, 1400);
+    thud(ac, out, t + 0.53, 0.45);
+    ding(ac, out, t + 0.56, 2093, 0.1);
+    return 0.85;
+  },
+  side_by_side: (ac, out, t) => {
+    // 하나 둘, 하나 둘: 발맞춘 말발굽 + 화음
+    [0, 0.2, 0.4, 0.6].forEach((d, i) => {
+      click(ac, out, t + d, 0.5, i % 2 ? 900 : 1200);
+      click(ac, out, t + d + 0.035, 0.36, i % 2 ? 700 : 950);
+      thud(ac, out, t + d, 0.18);
+    });
+    tone(ac, out, t + 0.62, 0.35, 'triangle', 659, 0.22);
+    tone(ac, out, t + 0.62, 0.35, 'triangle', 784, 0.2);
+    return 1.0;
+  },
+  piggyback: (ac, out, t) => {
+    // 읏차! 폴짝 올라타고 눌리는 소리
+    boing(ac, out, t, 260, 0.3);
+    tone(ac, out, t + 0.16, 0.2, 'sine', [300, 900], 0.2);
+    thud(ac, out, t + 0.4, 0.5);
+    tone(ac, out, t + 0.44, 0.3, 'sawtooth', [220, 110], 0.14, { attack: 0.02 });
+    return 0.8;
+  },
+  cheer_squad: (ac, out, t) => {
+    // 삐익! 호루라기 + 와아아 함성 + 짝짝짝
+    tone(ac, out, t, 0.22, 'square', 2300, 0.12, { tremolo: [36, 0.6], hold: true });
+    hiss(ac, out, t + 0.2, 0.75, 0.22, 'bandpass', [900, 2400], { q: 0.7, attack: 0.15, hold: true });
+    [0.3, 0.45, 0.6, 0.75].forEach((d) => hiss(ac, out, t + d, 0.04, 0.3, 'highpass', 2500, { attack: 0.001 }));
+    [784, 988, 1175, 1568].forEach((f, i) => tone(ac, out, t + 0.28 + i * 0.09, 0.14, 'square', f, 0.07));
+    return 1.05;
+  },
+  carrot_rod: (ac, out, t) => {
+    // 낚싯줄 휙 → 줄 감는 드르륵 → 당근이 통
+    hiss(ac, out, t, 0.18, 0.36, 'bandpass', [3000, 800], { q: 2, attack: 0.01 });
+    for (let i = 0; i < 9; i++) click(ac, out, t + 0.22 + i * 0.045, 0.26, 2600 + i * 120);
+    pop(ac, out, t + 0.68, 520, 0.42);
+    tone(ac, out, t + 0.72, 0.18, 'sine', [700, 1300], 0.24);
+    return 0.95;
+  },
+  sneeze_relay: (ac, out, t) => {
+    // 에… 에… 취! 그리고 뒤에서 한 번 더
+    tone(ac, out, t, 0.14, 'sine', [500, 640], 0.2, { attack: 0.03 });
+    tone(ac, out, t + 0.2, 0.16, 'sine', [560, 760], 0.24, { attack: 0.03 });
+    hiss(ac, out, t + 0.42, 0.2, 0.42, 'bandpass', [3200, 900], { q: 0.9, attack: 0.004 });
+    tone(ac, out, t + 0.42, 0.16, 'sawtooth', [900, 260], 0.24);
+    hiss(ac, out, t + 0.82, 0.16, 0.32, 'bandpass', [2600, 800], { q: 0.9, attack: 0.004 });
+    tone(ac, out, t + 0.82, 0.12, 'sawtooth', [700, 220], 0.14);
+    return 1.05;
+  },
+  short_course: (ac, out, t) => {
+    // 드르륵 결승문을 끌어오고, 쿵 내려놓고, 땡땡땡 종
+    hiss(ac, out, t, 0.5, 0.26, 'lowpass', [300, 900], { attack: 0.05, hold: true });
+    tone(ac, out, t, 0.5, 'sawtooth', [60, 95], 0.16, { tremolo: [22, 0.8], hold: true });
+    thud(ac, out, t + 0.52, 0.7);
+    [0, 0.14, 0.28].forEach((d) => ding(ac, out, t + 0.62 + d, 1760, 0.2));
+    return 1.25;
+  },
+  musical_chairs: (ac, out, t) => {
+    // 제비뽑기 통을 차르르 흔들다가 → 짠!
+    for (let i = 0; i < 14; i++) click(ac, out, t + i * 0.04, 0.16, 1600 + Math.random() * 2400);
+    hiss(ac, out, t, 0.56, 0.12, 'highpass', 4000, { attack: 0.02, hold: true });
+    tone(ac, out, t + 0.6, 0.12, 'sine', [400, 1600], 0.18);
+    [1047, 1319, 1568, 2093].forEach((f, i) => ding(ac, out, t + 0.74 + i * 0.06, f, 0.15));
+    return 1.25;
   }
 };
 

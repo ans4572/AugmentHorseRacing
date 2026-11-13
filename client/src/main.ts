@@ -25,6 +25,7 @@ import type {
 import {
   BET_LIMIT_RATIO,
   BET_MIN,
+  COURSE_LENGTH,
   BET_TYPE_INFO,
   TIER_INFO,
   TIER_OF_RARITY,
@@ -270,6 +271,7 @@ function targetsNow(def: AugmentDefinition): number[] | null {
     case 'mostBetWin': return byBet(['winner'], true);
     case 'leastBetWin': return byBet(['winner'], false);
     case 'mostBetTotal': return byBet(null, true);
+    case 'all': return alive(ranking);
     case 'swap16': {
       const r = alive(ranking);
       return r.length < 2 ? [] : [r[0], r[r.length - 1]];
@@ -293,6 +295,16 @@ function targetNowHtml(def: AugmentDefinition): string {
     .join('');
   // 순위처럼 계속 바뀌는 기준이면 "지금"임을 밝힌다. 실제 대상은 발동하는 순간에 정해진다
   return `${LIVE_TARGETS.has(def.targetType) ? '<span class="aug-tgt-live">지금</span>' : ''}${bibs}`;
+}
+
+/** 말을 고르는 카드에서 이 말을 고를 수 있는지 (서버의 조건과 같다) */
+function canPick(def: AugmentDefinition, horseId: number): boolean {
+  const snap = lastSnaps.find((x) => x.id === horseId);
+  if (!snap) return true;
+  if (snap.finished) return false;
+  if (def.targetRule === 'back3') return snap.rank >= 4;
+  if (def.targetRule === 'notFirst') return snap.rank > Math.min(...lastSnaps.filter((x) => !x.finished).map((x) => x.rank));
+  return true;
 }
 
 /** 예약한 카드에 고른 말 */
@@ -939,7 +951,7 @@ function renderAugmentBarInner(): void {
         pickRow = `<div class="augment-pickhorse">${state.horses
           .map(
             (h) =>
-              `<button class="pick${inkOn(h.color) ? ' dk' : ''}${state.myBets.some((b) => b.horseId === h.id) ? ' mybet' : ''}" style="background:${h.color}" data-pick="${h.id}" data-key="${c.cardKey}" title="${esc(h.name)}" aria-label="${h.id}번 ${esc(h.name)}">${h.id}</button>`
+              `<button class="pick${inkOn(h.color) ? ' dk' : ''}${state.myBets.some((b) => b.horseId === h.id) ? ' mybet' : ''}" style="background:${h.color}" ${canPick(def, h.id) ? '' : 'disabled'} data-pick="${h.id}" data-key="${c.cardKey}" title="${esc(h.name)}" aria-label="${h.id}번 ${esc(h.name)}">${h.id}</button>`
           )
           .join('')}</div>`;
       } else if (selected) {
@@ -1511,6 +1523,10 @@ net.on((msg: S2C) => {
 
     case 'RACE_STATE': {
       view?.pushState(msg.horses);
+      // 결승선이 옮겨졌으면 경주장의 결승문과 진행 막대의 깃발도 옮긴다
+      if (view && view.setFinishLine(msg.finish)) {
+        view.announce(`결승선이 ${Math.round(((msg.finish ?? COURSE_LENGTH) / COURSE_LENGTH) * 100)}% 지점으로!`);
+      }
       lastSnaps = msg.horses;
       syncBetMarks();
       renderRankBoard(msg.horses);
@@ -1634,7 +1650,9 @@ net.on((msg: S2C) => {
       const mine = msg.results.find((r) => r.playerId === state.myId);
       if (mine) state.coins = mine.coins;
       // 내 배팅이 하나라도 맞았으면 축하, 다 빗나갔으면 뿜뿜뿜
-      if (mine) sfx(mine.bets.length === 0 ? 'bell' : mine.bets.some((b) => b.hit) ? 'win' : 'lose');
+      // 결과 창이 뜰 때 북을 울리고, 이어서 맞았는지 틀렸는지 알린다
+      sfx('result');
+      if (mine) sfx(mine.bets.length === 0 ? 'bell' : mine.bets.some((b) => b.hit) ? 'win' : 'lose', 0, 1.0);
       state.players = state.players.map((p) => {
         const res = msg.results.find((r) => r.playerId === p.id);
         return res ? { ...p, coins: res.coins } : p;

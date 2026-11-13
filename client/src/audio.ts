@@ -13,6 +13,7 @@ import { CARD_SAMPLE_IDS } from './cardSamples';
 export type { TrackName };
 
 export type SfxName =
+  | 'result'
   | 'click'
   | 'equip'
   | 'coin'
@@ -253,6 +254,11 @@ interface Session {
 type SfxFn = (ac: Ctx, out: AudioNode, t: number, arg: number) => number;
 
 const SFX: Record<SfxName, SfxFn> = {
+  // 결과 창이 뜰 때: 짧은 북 연타 (녹음을 못 받았을 때의 대신 소리)
+  result: (ac, out, t) => {
+    for (let i = 0; i < 12; i++) blip(ac, out, 'triangle', 180, t + i * 0.07, 0.05, 0.1 + i * 0.012);
+    return 0;
+  },
   click: (ac, out, t) => {
     blip(ac, out, 'square', 740, t, 0.035, 0.14);
     return 0;
@@ -499,6 +505,19 @@ export function sfx(name: SfxName, arg = 0, delay = 0): void {
   const c = context();
   if (!c || !sfxOut) return;
   const t = c.currentTime + 0.01 + delay;
+  // 녹음이 있는 소리(결승, 결과 등)는 녹음을 쓰고, 아직 못 받았으면 합성음으로 대신한다
+  const sampleId = UI_SAMPLE[name];
+  if (sampleId) {
+    const buf = samples.get(sampleId);
+    if (buf) {
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.connect(sfxOut);
+      src.start(t);
+      return;
+    }
+    if (uiSampleIds.has(sampleId)) loadSample(sampleId, c);
+  }
   const hold = SFX[name](c, sfxOut, t, arg);
   if (hold > 0) holdUntil = Math.max(holdUntil, t + hold);
 }
@@ -508,6 +527,15 @@ let cardVoices: number[] = [];
 const CARD_VOICE_LIMIT = 3;
 /** 녹음 효과음: 처음 필요할 때 받아서 풀어 두고 다시 쓴다 */
 const sampleIds = new Set(CARD_SAMPLE_IDS);
+/** 카드가 아닌 소리 중 녹음 파일이 있는 것 (client/public/sfx/ui_*.mp3) */
+const UI_SAMPLE: Partial<Record<SfxName, string>> = {
+  finish: 'ui_finish',
+  result: 'ui_result',
+  win: 'ui_win',
+  lose: 'ui_lose',
+  champion: 'ui_champion'
+};
+const uiSampleIds = new Set(Object.values(UI_SAMPLE));
 const samples = new Map<string, AudioBuffer>();
 const sampleLoading = new Set<string>();
 
@@ -518,7 +546,11 @@ function loadSample(id: string, c: AudioContext): void {
     .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
     .then((data) => c.decodeAudioData(data))
     .then((buf) => samples.set(id, buf))
-    .catch(() => sampleIds.delete(id)) // 받지 못한 소리는 합성음으로 대신한다
+    .catch(() => {
+      // 받지 못한 소리는 합성음으로 대신한다
+      sampleIds.delete(id);
+      uiSampleIds.delete(id);
+    })
     .finally(() => sampleLoading.delete(id));
 }
 
@@ -528,6 +560,7 @@ export function warmCardSfx(): void {
   const c = context();
   if (!c) return;
   for (const id of sampleIds) loadSample(id, c);
+  for (const id of uiSampleIds) loadSample(id, c);
 }
 
 /**

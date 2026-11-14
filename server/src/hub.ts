@@ -1,4 +1,4 @@
-import type { C2S, RoomSummary, S2C } from '../../shared/src/types';
+import type { C2S, HorseLook, RoomSummary, S2C } from '../../shared/src/types';
 import { MAX_PLAYERS_LIMIT, MAX_ROUNDS, MIN_ROUNDS } from '../../shared/src/constants';
 import { sanitizeHorseName, sanitizeLook } from '../../shared/src/stable';
 import { Room, makeRoomCode, uid, type Player } from './game/room';
@@ -24,6 +24,17 @@ interface Session {
   wrapper: { send(data: string): void } | null;
 }
 
+/** 숫자로 와야 하는 값: 숫자가 아니면 기본값을 쓴다 (Math.floor(undefined)는 NaN이 되어 최소·최대 제한을 그대로 통과한다) */
+function int(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.floor(n) : fallback;
+}
+
+/** 클라이언트가 보낸 내 말 정보를 검증한다 */
+function sanitizeMyHorse(raw: { name?: unknown; look?: unknown }): { name: string; look: HorseLook } {
+  return { name: sanitizeHorseName(raw.name), look: sanitizeLook(raw.look) };
+}
+
 function sanitizeName(name: unknown): string {
   const s = String(name ?? '').trim().slice(0, 12);
   return s.length > 0 ? s : '이름없는기수';
@@ -44,6 +55,9 @@ export class GameHub {
         try {
           msg = JSON.parse(raw);
         } catch {
+          return send({ type: 'ERROR', message: '잘못된 메시지 형식입니다.' });
+        }
+        if (!msg || typeof msg !== 'object' || typeof (msg as { type?: unknown }).type !== 'string') {
           return send({ type: 'ERROR', message: '잘못된 메시지 형식입니다.' });
         }
         try {
@@ -116,9 +130,11 @@ export class GameHub {
 
       case 'CREATE_ROOM': {
         if (currentRoom()) return sendError('이미 방에 참가 중입니다.');
-        const totalRounds = Math.min(MAX_ROUNDS, Math.max(MIN_ROUNDS, Math.floor(msg.totalRounds)));
-        const maxPlayers = Math.min(MAX_PLAYERS_LIMIT, Math.max(2, Math.floor(msg.maxPlayers)));
-        const id = makeRoomCode();
+        const totalRounds = Math.min(MAX_ROUNDS, Math.max(MIN_ROUNDS, int(msg.totalRounds, MIN_ROUNDS)));
+        const maxPlayers = Math.min(MAX_PLAYERS_LIMIT, Math.max(2, int(msg.maxPlayers, 2)));
+        // 같은 코드의 방이 이미 있으면 덮어쓰지 않도록 다시 뽑는다
+        let id = makeRoomCode();
+        while (rooms.has(id)) id = makeRoomCode();
         const room = new Room(
           id,
           {
@@ -135,24 +151,18 @@ export class GameHub {
 
         const player = this.makePlayer(session, sanitizeName(msg.playerName), sendRaw);
         // 멀티: 데려온 말은 게임 중 몇 라운드에 출전한다 (싱글 모드는 아래에서 따로 등록한다)
-        if (msg.myHorse && !msg.autoStart) {
-          player.horse = { name: sanitizeHorseName(msg.myHorse.name), look: sanitizeLook(msg.myHorse.look) };
-        }
+        if (msg.myHorse && !msg.autoStart) player.horse = sanitizeMyHorse(msg.myHorse);
         room.addPlayer(player);
         session.roomId = id;
 
-        const npcCount = Math.min(Math.max(0, Math.floor(msg.npcCount ?? 0)), maxPlayers - 1);
+        const npcCount = Math.min(Math.max(0, int(msg.npcCount, 0)), maxPlayers - 1);
         for (let i = 0; i < npcCount; i++) room.addNpc();
 
         send({ type: 'ROOM_JOINED', snapshot: room.buildSnapshot(session.playerId), you: session.playerId });
 
         // 싱글 모드: 내 말을 6마리 중 하나로 출전시킨다 (꾸미기는 겉모습 전용이라 검증만 한다)
         if (msg.autoStart && msg.myHorse) {
-          room.ownerHorse = {
-            playerId: session.playerId,
-            name: sanitizeHorseName(msg.myHorse.name),
-            look: sanitizeLook(msg.myHorse.look)
-          };
+          room.ownerHorse = { playerId: session.playerId, ...sanitizeMyHorse(msg.myHorse) };
         }
 
         // 싱글 모드: 로비에서 기다리지 않고 바로 시작한다
@@ -172,9 +182,7 @@ export class GameHub {
         if (room.players.size >= room.settings.maxPlayers) return sendError('방이 가득 찼습니다.');
 
         const player = this.makePlayer(session, sanitizeName(msg.playerName), sendRaw);
-        if (msg.myHorse) {
-          player.horse = { name: sanitizeHorseName(msg.myHorse.name), look: sanitizeLook(msg.myHorse.look) };
-        }
+        if (msg.myHorse) player.horse = sanitizeMyHorse(msg.myHorse);
         room.addPlayer(player);
         session.roomId = room.id;
         send({ type: 'ROOM_JOINED', snapshot: room.buildSnapshot(session.playerId), you: session.playerId });
@@ -182,10 +190,12 @@ export class GameHub {
       }
 
       case 'RECONNECT': {
-        const room = rooms.get((msg.roomId ?? '').toUpperCase());
+        if (currentRoom()) return sendError('이미 방에 참가 중입니다.');
+        const room = rooms.get(String(msg.roomId ?? '').toUpperCase());
         if (!room) return sendError('방이 없어졌습니다.');
-        const player = room.players.get(msg.playerId);
-        if (!player || player.secret !== msg.secret) {
+        const player = room.players.get(String(msg.playerId));
+        // NPC는 비밀값이 비어 있으므로 아예 이어받을 수 없게 한다
+        if (!player || player.isNpc || !player.secret || player.secret !== msg.secret) {
           return sendError('다시 접속하는 데 필요한 정보가 맞지 않습니다.');
         }
         session.playerId = player.id;
@@ -237,7 +247,7 @@ export class GameHub {
       case 'SET_COLOR': {
         const room = currentRoom();
         if (!room) return;
-        const err = room.setColor(session.playerId, Math.floor(msg.color));
+        const err = room.setColor(session.playerId, int(msg.color, -1));
         if (err) sendError(err);
         break;
       }
@@ -247,7 +257,7 @@ export class GameHub {
         if (!room) return;
         const err = room.setHorse(
           session.playerId,
-          msg.myHorse ? { name: sanitizeHorseName(msg.myHorse.name), look: sanitizeLook(msg.myHorse.look) } : null
+          msg.myHorse ? sanitizeMyHorse(msg.myHorse) : null
         );
         if (err) sendError(err);
         break;
@@ -262,7 +272,7 @@ export class GameHub {
       case 'PLACE_BET': {
         const room = currentRoom();
         if (!room) return;
-        const err = room.placeBet(session.playerId, msg.betType, Math.floor(msg.horseId), Math.floor(msg.amount));
+        const err = room.placeBet(session.playerId, msg.betType, int(msg.horseId, 0), int(msg.amount, 0));
         if (err) sendError(err);
         break;
       }

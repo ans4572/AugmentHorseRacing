@@ -134,11 +134,8 @@ interface Rig {
   /** 한 번 재생하는 연출(공중제비·워프·자리 바꾸기)의 시작 시각 */
   fxStart: Record<string, number>;
   bubbles: THREE.Group;
-  siren: THREE.Mesh;
   eyes: THREE.Object3D[];
-  wings: THREE.Mesh[];
   flame: THREE.Mesh;
-  shield: THREE.Mesh;
   shadow: THREE.Mesh;
   label: HTMLDivElement;
   /** 머리 위에 잠깐 붙는 증강 안내 (무엇을 / 누가) */
@@ -637,6 +634,13 @@ export class Race3DView {
           ? lane.clone().lerp(new THREE.Color(0xffffff), 0.42)
           : new THREE.Color(c);
     const breed = info.breed ?? 'horse';
+    // 꾸미기 부품용 재질은 색마다 한 개만 만든다 (털·다리·갈기 재질은 강조 연출로 바뀌므로 따로 만든다)
+    const toonCache = new Map<number, THREE.MeshToonMaterial>();
+    const toon = (c: number): THREE.MeshToonMaterial => {
+      let mat = toonCache.get(c);
+      if (!mat) toonCache.set(c, (mat = new THREE.MeshToonMaterial({ color: c })));
+      return mat;
+    };
     const white = new THREE.MeshToonMaterial({ color: 0xfff8ee });
 
     // 종류별 털·다리·갈기 재질. 흰 털 종류는 레인 색을 안장과 목도리로 보여 준다
@@ -689,7 +693,7 @@ export class Race3DView {
     // 털 색이나 목 장식을 바꾼 말은 안장으로 레인 색을 보여 준다
     if (customCoat || neckItem) saddleColor = lane.clone();
     const earH = breed === 'donkey' ? 0.74 : breed === 'alpaca' ? 0.5 : breed === 'camel' ? 0.22 : 0.34;
-    const hoofMat = new THREE.MeshToonMaterial({ color: 0x3a2a1e });
+    const hoofMat = toon(0x3a2a1e);
     const outlineMat = new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide });
 
     const part = (
@@ -763,12 +767,12 @@ export class Race3DView {
       part(GEO.sphere, bowMat, neckGroup, [0.4, 0.5, 0], [0.08, 0.08, 0.08], 0.14);
     } else if (neckItem?.id === 'neck_medal') {
       neckBand(0x1c7ed6, 0.06);
-      const medal = part(GEO.cyl, new THREE.MeshToonMaterial({ color: 0xffd43b }), neckGroup, [0.42, 0.3, 0], [0.18, 0.05, 0.18], 0.1);
+      const medal = part(GEO.cyl, toon(0xffd43b), neckGroup, [0.42, 0.3, 0], [0.18, 0.05, 0.18], 0.1);
       medal.rotation.z = Math.PI / 2;
     } else if (neckItem?.id === 'neck_bell') {
       // 방울: 가죽 띠에 금방울
       neckBand(0x8b5a2b, 0.06);
-      part(GEO.sphere, new THREE.MeshToonMaterial({ color: 0xffd43b }), neckGroup, [0.42, 0.28, 0], [0.16, 0.16, 0.16], 0.1);
+      part(GEO.sphere, toon(0xffd43b), neckGroup, [0.42, 0.28, 0], [0.16, 0.16, 0.16], 0.1);
       part(GEO.sphere, hoofMat, neckGroup, [0.5, 0.2, 0], [0.04, 0.04, 0.04], 0);
     } else if (neckItem?.id === 'neck_tie') {
       // 넥타이: 흰 칼라 + 매듭 + 늘어진 타이
@@ -788,8 +792,8 @@ export class Race3DView {
     } else if (neckItem?.id === 'neck_rosette') {
       // 우승 리본: 파란 띠에 둥근 꽃리본과 두 갈래 꼬리
       neckBand(0x1c7ed6, 0.06);
-      const blue = new THREE.MeshToonMaterial({ color: 0x1c7ed6 });
-      const gold = new THREE.MeshToonMaterial({ color: 0xffd43b });
+      const blue = toon(0x1c7ed6);
+      const gold = toon(0xffd43b);
       const ro = part(GEO.cyl, blue, neckGroup, [0.44, 0.32, 0], [0.24, 0.05, 0.24], 0.1);
       ro.rotation.z = Math.PI / 2;
       const center = part(GEO.cyl, gold, neckGroup, [0.47, 0.32, 0], [0.13, 0.04, 0.13], 0);
@@ -837,7 +841,7 @@ export class Race3DView {
     part(GEO.sphere, coat, head, [0, 0, 0], [0.64, 0.6, 0.58]);
     part(GEO.sphere, muzzleMat, head, [0.5, -0.17, 0], [0.38, 0.3, 0.36]);
     const eyes: THREE.Object3D[] = [];
-    const cheekMat = new THREE.MeshToonMaterial({ color: 0xff8fa3 });
+    const cheekMat = toon(0xff8fa3);
     for (const side of [1, -1]) {
       const eye = new THREE.Group();
       eye.position.set(0.26, 0.1, side * 0.46);
@@ -855,28 +859,28 @@ export class Race3DView {
     const faceId = faceItem?.id;
     if (faceId === 'face_blush') {
       // 볼터치: 진한 분홍 볼에 반짝 하이라이트
-      const blush = new THREE.MeshToonMaterial({ color: 0xff5c8a });
+      const blush = toon(0xff5c8a);
       for (const side of [1, -1]) {
         part(GEO.sphere, blush, head, [0.3, -0.14, side * 0.52], [0.16, 0.1, 0.06], 0);
         part(GEO.sphere, white, head, [0.34, -0.11, side * 0.57], [0.03, 0.03, 0.02], 0);
       }
     } else if (faceId === 'face_mustache') {
       // 콧수염: 콧구멍 아래에서 양옆으로 말려 올라간다
-      const hair = new THREE.MeshToonMaterial({ color: 0x3a2a1e });
+      const hair = toon(0x3a2a1e);
       for (const side of [1, -1]) {
         part(GEO.sphere, hair, head, [0.8, -0.27, side * 0.13], [0.1, 0.055, 0.15], 0.1);
         part(GEO.sphere, hair, head, [0.74, -0.2, side * 0.29], [0.06, 0.06, 0.06], 0.12);
       }
     } else if (faceId === 'face_monocle') {
       // 외알 안경: 카메라 쪽 눈에 금테와 늘어진 줄
-      const goldM = new THREE.MeshToonMaterial({ color: 0xffd43b });
+      const goldM = toon(0xffd43b);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 8, 20), goldM);
       ring.position.set(0.3, 0.1, 0.6);
       head.add(ring);
       part(GEO.box, goldM, head, [0.2, -0.22, 0.6], [0.02, 0.46, 0.02], 0);
     } else if (faceId === 'face_eyepatch') {
       // 해적 안대: 카메라 쪽 눈을 덮고 끈이 머리를 한 바퀴 감는다
-      const black = new THREE.MeshToonMaterial({ color: 0x1b1b1f });
+      const black = toon(0x1b1b1f);
       part(GEO.sphere, black, head, [0.3, 0.1, 0.52], [0.21, 0.23, 0.1], 0.08);
       const strap = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.03, 6, 28), black);
       strap.rotation.set(0, Math.PI / 2, 0.5);
@@ -884,7 +888,7 @@ export class Race3DView {
       head.add(strap);
     } else if (faceId === 'face_mask') {
       // 쾌걸 가면: 눈 둘레를 덮는 검은 가면. 눈은 가면 위로 빼꼼 나온다
-      const black = new THREE.MeshToonMaterial({ color: 0x1b1b1f });
+      const black = toon(0x1b1b1f);
       for (const side of [1, -1]) {
         part(GEO.sphere, black, head, [0.27, 0.12, side * 0.43], [0.27, 0.22, 0.1], 0.06);
         // 뒤통수에서 묶은 끈 자락
@@ -901,7 +905,7 @@ export class Race3DView {
     }
     part(GEO.sphere, dark, head, [0.34, 0.48, 0], [0.18, 0.14, 0.18], 0.1);
     if (breed === 'unicorn') {
-      const horn = part(GEO.cone, new THREE.MeshToonMaterial({ color: 0xffd43b }), head, [0.42, 0.78, 0], [0.09, 0.62, 0.09], 0.14);
+      const horn = part(GEO.cone, toon(0xffd43b), head, [0.42, 0.78, 0], [0.09, 0.62, 0.09], 0.14);
       horn.rotation.z = -0.45;
     }
     // 꾸미기: 모자
@@ -911,7 +915,7 @@ export class Race3DView {
       hat.position.set(-0.04, 0.56, 0);
       hat.rotation.z = 0.14;
       head.add(hat);
-      const m = (c: number): THREE.MeshToonMaterial => new THREE.MeshToonMaterial({ color: c });
+      const m = toon;
       if (hatId === 'hat_party') {
         part(GEO.cyl, m(0xffd43b), hat, [0, 0.03, 0], [0.29, 0.06, 0.29], 0);
         part(GEO.cone, m(0xff6b9d), hat, [0, 0.4, 0], [0.26, 0.72, 0.26], 0.1);
@@ -1067,8 +1071,8 @@ export class Race3DView {
     // 흑마 페가수스: 등에 늘 달린 날개 (깃털 세 겹)
     const pegWings: THREE.Group[] = [];
     if (breed === 'pegasus') {
-      const feather = new THREE.MeshToonMaterial({ color: 0xe5dbff });
-      const featherTip = new THREE.MeshToonMaterial({ color: 0xb197fc });
+      const feather = toon(0xe5dbff);
+      const featherTip = toon(0xb197fc);
       for (const side of [1, -1]) {
         const wing = new THREE.Group();
         wing.position.set(0.05, 1.62, side * 0.4);
@@ -1078,13 +1082,6 @@ export class Race3DView {
         part(GEO.sphere, featherTip, wing, [-0.58, 0.1, side * 1.08], [0.38, 0.06, 0.24], 0.1);
         pegWings.push(wing);
       }
-    }
-    // 날개 (비행 시에만 표시)
-    const wings: THREE.Mesh[] = [];
-    for (const side of [1, -1]) {
-      const wing = part(GEO.sphere, white, torso, [-0.05, 1.68, side * 0.55], [0.5, 0.07, 0.42], 0.1);
-      wing.visible = false;
-      wings.push(wing);
     }
 
     // 부스터 불꽃
@@ -1114,21 +1111,6 @@ export class Race3DView {
     }
     // 방울 26개는 방어막이 있을 때만 몸에 붙인다. 숨겨 두기만 하면 보이지 않아도 매 프레임 위치를 계산한다
     bubbles.userData.home = torso;
-    // 과속 단속: 머리 위 경광등
-    const siren = new THREE.Mesh(GEO.sphere, new THREE.MeshBasicMaterial({ color: 0xff2d2d }));
-    siren.scale.set(0.17, 0.2, 0.17);
-    siren.position.set(-0.02, 0.74, 0);
-    siren.visible = false;
-    head.add(siren);
-
-    const shield = new THREE.Mesh(
-      GEO.sphere,
-      new THREE.MeshBasicMaterial({ color: 0x74c0fc, transparent: true, opacity: 0.28 })
-    );
-    shield.scale.setScalar(2.35);
-    shield.position.set(0.3, 2.2, 0);
-    shield.visible = false;
-    root.add(shield);
 
     // 바닥 그림자
     const shadow = new THREE.Mesh(
@@ -1195,11 +1177,8 @@ export class Race3DView {
       fxStart: {},
       note: null,
       bubbles,
-      siren,
       eyes,
-      wings,
       flame,
-      shield,
       shadow,
       label,
       labelText: LABEL_UNDRAWN, // 아직 한 번도 그리지 않았다는 표시 (빈 문자열은 '아이콘 없음'과 구분되지 않는다)
@@ -1248,7 +1227,7 @@ export class Race3DView {
     this.setFinishLine();
     for (const r of this.rigs) {
       this.scene.remove(r.root);
-      disposeMerged(r);
+      disposeRig(r);
       r.label.remove();
       r.dot.remove();
     }
@@ -1597,9 +1576,13 @@ export class Race3DView {
     this.raf = requestAnimationFrame(this.loop);
   };
 
+  /** 이번 프레임에 카메라가 따라가는 말 (카메라와 이름표가 같이 쓴다) */
+  private followed: Rig | undefined;
+
   private update(dt: number, rawDt: number): void {
     if (this.finishShift !== this.finishShiftTarget) this.slideFinish(1 - Math.exp(-rawDt * 2.2));
     for (const r of this.rigs) this.updateRig(r, dt, rawDt);
+    this.followed = this.followedRig();
     this.updateParticles(dt);
     this.updateEmojis(dt);
     this.updateRings(dt);
@@ -2150,12 +2133,7 @@ export class Race3DView {
     if (sneezing) eyeScale = sneezeK > 0.5 && sneezeK < 0.85 ? 0.1 : 0.8; // 재채기 순간 질끈
     for (const eye of r.eyes) eye.scale.y = ease(eye.scale.y, eyeScale, 14);
 
-    // 날개, 선글라스
-    r.wings.forEach((w, i) => {
-      // 날개는 쓰지 않는다 — 비행은 목 프로펠러로 한다
-      w.visible = false;
-      void i;
-    });
+    // 선글라스
     r.shades.visible = vis.has('shades') || pose || r.alwaysShades;
     // 페가수스: 달릴 때는 걸음에 맞춰 퍼덕이고, 서 있으면 천천히 접었다 편다
     r.pegWings.forEach((w, i) => {
@@ -2186,14 +2164,12 @@ export class Race3DView {
     const fart = vis.has('fart');
     r.flame.visible = boosting && !fart;
     if (r.flame.visible) r.flame.scale.set(0.3, 1.2 + Math.sin(t * 40) * 0.35, 0.3);
-    // 방어막은 큰 구 대신 뽁뽁이로 보여 준다
-    r.shield.visible = false;
+    // 방어막은 뽁뽁이로 보여 준다
     const shielded = (snap?.shield ?? 0) > 0;
     if (shielded !== (r.bubbles.parent !== null)) {
       if (shielded) (r.bubbles.userData.home as THREE.Object3D).add(r.bubbles);
       else r.bubbles.removeFromParent();
     }
-    r.siren.visible = false; // 예전 '과속 단속'의 경광등 — 지금은 쓰지 않는다
     const airborne = flying || r.inflate > 0.5;
     const shadowScale = (airborne ? 0.7 : 1) * s;
     r.shadow.scale.set(1.25 * shadowScale, 0.8 * shadowScale, 1);
@@ -2300,8 +2276,9 @@ export class Race3DView {
       this.emojiTex.set(emoji, tex);
     }
     const mat = p.sprite.material as THREE.SpriteMaterial;
+    // 텍스처가 없던 재질에 처음 붙일 때만 셰이더가 바뀐다. 다른 텍스처로 바꾸는 것은 값만 바뀐다
+    if (!mat.map) mat.needsUpdate = true;
     mat.map = tex;
-    mat.needsUpdate = true;
     p.maxLife = 0.9 + Math.random() * 0.5;
     p.life = p.maxLife;
     p.size = size;
@@ -2330,16 +2307,6 @@ export class Race3DView {
       mat.opacity = Math.min(1, k * 2.2);
       mat.rotation += p.spin * dt;
     }
-  }
-
-  private fxMats = new Map<number, THREE.MeshBasicMaterial>();
-  private fxMat(color: number): THREE.MeshBasicMaterial {
-    let m = this.fxMats.get(color);
-    if (!m) {
-      m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 });
-      this.fxMats.set(color, m);
-    }
-    return m;
   }
 
   /** 꾸미기로 고른 발자국 색의 재질 (무지개는 낱알마다 색이 다르다) */
@@ -2436,6 +2403,7 @@ export class Race3DView {
         for (const m of r.glowMats) m.emissiveIntensity = glow;
       }
     }
+    if (this.rings.length === 0) return;
     this.rings = this.rings.filter((ring) => {
       ring.life -= dt;
       if (ring.life <= 0) {
@@ -2462,7 +2430,7 @@ export class Race3DView {
   }
 
   private updateCamera(dt: number): void {
-    const target = this.followedRig();
+    const target = this.followed;
     if (!target) return;
     const tx = target.root.position.x;
     const tz = target.root.position.z;
@@ -2582,7 +2550,7 @@ export class Race3DView {
     const w = this.viewW;
     const h = this.viewH;
     const v = TMP_A;
-    const followed = this.followedRig();
+    const followed = this.followed;
     const order = this.labelOrder;
     order.length = 0;
 
@@ -2798,8 +2766,32 @@ function mergeStaticParts(rig: Rig): void {
 }
 
 /** 합쳐서 만든 도형은 이 말만의 것이므로 말을 치울 때 함께 버린다 */
-function disposeMerged(rig: Rig): void {
-  rig.root.traverse((o) => {
-    if (o instanceof THREE.Mesh && o.userData.merged) o.geometry.dispose();
-  });
+/** 여러 말이 함께 쓰는 도형과 텍스처 — 말 하나를 치울 때 해제하지 않는다 */
+let sharedGpu: Set<object> | null = null;
+function isShared(o: object): boolean {
+  if (!sharedGpu) {
+    sharedGpu = new Set<object>([...Object.values(GEO), THIGH_GEO, RING_GEO, SANTA_BASE_GEO, SANTA_BRIM_GEO]);
+  }
+  return sharedGpu.has(o) || o === zebraTexU || o === zebraTexV || o === cowTex;
+}
+
+/**
+ * 말 한 마리가 쓰던 GPU 자원(합친 도형, 말마다 만든 도형·재질·번호판 텍스처)을 해제한다.
+ * 타이틀 배경은 한 바퀴마다, 마구간 미리보기는 꾸미기를 바꿀 때마다 말을 새로 만드므로 해제하지 않으면 쌓인다.
+ * 방어막 방울은 방어막이 없을 때 몸에서 떼어 두므로 따로 훑는다.
+ */
+function disposeRig(rig: Rig): void {
+  const mats = new Set<THREE.Material>();
+  const visit = (o: THREE.Object3D): void => {
+    if (!(o instanceof THREE.Mesh || o instanceof THREE.Sprite)) return;
+    if (o instanceof THREE.Mesh && !isShared(o.geometry)) o.geometry.dispose();
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) mats.add(m);
+  };
+  rig.root.traverse(visit);
+  if (!rig.bubbles.parent) rig.bubbles.traverse(visit);
+  for (const m of mats) {
+    const map = (m as THREE.MeshBasicMaterial).map;
+    if (map && !isShared(map)) map.dispose();
+    m.dispose();
+  }
 }

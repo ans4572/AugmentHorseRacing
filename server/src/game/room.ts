@@ -23,6 +23,7 @@ import type {
   S2C,
   Standing
 } from '../../../shared/src/types';
+import { BET_TYPES } from '../../../shared/src/constants';
 import {
   AUGMENT_PHASES,
   AUGMENT_PREVIEW_LEAD,
@@ -130,6 +131,8 @@ export class Room {
   private triggeredPhases = new Set<number>();
   private raceInterval: ReturnType<typeof setInterval> | null = null;
   private timers = new Set<ReturnType<typeof setTimeout>>();
+  /** 사람이 모두 끊겼을 때 방을 정리하는 타이머. 단계가 바뀔 때 지우는 timers와 따로 둔다 */
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private tickCount = 0;
   private lastRoundResult: { round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize; ownerPrizes?: OwnerPrize[] } | null = null;
   private lastGameResult: { standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus; ownerBonuses?: OwnerBonus[] } | null = null;
@@ -159,9 +162,19 @@ export class Room {
   private setTimer(fn: () => void, ms: number): void {
     const t = setTimeout(() => {
       this.timers.delete(t);
-      fn();
+      this.guard(fn);
     }, ms);
     this.timers.add(t);
+  }
+
+  /** 타이머에서 부른 일이 실패하면 이 방만 닫는다 (Node 서버에서는 잡히지 않은 오류가 모든 방을 멈춘다) */
+  private guard(fn: () => void): void {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`방 ${this.id} 진행 오류:`, err);
+      this.destroy('서버에서 문제가 생겨 방을 닫았습니다.');
+    }
   }
 
   private clearTimers(): void {
@@ -338,9 +351,12 @@ export class Room {
 
     // 연결만 끊긴 사람이 있으면 재접속을 기다리며 2분 후 방 정리
     if (this.connectedHumans().length === 0) {
-      this.setTimer(() => {
-        if (this.connectedHumans().length === 0) this.destroy('모두 나갔습니다.');
-      }, 120000);
+      if (!this.idleTimer) {
+        this.idleTimer = setTimeout(() => {
+          this.idleTimer = null;
+          if (this.connectedHumans().length === 0) this.destroy('모두 나갔습니다.');
+        }, 120000);
+      }
     } else {
       this.checkEarlySkip();
     }
@@ -349,11 +365,18 @@ export class Room {
   reconnect(player: Player, socket: SocketLike): void {
     player.socket = socket;
     player.connected = true;
+    player.left = false;
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
     this.broadcastRoomUpdate();
   }
 
   destroy(reason: string): void {
     this.clearTimers();
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
     if (this.raceInterval) clearInterval(this.raceInterval);
     this.raceInterval = null;
     this.broadcast({ type: 'ROOM_CLOSED', reason });
@@ -628,6 +651,7 @@ export class Room {
 
   placeBet(playerId: string, betType: BetType, horseId: number, amount: number): string | null {
     if (this.phase !== 'betting') return '지금은 배팅할 수 없습니다.';
+    if (!BET_TYPES.includes(betType)) return '없는 배팅 종류입니다.';
     const player = this.players.get(playerId);
     if (!player) return '플레이어를 찾을 수 없습니다.';
     const horse = this.horses.find((h) => h.id === horseId);
@@ -683,7 +707,7 @@ export class Room {
     this.tickCount = 0;
     this.broadcast({ type: 'RACE_START', startedAt: this.raceStartedAt });
 
-    this.raceInterval = setInterval(() => this.raceTick(), TICK_MS);
+    this.raceInterval = setInterval(() => this.guard(() => this.raceTick()), TICK_MS);
   }
 
   private raceTick(): void {
@@ -713,8 +737,9 @@ export class Room {
       this.closeAugmentPhase();
     }
 
+    const allFinished = sim.allFinished();
     // 상태 브로드캐스트 (10Hz)
-    if (this.tickCount % BROADCAST_EVERY_TICKS === 0 || sim.allFinished()) {
+    if (this.tickCount % BROADCAST_EVERY_TICKS === 0 || allFinished) {
       this.broadcast({
         type: 'RACE_STATE',
         t: sim.now,
@@ -724,7 +749,7 @@ export class Room {
     }
 
     // 전원 완주 → 경주 종료
-    if (sim.allFinished()) {
+    if (allFinished) {
       if (this.raceInterval) clearInterval(this.raceInterval);
       this.raceInterval = null;
       if (this.augment && !this.augment.closed) this.closeAugmentPhase();
@@ -959,7 +984,7 @@ export class Room {
 
     this.lastRoundResult = { round: this.round, results, standings, isFinal, ownerPrize, ...(ownerPrizes.length ? { ownerPrizes } : {}) };
     this.phase = 'roundResult';
-    this.broadcast({ type: 'ROUND_RESULT', round: this.round, results, standings, isFinal, ownerPrize, ...(ownerPrizes.length ? { ownerPrizes } : {}) });
+    this.broadcast({ type: 'ROUND_RESULT', ...this.lastRoundResult });
   }
 
   computeStandings(): Standing[] {
@@ -1052,7 +1077,7 @@ export class Room {
 
     this.lastGameResult = { standings, awards, ownerBonus, ...(ownerBonuses.length ? { ownerBonuses } : {}) };
     this.phase = 'gameResult';
-    this.broadcast({ type: 'GAME_RESULT', standings, awards, ownerBonus, ...(ownerBonuses.length ? { ownerBonuses } : {}) });
+    this.broadcast({ type: 'GAME_RESULT', ...this.lastGameResult });
   }
 
   restart(byPlayerId: string): string | null {
@@ -1065,6 +1090,14 @@ export class Room {
     this.sim = null;
     this.lastGameResult = null;
     this.lastRoundResult = null;
+    // 대기실에서는 나가거나 끊긴 사람을 바로 빼므로, 게임 중에 그렇게 된 사람도 여기서 뺀다
+    for (const p of [...this.players.values()]) {
+      if (!p.isNpc && (p.left || !p.connected)) this.players.delete(p.id);
+    }
+    if (!this.players.has(this.hostId)) {
+      const next = this.connectedHumans()[0];
+      if (next) this.hostId = next.id;
+    }
     this.broadcast({ type: 'LOBBY_RETURN' });
     this.broadcastRoomUpdate();
     return null;

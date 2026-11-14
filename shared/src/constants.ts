@@ -44,6 +44,9 @@ export const PLAYER_COLORS = ['#d92b22', '#2447d6', '#b85c00', '#7a3fc4', '#0b7f
 /** NPC가 한 라운드에 거는 금액의 상한 (가진 코인 대비). 사람은 올인도 할 수 있다 */
 export const NPC_BET_RATIO = 0.3;
 
+/** 배팅 종류 전부 (받은 값이 이 중 하나인지 확인할 때 쓴다) */
+export const BET_TYPES: readonly BetType[] = ['winner', 'last', 'top2', 'bottom2'];
+
 export const BET_TYPE_INFO: Record<BetType, { label: string; desc: string }> = {
   winner: { label: '우승마', desc: '고른 말이 1등' },
   last: { label: '꼴찌마', desc: '고른 말이 6등' },

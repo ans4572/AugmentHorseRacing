@@ -4,7 +4,7 @@ import { GameHub } from './hub';
 
 // 로컬 개발용 Node 서버. 배포는 worker/src/index.ts (Cloudflare) 가 맡는다.
 const hub = new GameHub();
-const wss = new WebSocketServer({ port: SERVER_PORT });
+const wss = new WebSocketServer({ port: SERVER_PORT, maxPayload: 16 * 1024 });
 console.log(`[증강 경마] WebSocket 서버 시작 — ws://localhost:${SERVER_PORT}`);
 
 wss.on('connection', (ws: WebSocket) => {

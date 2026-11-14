@@ -12,6 +12,7 @@ import { Race3DView } from './race3d';
 import { buy, equip, isOwned, setHorseName, stable } from './stable';
 import { icon } from './icons';
 import { sfx } from './audio';
+import { esc, particle } from './text';
 
 // ============================================================
 // 마구간 화면 — 내 말 미리보기, 꾸미기 상점, 입어 보기
@@ -28,11 +29,6 @@ let tryOn: Partial<HorseLook> = {};
 let notify: (message: string, isError?: boolean) => void = () => {};
 let onChange: () => void = () => {};
 
-function esc(s: string): string {
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
-}
 
 function shownLook(): HorseLook {
   return { ...stable().look, ...tryOn };
@@ -205,7 +201,5 @@ export function closeStable(): void {
 
 /** 이름 끝 글자에 받침이 있으면 '을', 없으면 '를' */
 function objectParticle(word: string): string {
-  const code = word.charCodeAt(word.length - 1) - 0xac00;
-  if (code < 0 || code > 11171) return '을(를)';
-  return code % 28 === 0 ? '를' : '을';
+  return particle(word, '을', '를');
 }

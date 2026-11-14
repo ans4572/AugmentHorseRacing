@@ -36,7 +36,8 @@ import {
   PLAYER_COLORS
 } from '../../shared/src/constants';
 import { AUGMENT_BY_ID, AUGMENTS, TARGET_TYPE_LABELS } from '../../shared/src/augments';
-import { BREED_INFO, EMOTES, conditionNote } from '../../shared/src/names';
+import { EMOTES, conditionNote } from '../../shared/src/names';
+import { esc, particle } from './text';
 import { Net, loadToken, saveToken } from './net';
 import { Race3DView, type CameraTarget } from './race3d';
 import { claimGameBonus, claimRoundPrize, myHorseEntry, onStableChange, stable } from './stable';
@@ -155,11 +156,26 @@ function toast(message: string, isError = true): void {
   setTimeout(() => el.remove(), 3500);
 }
 
-function esc(s: string): string {
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
+
+/** 저장소를 쓸 수 없는 환경(사생활 보호 모드, 저장 공간 가득 참)에서는 읽기는 null, 쓰기는 무시한다 */
+function safeGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
+
+function safeSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* 이번 접속 동안만 유지된다 */
+  }
+}
+
+/** 등수표에 마지막으로 붙인 증강 강조 (같으면 다시 훑지 않는다) */
+let boardHlKey = '';
 
 // ============ 참가자 색 표식 ============
 // 사람마다 색과 한 글자를 정해 두고 배팅, 증강 안내, 기록에 같은 표식을 쓴다.
@@ -221,15 +237,6 @@ function visibleBets(): RevealedBet[] {
 /** 방해 카드는 빨강 '방해', 돕는 카드는 초록 '도움' 딱지 */
 function kindChip(hostile: boolean): string {
   return `<span class="aug-kind ${hostile ? 'bad' : 'good'}">${hostile ? '방해' : '도움'}</span>`;
-}
-
-/** 카드 설명은 '소개\n효과' 두 줄이다. 효과 줄은 카드 색(방해 빨강, 도움 초록)으로 크게 보여 준다 */
-function effectHtml(description: string): string {
-  const [flavor, effect] = description.split('\n');
-  if (!effect) return `<span class="fx">${esc(flavor)}</span>`;
-  // 효과와 지속 시간은 쉼표 자리에서만 줄이 바뀌게 묶는다
-  const parts = effect.split(', ').map((x) => `<span class="fx-part">${esc(x)}</span>`).join(', ');
-  return `<span class="fl">${esc(flavor)}</span><span class="fx">${parts}</span>`;
 }
 
 /** 카드 안의 효과: 수치를 가장 크게, 지속 시간 같은 나머지는 작은 딱지로, 소개 문구는 맨 아래 작게 */
@@ -366,7 +373,11 @@ function applyAugmentHighlight(): void {
     }
   }
   view?.setHighlight(ids, good);
+  const key = ids.join(',') + (good ? 'g' : 'b');
+  if (key === boardHlKey) return;
+  boardHlKey = key;
   const board = $('rank-board');
+  // 등수표를 새로 그릴 때도 이 값을 보고 강조를 다시 붙인다
   board.dataset.hl = ids.join(',');
   board.dataset.hlKind = good ? 'good' : 'bad';
   board.querySelectorAll<HTMLElement>('.rb-row').forEach((row) => {
@@ -447,18 +458,11 @@ function ownerTag(h: HorseInfo | undefined): string {
 
 /** 이름 끝 글자에 받침이 있으면 '은', 없으면 '는' */
 function topicParticle(word: string): string {
-  const code = word.charCodeAt(word.length - 1) - 0xac00;
-  if (code < 0 || code > 11171) return '은(는)';
-  return code % 28 === 0 ? '는' : '은';
+  return particle(word, '은', '는');
 }
 
 function isMyHorse(h: HorseInfo | undefined): boolean {
   return !!h && !!h.ownerId && h.ownerId === state.myId;
-}
-
-function horseName(id: number): string {
-  const h = state.horses.find((x) => x.id === id);
-  return h ? `${id}번 ${h.name}${isMyHorse(h) ? '(내 말)' : ''}` : `${id}번`;
 }
 
 /** 번호 안장 + 이름 (HTML) — 말을 가리키는 곳은 모두 이 모양으로 쓴다 */
@@ -490,7 +494,7 @@ function playerName(): string {
     name = `기수${Math.floor(Math.random() * 900 + 100)}`;
     input.value = name;
   }
-  localStorage.setItem('augment-derby-name', name);
+  safeSet('augment-derby-name', name);
   return name;
 }
 
@@ -601,7 +605,7 @@ function renderLobby(): void {
   }).join('');
   $('lobby-colors').querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
     b.onclick = () => {
-      localStorage.setItem(COLOR_KEY, b.dataset.color!);
+      safeSet(COLOR_KEY, b.dataset.color!);
       net.send({ type: 'SET_COLOR', color: Number(b.dataset.color) });
     };
   });
@@ -646,7 +650,7 @@ function renderBettingOverlay(): void {
 
   renderHorseCards();
   renderBetTabs();
-  renderMyBets();
+  renderMyBetsSummary();
 
   // 출마표를 보는 동안에는 배팅 칸을 아예 숨겨 화면을 단순하게 둔다
   $('bet-controls').classList.toggle('hidden', !isBetting);
@@ -975,13 +979,18 @@ function updateBetSelInfo(): void {
 
 /** 내 마권: 자세한 내용은 말 줄의 딱지에 있으므로 여기에는 합계만 적고, 말 줄의 딱지를 다시 그린다 */
 function renderMyBets(): void {
+  renderMyBetsSummary();
+  if (state.phase === 'betting' && !$('overlay-betting').classList.contains('hidden')) renderHorseCards();
+}
+
+/** 내 마권 합계 줄 */
+function renderMyBetsSummary(): void {
   const count = state.myBets.length;
   const total = state.myBets.reduce((sum, b) => sum + b.amount, 0);
   $('my-bets').innerHTML = count
     ? `<span>내 마권 <b>${count}장</b></span><span>합계 <b>${total.toLocaleString('ko-KR')}</b>코인</span>`
     : '<span class="muted">아직 건 마권이 없습니다.</span>';
   $('my-bets').classList.toggle('empty', count === 0);
-  if (state.phase === 'betting' && !$('overlay-betting').classList.contains('hidden')) renderHorseCards();
 }
 
 // ============ 증강 UI ============
@@ -1273,6 +1282,7 @@ function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerB
 }
 
 function leaveToMain(): void {
+  lastSnaps = [];
   playerSlot.clear();
   colorWished = false;
   state.roomId = null;
@@ -1395,7 +1405,10 @@ function applySnapshot(snap: RoomSnapshot): void {
       show('overlay-countdown');
       break;
     case 'racing':
-      if (snap.race) view?.pushState(snap.race.horses);
+      if (snap.race) {
+        view?.pushState(snap.race.horses);
+        lastSnaps = snap.race.horses;
+      }
       if (snap.augment) {
         state.augment = {
           ...snap.augment,
@@ -1495,7 +1508,7 @@ net.on((msg: S2C) => {
         const me = msg.players.find((p) => p.id === state.myId);
         if (me) {
           colorWished = true;
-          const wish = Number(localStorage.getItem(COLOR_KEY) ?? NaN);
+          const wish = Number(safeGet(COLOR_KEY) ?? NaN);
           const free = !msg.players.some((p) => p.color === wish && p.id !== me.id && !p.isNpc);
           if (Number.isInteger(wish) && wish !== me.color && free) net.send({ type: 'SET_COLOR', color: wish });
         }
@@ -1549,6 +1562,7 @@ net.on((msg: S2C) => {
 
     case 'ROUND_START': {
       state.soloStarting = false;
+      lastSnaps = [];
       // 새 라운드: 지난 라운드의 증강 기록을 비운다
       $('game-log').innerHTML = '';
       state.round = msg.round;
@@ -1962,7 +1976,7 @@ function bindUI(): void {
     for (const weight of [500, 800]) void document.fonts.load(`${weight} 16px "Gothic A1"`, cardText).catch(() => undefined);
   }
   bindSoundButtons();
-  const savedName = localStorage.getItem('augment-derby-name');
+  const savedName = safeGet('augment-derby-name');
   if (savedName) $<HTMLInputElement>('main-name').value = savedName;
 
   $('btn-goto-create').onclick = () => {

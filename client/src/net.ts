@@ -22,8 +22,12 @@ export function loadToken(): SessionToken | null {
 }
 
 export function saveToken(token: SessionToken | null): void {
-  if (token) sessionStorage.setItem(TOKEN_KEY, JSON.stringify(token));
-  else sessionStorage.removeItem(TOKEN_KEY);
+  try {
+    if (token) sessionStorage.setItem(TOKEN_KEY, JSON.stringify(token));
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* 저장소를 쓸 수 없으면 새로고침 때 재접속만 못 한다 */
+  }
 }
 
 export class Net {

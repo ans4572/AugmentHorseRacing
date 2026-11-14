@@ -134,14 +134,16 @@ export class RaceSim {
       h.prevPos = h.pos;
 
       // 만료된 효과 제거. 끝나면서 뒤따르는 일이 있는 효과는 여기서 처리한다
+      let expired = false;
       for (const e of h.effects) {
         if (e.expiresAt > this.now) continue;
+        expired = true;
         if (e.afterStopMs) {
           h.effects.push({ defId: e.defId, effectType: 'stop', value: 0, expiresAt: this.now + e.afterStopMs, hostile: false, emoji: '😮‍💨', anim: 'stunned', quiet: true });
         }
         if (e.relay) this.passSneeze(h, e);
       }
-      h.effects = h.effects.filter((e) => e.expiresAt > this.now);
+      if (expired) h.effects = h.effects.filter((e) => e.expiresAt > this.now);
 
       // 행운: 주기적으로 소규모 배율 재추출
       h.luckTimer -= dtMs;
@@ -269,7 +271,9 @@ export class RaceSim {
   }
 
   leaderPos(): number {
-    return Math.max(...this.horses.map((h) => h.pos));
+    let best = -Infinity;
+    for (const h of this.horses) if (h.pos > best) best = h.pos;
+    return best;
   }
 
   /**

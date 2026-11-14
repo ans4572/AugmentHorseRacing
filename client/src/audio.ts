@@ -529,8 +529,6 @@ const CARD_VOICE_LIMIT = 3;
 const sampleIds = new Set(CARD_SAMPLE_IDS);
 /** 카드가 아닌 소리 중 녹음 파일이 있는 것 (client/public/sfx/ui_*.mp3) */
 const UI_SAMPLE: Partial<Record<SfxName, string>> = {
-  finish: 'ui_finish',
-  result: 'ui_result',
   win: 'ui_win',
   lose: 'ui_lose',
   champion: 'ui_champion'

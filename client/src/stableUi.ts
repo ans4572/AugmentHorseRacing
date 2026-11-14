@@ -105,7 +105,9 @@ function render(): void {
     });
 
   const shown = shownLook();
+  // 보유한 항목을 먼저, 그 안에서는 가격이 싼 순서로 보여 준다 (같은 값이면 카탈로그 순서)
   el('stable-items').innerHTML = COSMETICS.filter((c) => c.slot === slot)
+    .sort((a, b) => Number(isOwned(b.id)) - Number(isOwned(a.id)) || a.price - b.price)
     .map((c) => {
       const owned = isOwned(c.id);
       const equipped = s.look[c.slot] === c.id;

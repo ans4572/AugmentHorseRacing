@@ -47,8 +47,8 @@ export const NPC_BET_RATIO = 0.3;
 export const BET_TYPE_INFO: Record<BetType, { label: string; desc: string }> = {
   winner: { label: '우승마', desc: '고른 말이 1등' },
   last: { label: '꼴찌마', desc: '고른 말이 6등' },
-  top3: { label: '1~3위', desc: '고른 말이 1, 2, 3등 중 하나' },
-  bottom3: { label: '4~6위', desc: '고른 말이 4, 5, 6등 중 하나' }
+  top2: { label: '1~2위', desc: '고른 말이 1등이나 2등' },
+  bottom2: { label: '5~6위', desc: '고른 말이 5등이나 6등' }
 };
 
 /** 배당 범위 */
@@ -58,7 +58,7 @@ export const ODDS_MAX = 50;
 export const ODDS_HOUSE_FACTOR = 0.9;
 /** 배당 완만화: 우승·꼴찌 확률에 거는 지수 (1이면 시뮬레이션 그대로, 작을수록 고르게) */
 export const ODDS_TEMPER_SINGLE = 0.5;
-/** 배당 완만화: 1~3위·4~6위 확률의 로짓에 곱하는 값 */
+/** 배당 완만화: 1~2위·5~6위 확률의 로짓에 곱하는 값 */
 export const ODDS_TEMPER_GROUP = 0.45;
 
 // ---------------- 단계별 시간 (ms) ----------------

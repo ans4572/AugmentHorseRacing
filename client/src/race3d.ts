@@ -99,6 +99,8 @@ interface Rig {
   shades: THREE.Group;
   /** 꾸미기: 안경을 항상 쓰고 있는지 */
   alwaysShades: boolean;
+  /** 흑마 페가수스의 날개 (달리면 퍼덕인다) */
+  pegWings: THREE.Group[];
   /** 꾸미기: 프로펠러 모자의 날개 (없으면 null) */
   propeller: THREE.Object3D | null;
   /** 꾸미기: 발자국(먼지) 종류 */
@@ -664,10 +666,29 @@ export class Race3DView {
       legMat = coat;
       dark = new THREE.MeshToonMaterial({ color: 0x4a4a4f });
       muzzleMat = new THREE.MeshToonMaterial({ color: 0xdcdcdc });
+    } else if (breed === 'alpaca') {
+      // 복슬복슬한 크림빛 털. 갈기·꼬리도 같은 털 뭉치다
+      const wool = base.clone().lerp(new THREE.Color(0xf6ead0), customCoat ? 0.25 : 0.6);
+      coat = new THREE.MeshToonMaterial({ color: wool });
+      legMat = coat;
+      dark = new THREE.MeshToonMaterial({ color: wool.clone().lerp(new THREE.Color(0xffffff), 0.35) });
+    } else if (breed === 'camel') {
+      const sand = base.clone().lerp(new THREE.Color(0xc8a165), customCoat ? 0.2 : 0.6);
+      coat = new THREE.MeshToonMaterial({ color: sand });
+      legMat = coat;
+      dark = new THREE.MeshToonMaterial({ color: sand.clone().multiplyScalar(0.7) });
+      muzzleMat = new THREE.MeshToonMaterial({ color: 0xe9d3a8 });
+    } else if (breed === 'pegasus') {
+      // 털 색을 고르지 않으면 레인 색을 섞지 않은 흑마 (레인 색은 목의 띠로 보여 준다)
+      const night = customCoat ? customCoat.clone().lerp(new THREE.Color(0x1d1d2b), 0.35) : new THREE.Color(0x2a2a3c);
+      coat = new THREE.MeshToonMaterial({ color: night });
+      legMat = coat;
+      dark = new THREE.MeshToonMaterial({ color: 0x7048e8 });
+      muzzleMat = new THREE.MeshToonMaterial({ color: 0x55556b });
     }
     // 털 색이나 목 장식을 바꾼 말은 안장으로 레인 색을 보여 준다
     if (customCoat || neckItem) saddleColor = lane.clone();
-    const earH = breed === 'donkey' ? 0.74 : 0.34;
+    const earH = breed === 'donkey' ? 0.74 : breed === 'alpaca' ? 0.5 : breed === 'camel' ? 0.22 : 0.34;
     const hoofMat = new THREE.MeshToonMaterial({ color: 0x3a2a1e });
     const outlineMat = new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide });
 
@@ -714,6 +735,10 @@ export class Race3DView {
 
     // 안장 + 번호판
     part(GEO.sphere, new THREE.MeshToonMaterial({ color: saddleColor }), torso, [-0.08, 1.7, 0], [0.42, 0.12, 0.44]);
+    if (breed === 'camel') {
+      part(GEO.sphere, coat, torso, [0.24, 1.86, 0], [0.32, 0.38, 0.3]);
+      part(GEO.sphere, coat, torso, [-0.4, 1.84, 0], [0.32, 0.36, 0.3]);
+    }
     const neckBand = (color: THREE.ColorRepresentation, tube: number): void => {
       const band = new THREE.Mesh(
         new THREE.TorusGeometry(0.33, tube, 8, 18),
@@ -723,7 +748,7 @@ export class Race3DView {
       band.position.set(0, 0.5, 0);
       neckGroup.add(band);
     };
-    if (neckItem?.id === 'neck_scarf') {
+    if (neckItem?.id.startsWith('neck_scarf')) {
       // 목도리: 띠 + 앞으로 늘어진 자락
       const scarfMat = new THREE.MeshToonMaterial({ color: neckItem.color });
       neckBand(neckItem.color!, 0.11);
@@ -740,6 +765,39 @@ export class Race3DView {
       neckBand(0x1c7ed6, 0.06);
       const medal = part(GEO.cyl, new THREE.MeshToonMaterial({ color: 0xffd43b }), neckGroup, [0.42, 0.3, 0], [0.18, 0.05, 0.18], 0.1);
       medal.rotation.z = Math.PI / 2;
+    } else if (neckItem?.id === 'neck_bell') {
+      // 방울: 가죽 띠에 금방울
+      neckBand(0x8b5a2b, 0.06);
+      part(GEO.sphere, new THREE.MeshToonMaterial({ color: 0xffd43b }), neckGroup, [0.42, 0.28, 0], [0.16, 0.16, 0.16], 0.1);
+      part(GEO.sphere, hoofMat, neckGroup, [0.5, 0.2, 0], [0.04, 0.04, 0.04], 0);
+    } else if (neckItem?.id === 'neck_tie') {
+      // 넥타이: 흰 칼라 + 매듭 + 늘어진 타이
+      const tieMat = new THREE.MeshToonMaterial({ color: neckItem.color });
+      neckBand(0xffffff, 0.06);
+      part(GEO.sphere, tieMat, neckGroup, [0.38, 0.48, 0], [0.08, 0.08, 0.08], 0.12);
+      const tie = part(GEO.box, tieMat, neckGroup, [0.42, 0.18, 0], [0.06, 0.52, 0.16], 0.1);
+      tie.rotation.z = 0.12;
+    } else if (neckItem?.id === 'neck_lei') {
+      // 꽃목걸이: 알록달록한 꽃송이를 목에 한 바퀴
+      const petals = [0xff6b9d, 0xffd43b, 0xff922b, 0xcc5de8, 0xffffff];
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        part(GEO.sphere, new THREE.MeshToonMaterial({ color: petals[i % petals.length] }), neckGroup,
+          [Math.cos(a) * 0.36, 0.42 + Math.cos(a) * -0.08, Math.sin(a) * 0.33], [0.11, 0.11, 0.11], 0.1);
+      }
+    } else if (neckItem?.id === 'neck_rosette') {
+      // 우승 리본: 파란 띠에 둥근 꽃리본과 두 갈래 꼬리
+      neckBand(0x1c7ed6, 0.06);
+      const blue = new THREE.MeshToonMaterial({ color: 0x1c7ed6 });
+      const gold = new THREE.MeshToonMaterial({ color: 0xffd43b });
+      const ro = part(GEO.cyl, blue, neckGroup, [0.44, 0.32, 0], [0.24, 0.05, 0.24], 0.1);
+      ro.rotation.z = Math.PI / 2;
+      const center = part(GEO.cyl, gold, neckGroup, [0.47, 0.32, 0], [0.13, 0.04, 0.13], 0);
+      center.rotation.z = Math.PI / 2;
+      for (const side of [1, -1]) {
+        const tail = part(GEO.box, blue, neckGroup, [0.44, 0.02, side * 0.08], [0.04, 0.38, 0.09], 0.1);
+        tail.rotation.x = side * 0.25;
+      }
     } else if (breed !== 'horse' || customCoat) {
       // 레인 색 목도리 — 털 색이 레인 색과 다른 말도 한눈에 구분된다
       neckBand(lane, 0.1);
@@ -794,8 +852,53 @@ export class Race3DView {
       const ear = part(GEO.cone, coat, head, [-0.14, 0.45 + earH / 2, side * 0.27], [0.13, earH, 0.13], 0.12);
       ear.rotation.x = side * 0.25;
     }
+    const faceId = faceItem?.id;
+    if (faceId === 'face_blush') {
+      // 볼터치: 진한 분홍 볼에 반짝 하이라이트
+      const blush = new THREE.MeshToonMaterial({ color: 0xff5c8a });
+      for (const side of [1, -1]) {
+        part(GEO.sphere, blush, head, [0.3, -0.14, side * 0.52], [0.16, 0.1, 0.06], 0);
+        part(GEO.sphere, white, head, [0.34, -0.11, side * 0.57], [0.03, 0.03, 0.02], 0);
+      }
+    } else if (faceId === 'face_mustache') {
+      // 콧수염: 콧구멍 아래에서 양옆으로 말려 올라간다
+      const hair = new THREE.MeshToonMaterial({ color: 0x3a2a1e });
+      for (const side of [1, -1]) {
+        part(GEO.sphere, hair, head, [0.8, -0.27, side * 0.13], [0.1, 0.055, 0.15], 0.1);
+        part(GEO.sphere, hair, head, [0.74, -0.2, side * 0.29], [0.06, 0.06, 0.06], 0.12);
+      }
+    } else if (faceId === 'face_monocle') {
+      // 외알 안경: 카메라 쪽 눈에 금테와 늘어진 줄
+      const goldM = new THREE.MeshToonMaterial({ color: 0xffd43b });
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 8, 20), goldM);
+      ring.position.set(0.3, 0.1, 0.6);
+      head.add(ring);
+      part(GEO.box, goldM, head, [0.2, -0.22, 0.6], [0.02, 0.46, 0.02], 0);
+    } else if (faceId === 'face_eyepatch') {
+      // 해적 안대: 카메라 쪽 눈을 덮고 끈이 머리를 한 바퀴 감는다
+      const black = new THREE.MeshToonMaterial({ color: 0x1b1b1f });
+      part(GEO.sphere, black, head, [0.3, 0.1, 0.52], [0.21, 0.23, 0.1], 0.08);
+      const strap = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.03, 6, 28), black);
+      strap.rotation.set(0, Math.PI / 2, 0.5);
+      strap.position.set(0.12, 0.12, 0);
+      head.add(strap);
+    } else if (faceId === 'face_mask') {
+      // 쾌걸 가면: 눈 둘레를 덮는 검은 가면. 눈은 가면 위로 빼꼼 나온다
+      const black = new THREE.MeshToonMaterial({ color: 0x1b1b1f });
+      for (const side of [1, -1]) {
+        part(GEO.sphere, black, head, [0.27, 0.12, side * 0.43], [0.27, 0.22, 0.1], 0.06);
+        // 뒤통수에서 묶은 끈 자락
+        const tie = part(GEO.box, black, head, [-0.66, 0.08, side * 0.1], [0.05, 0.3, 0.07], 0);
+        tie.rotation.x = side * 0.45;
+      }
+      part(GEO.box, black, head, [0.48, 0.2, 0], [0.12, 0.12, 0.8], 0.06);
+    }
     // 앞머리 + 갈기
     part(GEO.sphere, dark, head, [0.14, 0.56, 0], [0.26, 0.2, 0.24], 0.1);
+    if (breed === 'alpaca') {
+      // 알파카: 정수리의 복슬복슬한 털 뭉치
+      part(GEO.sphere, dark, head, [0.0, 0.62, 0], [0.38, 0.3, 0.36], 0.08);
+    }
     part(GEO.sphere, dark, head, [0.34, 0.48, 0], [0.18, 0.14, 0.18], 0.1);
     if (breed === 'unicorn') {
       const horn = part(GEO.cone, new THREE.MeshToonMaterial({ color: 0xffd43b }), head, [0.42, 0.78, 0], [0.09, 0.62, 0.09], 0.14);
@@ -832,6 +935,58 @@ export class Race3DView {
           part(GEO.sphere, m(0xe03131), hat, [0, 0.1, side * 0.32], [0.06, 0.06, 0.05], 0);
         }
         part(GEO.sphere, m(0x339af0), hat, [0.32, 0.1, 0], [0.05, 0.06, 0.06], 0);
+      } else if (hatId === 'hat_bunny') {
+        // 토끼귀 머리띠: 하얀 귀 두 개 (안쪽은 분홍)
+        part(GEO.cyl, m(0xff6b9d), hat, [0, 0.02, 0], [0.3, 0.05, 0.3], 0);
+        for (const side of [1, -1]) {
+          const ear = new THREE.Group();
+          ear.position.set(0, 0.05, side * 0.16);
+          ear.rotation.x = side * 0.22;
+          hat.add(ear);
+          part(GEO.sphere, m(0xffffff), ear, [0, 0.42, 0], [0.11, 0.42, 0.07], 0.1);
+          part(GEO.sphere, m(0xffa8c5), ear, [0.05, 0.42, 0], [0.06, 0.3, 0.04], 0);
+        }
+      } else if (hatId === 'hat_santa') {
+        // 산타 모자: 아래는 넓고, 위쪽은 뒤로 축 꺾여 늘어지며 끝에 털 방울이 달린다.
+        // 두툼한 흰 털 테두리가 앞머리를 덮는다
+        const red = m(0xe03131);
+        const fur = m(0xffffff);
+        part(SANTA_BASE_GEO, red, hat, [0, 0.24, 0], [0.4, 0.44, 0.4], 0.07);
+        part(GEO.sphere, red, hat, [0, 0.46, 0], [0.18, 0.15, 0.18], 0); // 꺾이는 곳을 둥글게 잇는다
+        // 꺾인 끝: 뒤(-x)로 누워 살짝 아래를 향한다
+        const tipDir = 1.75;
+        const dx = -Math.sin(tipDir);
+        const dy = Math.cos(tipDir);
+        const tip = part(GEO.cone, red, hat, [dx * 0.22, 0.46 + dy * 0.22, 0], [0.17, 0.44, 0.17], 0.08);
+        tip.rotation.z = tipDir;
+        part(GEO.sphere, fur, hat, [dx * 0.46, 0.46 + dy * 0.46 - 0.03, 0], [0.13, 0.13, 0.13], 0.1);
+        const brim = part(SANTA_BRIM_GEO, fur, hat, [0.04, 0.0, 0], [0.43, 0.43, 0.4], 0.06);
+        brim.rotation.x = Math.PI / 2;
+      } else if (hatId === 'hat_helmet') {
+        // 기수 헬멧: 둥근 모자 + 앞 챙 + 가운데 줄무늬
+        part(GEO.sphere, m(0x1c7ed6), hat, [0, 0.02, 0], [0.4, 0.32, 0.4], 0.08);
+        part(GEO.sphere, m(0xffffff), hat, [0, 0.03, 0], [0.41, 0.33, 0.09], 0);
+        part(GEO.box, m(0x1b1b1f), hat, [0.36, 0.0, 0], [0.24, 0.04, 0.38], 0.08);
+      } else if (hatId === 'hat_cowboy') {
+        // 카우보이 모자: 넓은 챙, 움푹 들어간 윗면, 진한 띠
+        const brown = m(0x9c6b3c);
+        part(GEO.cyl, brown, hat, [0, 0.03, 0], [0.66, 0.05, 0.58], 0.06);
+        for (const side of [1, -1]) {
+          const lip = part(GEO.box, brown, hat, [0, 0.1, side * 0.56], [0.9, 0.04, 0.12], 0);
+          lip.rotation.x = side * -0.7;
+        }
+        part(GEO.cyl, brown, hat, [0, 0.22, 0], [0.3, 0.34, 0.27], 0.07);
+        part(GEO.cyl, m(0x4a2c17), hat, [0, 0.11, 0], [0.31, 0.08, 0.28], 0);
+        part(GEO.sphere, m(0x7a4f2a), hat, [0, 0.38, 0], [0.12, 0.04, 0.2], 0);
+      } else if (hatId === 'hat_wizard') {
+        // 마법사 모자: 보라색 높은 고깔에 노란 별
+        const purple = m(0x5f3dc4);
+        part(GEO.cyl, purple, hat, [0, 0.03, 0], [0.52, 0.04, 0.52], 0.06);
+        const cone = part(GEO.cone, purple, hat, [-0.03, 0.52, 0], [0.3, 1.0, 0.3], 0.07);
+        cone.rotation.z = 0.12;
+        for (const [x, y, z] of [[0.18, 0.34, 0.16], [-0.1, 0.58, 0.15], [0.05, 0.82, 0.08]] as [number, number, number][]) {
+          part(GEO.sphere, m(0xffd43b), hat, [x, y, z], [0.05, 0.05, 0.05], 0);
+        }
       } else if (hatId === 'hat_propeller') {
         part(GEO.sphere, m(0x339af0), hat, [0, 0.02, 0], [0.36, 0.3, 0.36], 0.08);
         part(GEO.cyl, m(0xffd43b), hat, [0.3, 0.02, 0], [0.22, 0.04, 0.26], 0.06);
@@ -863,6 +1018,11 @@ export class Race3DView {
       frac,
       mesh: part(GEO.sphere, dark, neckGroup, [-0.24, frac * 2 * NECK_HALF, 0], [0.2, 0.22, 0.19], 0.1)
     }));
+    if (breed === 'alpaca') {
+      for (const frac of [0.3, 0.55, 0.8]) {
+        mane.push({ frac, mesh: part(GEO.sphere, dark, neckGroup, [0.06, frac * 2 * NECK_HALF, 0], [0.36, 0.24, 0.34], 0.08) });
+      }
+    }
 
     // 꼬리
     const tail = new THREE.Group();
@@ -871,6 +1031,7 @@ export class Race3DView {
     part(GEO.sphere, dark, tail, [-0.15, -0.05, 0], [0.26, 0.24, 0.22], 0.1);
     part(GEO.sphere, dark, tail, [-0.42, -0.2, 0], [0.22, 0.2, 0.19], 0.1);
     part(GEO.sphere, dark, tail, [-0.62, -0.4, 0], [0.16, 0.16, 0.14], 0.1);
+    if (breed === 'alpaca') part(GEO.sphere, dark, tail, [-0.25, -0.1, 0], [0.34, 0.3, 0.3], 0.08);
 
     // 다리 4개 (앞왼, 앞오, 뒤왼, 뒤오) — 길고 가는 다리 + 무릎 관절
     const legs: THREE.Group[] = [];
@@ -903,6 +1064,21 @@ export class Race3DView {
       knees.push(knee);
     }
 
+    // 흑마 페가수스: 등에 늘 달린 날개 (깃털 세 겹)
+    const pegWings: THREE.Group[] = [];
+    if (breed === 'pegasus') {
+      const feather = new THREE.MeshToonMaterial({ color: 0xe5dbff });
+      const featherTip = new THREE.MeshToonMaterial({ color: 0xb197fc });
+      for (const side of [1, -1]) {
+        const wing = new THREE.Group();
+        wing.position.set(0.05, 1.62, side * 0.4);
+        torso.add(wing);
+        part(GEO.sphere, feather, wing, [-0.1, 0.04, side * 0.34], [0.56, 0.08, 0.38], 0.1);
+        part(GEO.sphere, feather, wing, [-0.36, 0.08, side * 0.74], [0.5, 0.07, 0.32], 0.1);
+        part(GEO.sphere, featherTip, wing, [-0.58, 0.1, side * 1.08], [0.38, 0.06, 0.24], 0.1);
+        pegWings.push(wing);
+      }
+    }
     // 날개 (비행 시에만 표시)
     const wings: THREE.Mesh[] = [];
     for (const side of [1, -1]) {
@@ -992,7 +1168,8 @@ export class Race3DView {
       mane,
       body,
       shades,
-      alwaysShades: !!faceItem,
+      alwaysShades: faceItem?.id === 'face_shades' || faceItem?.id === 'face_heart',
+      pegWings,
       propeller,
       trail: look?.trail ?? 'trail_dust',
       coat,
@@ -1980,6 +2157,13 @@ export class Race3DView {
       void i;
     });
     r.shades.visible = vis.has('shades') || pose || r.alwaysShades;
+    // 페가수스: 달릴 때는 걸음에 맞춰 퍼덕이고, 서 있으면 천천히 접었다 편다
+    r.pegWings.forEach((w, i) => {
+      const side = i === 0 ? 1 : -1;
+      // 옆에서 보아도 날개 모양이 보이도록 높이 치켜든 채 퍼덕인다
+      const beat = runAmt > 0.1 ? Math.sin(r.phase) * 0.35 * runAmt : Math.sin(t * 1.6) * 0.1;
+      w.rotation.x = -side * (0.95 + beat);
+    });
     if (r.propeller) r.propeller.rotation.y += dt * (6 + speedNorm * 22);
     // 대두: 머리가 부풀어 오른다
     r.headScale = ease(r.headScale, vis.has('bighead') ? 1.75 : 1, 6);
@@ -2084,6 +2268,11 @@ export class Race3DView {
       this.spawnDust(backX, 1.6 * s, r.root.position.z + (Math.random() - 0.5) * 0.5, true, this.fartMat);
     } else if (runAmt > 0.35 && !airborne && Math.random() < dt * (boosting ? 26 : 11)) {
       this.spawnDust(backX, 0.15, r.root.position.z + (Math.random() - 0.5) * 0.6, boosting, this.trailMaterial(r.trail));
+    }
+    // 그림 발자국: 하트·음표 같은 스티커를 발굽 뒤에 띄엄띄엄 남긴다
+    const stickers = TRAIL_STICKERS[r.trail];
+    if (stickers && runAmt > 0.35 && !airborne && Math.random() < dt * 3.5) {
+      this.spawnEmoji(stickers[Math.floor(Math.random() * stickers.length)], backX - 0.3, 0.55, r.root.position.z + (Math.random() - 0.5) * 0.6, 0.6, 0.7);
     }
   }
 
@@ -2494,6 +2683,17 @@ const GALLOP_OFFSETS = [0.3, 0.42, 0, 0.1];
 const GALLOP_STANCE = 0.3;
 /** 강조된 말의 몸에 얹는 옅은 노란빛 */
 const HIGHLIGHT_GLOW = 0xfff0a0;
+/** 산타 모자: 위가 좁아지는 몸통과 두툼한 털 테두리 */
+const SANTA_BASE_GEO = new THREE.CylinderGeometry(0.42, 1, 1, 16);
+const SANTA_BRIM_GEO = new THREE.TorusGeometry(1, 0.32, 10, 24);
+/** 그림 발자국 꾸미기가 남기는 스티커 */
+const TRAIL_STICKERS: Record<string, string[]> = {
+  trail_carrot: ['🥕'],
+  trail_heart: ['💗', '💕'],
+  trail_note: ['🎵', '🎶'],
+  trail_snow: ['❄️'],
+  trail_fire: ['🔥']
+};
 /** 꼴찌의 분노: 털에 섞는 빨간색 */
 const RAGE_RED = new THREE.Color(0xff2a1a);
 const byLabelDist = (a: Rig, b: Rig): number => a.ldist - b.ldist;

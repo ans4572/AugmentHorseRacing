@@ -19,7 +19,7 @@ export interface HorseStats {
 }
 
 /** 말의 종류 — 겉모습만 다르고 능력치에는 영향이 없다 */
-export type HorseBreed = 'horse' | 'zebra' | 'unicorn' | 'donkey' | 'cow';
+export type HorseBreed = 'horse' | 'zebra' | 'unicorn' | 'donkey' | 'cow' | 'alpaca' | 'camel' | 'pegasus';
 
 export interface HorseInfo {
   id: number; // 1~6
@@ -105,7 +105,7 @@ export interface HorseSnapshot {
 
 // ---------------- 배팅 ----------------
 
-export type BetType = 'winner' | 'last' | 'top3' | 'bottom3';
+export type BetType = 'winner' | 'last' | 'top2' | 'bottom2';
 
 /** odds[horseId][betType] = 배당률 */
 export type OddsTable = Record<number, Record<BetType, number>>;

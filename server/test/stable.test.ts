@@ -88,9 +88,10 @@ describe('꾸미기 카탈로그', () => {
       const def = COSMETIC_BY_ID[DEFAULT_LOOK[slot]];
       expect(def.slot).toBe(slot);
       expect(def.price).toBe(0);
-      // 기본 항목 말고는 전부 당근으로 사야 한다
+      // 털 색은 전부 무료, 그 밖의 칸은 기본 항목 말고는 당근으로 사야 한다
       for (const c of COSMETICS.filter((x) => x.slot === slot && x.id !== def.id)) {
-        expect(c.price).toBeGreaterThan(0);
+        if (slot === 'coat') expect(c.price).toBe(0);
+        else expect(c.price).toBeGreaterThan(0);
       }
     }
   });

@@ -36,10 +36,10 @@ export function isBetHit(type: BetType, horseRank: number): boolean {
       return horseRank === 1;
     case 'last':
       return horseRank === 6;
-    case 'top3':
-      return horseRank <= 3;
-    case 'bottom3':
-      return horseRank >= 4;
+    case 'top2':
+      return horseRank <= 2;
+    case 'bottom2':
+      return horseRank >= 5;
   }
 }
 

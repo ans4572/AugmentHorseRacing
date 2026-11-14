@@ -798,10 +798,10 @@ export class Room {
         if (!this.sim || this.sim.allFinished()) return;
         const hand = aug.hands.get(p.id) ?? [];
         const myBoost = this.bets
-          .filter((b) => b.playerId === p.id && (b.type === 'winner' || b.type === 'top3'))
+          .filter((b) => b.playerId === p.id && (b.type === 'winner' || b.type === 'top2'))
           .map((b) => b.horseId);
         const myHinder = this.bets
-          .filter((b) => b.playerId === p.id && (b.type === 'last' || b.type === 'bottom3'))
+          .filter((b) => b.playerId === p.id && (b.type === 'last' || b.type === 'bottom2'))
           .map((b) => b.horseId);
         const totalsNow = this.betTotals();
         let mostBet: number | null = null;

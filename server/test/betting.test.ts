@@ -50,10 +50,10 @@ describe('적중 판정', () => {
     expect(isBetHit('winner', 2)).toBe(false);
     expect(isBetHit('last', 6)).toBe(true);
     expect(isBetHit('last', 5)).toBe(false);
-    expect(isBetHit('top3', 3)).toBe(true);
-    expect(isBetHit('top3', 4)).toBe(false);
-    expect(isBetHit('bottom3', 4)).toBe(true);
-    expect(isBetHit('bottom3', 3)).toBe(false);
+    expect(isBetHit('top2', 2)).toBe(true);
+    expect(isBetHit('top2', 3)).toBe(false);
+    expect(isBetHit('bottom2', 5)).toBe(true);
+    expect(isBetHit('bottom2', 4)).toBe(false);
   });
 });
 
@@ -75,16 +75,20 @@ describe('정산', () => {
     expect(outcomes[0].payout).toBe(0);
   });
 
-  it('TOP3 / BOTTOM3 배팅도 올바르게 정산된다', () => {
+  it('1~2위 / 5~6위 배팅도 올바르게 정산된다', () => {
     const outcomes = settleBets(
       [
-        bet({ betId: 'a', horseId: 5, type: 'top3', amount: 50, odds: 2.0 }),
-        bet({ betId: 'b', horseId: 1, type: 'bottom3', amount: 50, odds: 2.0 })
+        bet({ betId: 'a', horseId: 1, type: 'top2', amount: 50, odds: 2.0 }),
+        bet({ betId: 'b', horseId: 5, type: 'top2', amount: 50, odds: 2.0 }),
+        bet({ betId: 'c', horseId: 6, type: 'bottom2', amount: 50, odds: 2.0 }),
+        bet({ betId: 'd', horseId: 2, type: 'bottom2', amount: 50, odds: 2.0 })
       ],
       rankings
     );
-    expect(outcomes[0].hit).toBe(true); // 5번은 3등
+    expect(outcomes[0].hit).toBe(true); // 1번은 2등
     expect(outcomes[0].payout).toBe(100);
-    expect(outcomes[1].hit).toBe(false); // 1번은 2등
+    expect(outcomes[1].hit).toBe(false); // 5번은 3등
+    expect(outcomes[2].hit).toBe(true); // 6번은 5등
+    expect(outcomes[3].hit).toBe(false); // 2번은 4등
   });
 });

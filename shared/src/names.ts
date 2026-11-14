@@ -42,7 +42,10 @@ export const BREED_INFO: Record<
   zebra: { label: '얼룩말', emoji: '🦓', weight: 15 },
   unicorn: { label: '유니콘', emoji: '🦄', weight: 13 },
   donkey: { label: '당나귀', emoji: '🐴', weight: 13 },
-  cow: { label: '젖소 무늬 말', emoji: '🐮', weight: 13 }
+  cow: { label: '젖소 무늬 말', emoji: '🐮', weight: 13 },
+  alpaca: { label: '알파카', emoji: '🦙', weight: 6 },
+  camel: { label: '낙타', emoji: '🐫', weight: 6 },
+  pegasus: { label: '흑마 페가수스', emoji: '🪽', weight: 4 }
 };
 
 /** 컨디션 수치(화면 표기 1~10)를 다섯 단계로 나눈 사유 문구 */

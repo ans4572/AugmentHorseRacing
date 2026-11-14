@@ -21,7 +21,7 @@ export interface NpcBetSituation {
   finalRound?: boolean;
 }
 
-const BET_TYPES: BetType[] = ['winner', 'last', 'top3', 'bottom3'];
+const BET_TYPES: BetType[] = ['winner', 'last', 'top2', 'bottom2'];
 
 /** 성격별로 가진 코인 중 얼마까지 거는지 (기준 비율에 곱한다) */
 const SPEND_SCALE: Record<NpcPersona, number> = {
@@ -80,9 +80,9 @@ function personaPlans(
     case 'winner':
       return [
         [5.5 * safe, [['winner', top, 1]]],
-        [2.5 * safe, [['winner', top, 0.6], ['top3', second, 0.4]]],
+        [2.5 * safe, [['winner', top, 0.6], ['top2', second, 0.4]]],
         [2 * bold, [['winner', second, 1]]],
-        [1 * bold, [['winner', third, 0.6], ['top3', top, 0.4]]]
+        [1 * bold, [['winner', third, 0.6], ['top2', top, 0.4]]]
       ];
     case 'gambler':
       return [
@@ -90,29 +90,29 @@ function personaPlans(
         [2.5, [['winner', weak2, 1]]],
         [2, [['winner', weak, 0.5], ['winner', mid, 0.5]]],
         [1.5 * bold, [['last', top, 1]]],
-        [1.5 * safe, [['winner', third, 0.6], ['top3', weak, 0.4]]]
+        [1.5 * safe, [['winner', third, 0.6], ['top2', weak, 0.4]]]
       ];
     case 'saboteur':
       return [
-        [4, [['top3', top, 0.5], ['last', weak, 0.5]]],
+        [4, [['top2', top, 0.5], ['last', weak, 0.5]]],
         // 유력마가 무너지는 쪽에 걸고 직접 방해한다
-        [3 * bold, [['bottom3', top, 1]]],
-        [2, [['last', weak, 0.5], ['bottom3', weak2, 0.5]]],
-        [1.5 * bold, [['bottom3', top, 0.6], ['bottom3', second, 0.4]]]
+        [3 * bold, [['bottom2', top, 1]]],
+        [2, [['last', weak, 0.5], ['bottom2', weak2, 0.5]]],
+        [1.5 * bold, [['bottom2', top, 0.6], ['bottom2', second, 0.4]]]
       ];
     case 'avenger':
       return [
         // 선두를 끌어내리면 이기는 자리에 건다
         [4.5, [['winner', second, 1]]],
         [3 * bold, [['winner', third, 1]]],
-        [2.5 * safe, [['top3', second, 0.5], ['top3', third, 0.5]]],
+        [2.5 * safe, [['top2', second, 0.5], ['top2', third, 0.5]]],
         [1.5, [['winner', top, 1]]]
       ];
     case 'angel':
       return [
-        [4.5, [['top3', weak, 1]]],
-        [3, [['top3', weak, 0.5], ['top3', weak2, 0.5]]],
-        [2.5 * safe, [['top3', mid, 1]]],
+        [4.5, [['top2', weak, 1]]],
+        [3, [['top2', weak, 0.5], ['top2', weak2, 0.5]]],
+        [2.5 * safe, [['top2', mid, 1]]],
         [1 * bold, [['winner', weak2, 1]]]
       ];
     case 'chaos': {
@@ -179,9 +179,9 @@ export interface NpcAugmentChoice {
 
 export interface NpcAugmentContext {
   sim: RaceSim;
-  /** 이 NPC가 배팅한 말 ID 목록 (우승/top3 기준) */
+  /** 이 NPC가 배팅한 말 ID 목록 (우승/1~2위 기준) */
   myBoostTargets: number[];
-  /** 이 NPC의 꼴찌/bottom3 배팅 대상 */
+  /** 이 NPC의 꼴찌/5~6위 배팅 대상 */
   myHinderTargets: number[];
   /** 이 NPC의 배팅 전부. 있으면 종류와 지금 순위까지 따져서 고른다 */
   myBets?: { type: BetType; horseId: number }[];
@@ -226,20 +226,22 @@ function computeWants(ctx: NpcAugmentContext, ranking: number[]): Map<number, nu
         // 앞에 있는 말이 느려져야 이긴다
         for (let i = 0; i < r - 1; i++) add(ranking[i], i === 0 ? -3 : -1.5);
         break;
-      case 'top3':
-        add(b.horseId, r <= 3 ? 2.5 : r === 4 ? 4 : 3);
-        if (r > 3) add(ranking[2], -2.5);
-        if (r === 3) add(ranking[3], -1.5);
+      case 'top2':
+        // 2등 안에 들어야 한다: 바로 밖(3등)이면 가장 세게 밀어 주고, 2등 자리의 말을 늦춘다
+        add(b.horseId, r <= 2 ? 2.5 : r === 3 ? 4 : 3);
+        if (r > 2) add(ranking[1], -2.5);
+        if (r === 2) add(ranking[2], -1.5);
         break;
       case 'last':
         add(b.horseId, r === last ? -2.5 : r === last - 1 ? -4 : -2.5);
         // 뒤에 있는 말이 앞질러 줘야 꼴찌가 된다
         for (let i = r; i < last; i++) add(ranking[i], i === last - 1 ? 2.5 : 1.5);
         break;
-      case 'bottom3':
-        add(b.horseId, r >= 4 ? -2.5 : r === 3 ? -4 : -3);
-        if (r <= 3) add(ranking[3], 2);
-        if (r === 4) add(ranking[2], 1.5);
+      case 'bottom2':
+        // 뒤에서 두 마리 안에 들어야 한다: 바로 밖(4등)이면 가장 세게 늦추고, 5등 자리의 말을 밀어 준다
+        add(b.horseId, r >= last - 1 ? -2.5 : r === last - 2 ? -4 : -3);
+        if (r < last - 1) add(ranking[last - 2], 2);
+        if (r === last - 1) add(ranking[last - 3], 1.5);
         break;
     }
   }

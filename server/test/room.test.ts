@@ -84,13 +84,13 @@ describe('방 / 라운드 / 코인', () => {
     const start = room.players.get('p1')!.coins;
     expect(room.placeBet('p1', 'winner', 1, 50)).toBeNull();
     expect(room.placeBet('p1', 'winner', 1, 30)).toBeNull();
-    expect(room.placeBet('p1', 'top3', 1, 20)).toBeNull(); // 종류가 다르면 따로
+    expect(room.placeBet('p1', 'top2', 1, 20)).toBeNull(); // 종류가 다르면 따로
     expect(room.placeBet('p1', 'winner', 2, 10)).toBeNull(); // 말이 다르면 따로
     expect(room.placeBet('p2', 'winner', 1, 40)).toBeNull(); // 다른 사람의 마권과는 합쳐지지 않는다
     const mine = room.bets.filter((b) => b.playerId === 'p1');
     expect(mine.map((b) => [b.type, b.horseId, b.amount])).toEqual([
       ['winner', 1, 80],
-      ['top3', 1, 20],
+      ['top2', 1, 20],
       ['winner', 2, 10]
     ]);
     expect(room.players.get('p1')!.coins).toBe(start - 110);
@@ -148,8 +148,8 @@ describe('방 / 라운드 / 코인', () => {
     expect(room.placeBet('p1', 'winner', 3, 100)).toBeNull();
     expect(p1.coins).toBe(400);
     // 가진 코인(400)보다 많이는 걸 수 없지만, 남은 전부를 거는 올인은 된다
-    expect(room.placeBet('p1', 'top3', 2, 410)).not.toBeNull();
-    expect(room.placeBet('p1', 'top3', 2, 400)).toBeNull();
+    expect(room.placeBet('p1', 'top2', 2, 410)).not.toBeNull();
+    expect(room.placeBet('p1', 'top2', 2, 400)).toBeNull();
     expect(p1.coins).toBe(0);
     const betId = room.bets.find((b) => b.playerId === 'p1' && b.amount === 100)!.betId;
     expect(room.cancelBet('p1', betId)).toBeNull();
@@ -278,7 +278,7 @@ describe('방 / 라운드 / 코인', () => {
       room.setReady('p2', 'preview');
       expect(room.placeBet('p1', 'winner', 1, 50)).toBeNull();
       expect(room.placeBet('p2', 'last', 4, 60)).toBeNull();
-      expect(room.placeBet('p2', 'top3', 2, 40)).toBeNull();
+      expect(room.placeBet('p2', 'top2', 2, 40)).toBeNull();
       room.setReady('p1', 'betting');
       room.setReady('p2', 'betting');
       const reveal = (id: string) => inbox[id].find((m) => m.type === 'BET_REVEAL')!;

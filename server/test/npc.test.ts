@@ -19,7 +19,7 @@ function midRace(seed: number): RaceSim {
 }
 
 describe('NPC 증강 대상', () => {
-  it('방해 카드를 자기가 우승이나 1~3위로 건 말에 쓰지 않는다', () => {
+  it('방해 카드를 자기가 우승이나 1~2위로 건 말에 쓰지 않는다', () => {
     expect(SINGLE_HOSTILE.length).toBeGreaterThan(0);
     const rng = mulberry32(11);
     for (const persona of PERSONAS) {
@@ -28,7 +28,7 @@ describe('NPC 증강 대상', () => {
         const ranking = sim.currentRanking();
         // 선두이면서 배팅금도 가장 몰린 말에 걸었다: 예전에는 여기서 자기 말을 방해했다
         const mine = ranking[0];
-        for (const type of ['winner', 'top3'] as BetType[]) {
+        for (const type of ['winner', 'top2'] as BetType[]) {
           for (let i = 0; i < 60; i++) {
             const def = SINGLE_HOSTILE[i % SINGLE_HOSTILE.length];
             const c = npcChooseAugment(persona, [def], {
@@ -42,7 +42,7 @@ describe('NPC 증강 대상', () => {
     }
   });
 
-  it('도움 카드를 자기가 꼴찌나 4~6위로 건 말에 쓰지 않는다', () => {
+  it('도움 카드를 자기가 꼴찌나 5~6위로 건 말에 쓰지 않는다', () => {
     expect(SINGLE_FRIENDLY.length).toBeGreaterThan(0);
     const rng = mulberry32(12);
     for (const persona of PERSONAS) {
@@ -50,7 +50,7 @@ describe('NPC 증강 대상', () => {
         const sim = midRace(seed);
         const ranking = sim.currentRanking();
         const mine = ranking[ranking.length - 1]; // 지금 꼴찌: 예전에는 "꼴찌 응원"으로 도왔다
-        for (const type of ['last', 'bottom3'] as BetType[]) {
+        for (const type of ['last', 'bottom2'] as BetType[]) {
           for (let i = 0; i < 60; i++) {
             const def = SINGLE_FRIENDLY[i % SINGLE_FRIENDLY.length];
             const c = npcChooseAugment(persona, [def], {

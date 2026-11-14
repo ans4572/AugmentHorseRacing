@@ -52,8 +52,8 @@ export const AUGMENTS: AugmentDefinition[] = [
   // ---------- 15.5 능력치 기반 ----------
   { id: 'slow_cheer', name: '느림보 팬클럽', description: '팬들이 왔다!\n속력 +30%, 4초', rarity: 'common', targetType: 'slowest2', effectType: 'speedMult', value: 0.3, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '📣' },
   { id: 'catch_fast', name: '고삐 당기기', description: '워워, 천천히!\n속력 -35%, 4초', rarity: 'common', targetType: 'fastest2', effectType: 'speedMult', value: -0.35, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🪢', visual: 'siren' },
-  { id: 'fat_strike', name: '뚱보들의 역습', description: '무게는 곧 힘이다.\n속력 +35%, 4초', rarity: 'rare', targetType: 'heaviest2', effectType: 'speedMult', value: 0.35, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🐷' },
-  { id: 'light_feather', name: '헬륨 가스', description: '둥실둥실. 몸무게가 절반이 된다.\n속력 +19%, 5초', rarity: 'common', targetType: 'heaviest2', effectType: 'weightMult', value: 0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🎈', visual: 'balloon' },
+  { id: 'fat_strike', name: '뚱보들의 역습', description: '무거운 몸에 무게를 실어 밀고 나간다.\n속력 +35%, 4초', rarity: 'rare', targetType: 'heaviest2', effectType: 'speedMult', value: 0.35, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🐷' },
+  { id: 'light_feather', name: '헬륨 가스', description: '몸은 빵빵해지지만 몸무게는 절반! 둥실둥실.\n속력 +19%, 5초', rarity: 'common', targetType: 'heaviest2', effectType: 'weightMult', value: 0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🎈', visual: 'balloon' },
   { id: 'stamina_sap', name: '헉헉 방전', description: '헉… 헉… 너무 달렸다.\n지구력 25% 감소', rarity: 'rare', targetType: 'mostStamina2', effectType: 'staminaDrainPct', value: 25, durationMs: 0, allowedPhases: ALL_PHASES, hostile: true, emoji: '😮‍💨', visual: 'lowbat', visualMs: 2600 },
   { id: 'energy_drink', name: '에너지 드링크', description: '원샷!\n지구력 12% 회복', rarity: 'rare', targetType: 'leastStamina2', effectType: 'staminaRestorePct', value: 12, durationMs: 0, allowedPhases: ALL_PHASES, hostile: false, emoji: '🥤', visual: 'jitter', visualMs: 2600 },
 
@@ -88,7 +88,7 @@ export const AUGMENTS: AugmentDefinition[] = [
   { id: 'fart_boost', name: '방귀 부스터', description: '뿡!\n속력 +70%, 3초', rarity: 'rare', targetType: 'single', effectType: 'speedMult', value: 0.7, durationMs: 3000, allowedPhases: ALL_PHASES, hostile: false, emoji: '☁️', anim: 'boost', visual: 'fart' },
   { id: 'dizzy_spin', name: '빙글빙글', description: '팽이처럼 돌면서 달린다.\n속력 -50%, 3초', rarity: 'rare', targetType: 'single', effectType: 'speedMult', value: -0.5, durationMs: 3000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🌀', visual: 'spin' },
   { id: 'balloon_horse', name: '풍선 말', description: '풍선처럼 부풀어 둥실둥실 떠간다.\n속력 +50%, 5초', rarity: 'epic', targetType: 'single', effectType: 'speedMult', value: 0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🎈', visual: 'balloon' },
-  { id: 'giant_horse', name: '거대화', description: '몸집이 2배로 커진다.\n속력 +55%, 5초', rarity: 'epic', targetType: 'single', effectType: 'speedMult', value: 0.55, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🦖', visual: 'giant' },
+  { id: 'giant_horse', name: '거대화', description: '몸집도 다리도 2배! 보폭이 커져 성큼성큼.\n속력 +55%, 5초', rarity: 'epic', targetType: 'single', effectType: 'speedMult', value: 0.55, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🦖', visual: 'giant' },
   { id: 'disco_time', name: '디스코 타임', description: '음악이 나오면 춤을 참을 수 없다.\n정지, 1.8초', rarity: 'epic', targetType: 'front3', effectType: 'stop', value: 0, durationMs: 1800, allowedPhases: ALL_PHASES, hostile: true, emoji: '🪩', visual: 'disco' },
   { id: 'pony_party', name: '단체 조랑말', description: '단체로 조랑말이 되어 버린다.\n속력 -35%, 5초', rarity: 'epic', targetType: 'front3', effectType: 'speedMult', value: -0.35, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🎠', visual: 'pony' }
 ];

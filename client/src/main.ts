@@ -48,6 +48,8 @@ import { cardSfx, warmCardSfx, initAudio, onSoundPrefsChange, setMusic, sfx, sou
 // ============ 전역 상태 ============
 
 const state = {
+  /** 혼자 하기로 방을 만드는 중: 서버가 곧바로 게임을 시작하므로 대기실 화면을 건너뛴다 */
+  soloStarting: false,
   myId: '',
   secret: '',
   roomId: null as string | null,
@@ -201,14 +203,14 @@ function playerChip(id: string, name: string): string {
   return `<span class="pchip">${playerMark(id, name)}<span class="pchip-name">${esc(name)}</span></span>`;
 }
 
-const BET_SHORT: Record<BetType, string> = { winner: '우승', last: '꼴찌', top3: '1~3', bottom3: '4~6' };
+const BET_SHORT: Record<BetType, string> = { winner: '우승', last: '꼴찌', top2: '1~2', bottom2: '5~6' };
 
 /** 지금 순위대로 끝나면 맞는 배팅인지 */
 function betHits(type: BetType, rank: number, total: number): boolean {
   if (type === 'winner') return rank === 1;
   if (type === 'last') return rank === total;
-  if (type === 'top3') return rank <= 3;
-  return rank > total - 3;
+  if (type === 'top2') return rank <= 2;
+  return rank > total - 2;
 }
 
 /** 경주 중 내가 볼 수 있는 배팅 — 블라인드 방에서는 내 것만 */
@@ -1358,6 +1360,19 @@ function applySnapshot(snap: RoomSnapshot): void {
   state.augment = null;
 
   if (snap.phase === 'lobby') {
+    // 혼자 하기는 입장 직후 출마표가 이어서 오므로 대기실을 잠깐이라도 보여 주지 않는다
+    if (state.soloStarting) {
+      // 출마표가 오지 않으면(시작 실패, 연결 끊김) 그때 대기실을 보여 준다
+      window.setTimeout(() => {
+        if (!state.soloStarting) return;
+        state.soloStarting = false;
+        if (state.phase === 'lobby' && state.roomId) {
+          showScreen('scr-lobby');
+          renderLobby();
+        }
+      }, 1500);
+      return;
+    }
     showScreen('scr-lobby');
     renderLobby();
     return;
@@ -1514,6 +1529,14 @@ net.on((msg: S2C) => {
         showScreen('scr-main');
         break;
       }
+      // 혼자 하기 시작에 실패했으면 대기실을 건너뛰지 않는다 (방은 만들어졌을 수 있다)
+      if (state.soloStarting) {
+        state.soloStarting = false;
+        if (state.roomId && state.phase === 'lobby') {
+          showScreen('scr-lobby');
+          renderLobby();
+        }
+      }
       toast(msg.message);
       break;
     }
@@ -1525,6 +1548,7 @@ net.on((msg: S2C) => {
     }
 
     case 'ROUND_START': {
+      state.soloStarting = false;
       // 새 라운드: 지난 라운드의 증강 기록을 비운다
       $('game-log').innerHTML = '';
       state.round = msg.round;
@@ -2002,6 +2026,7 @@ function bindUI(): void {
     if (ev.key === 'Escape' && !$('modal-stable').classList.contains('hidden')) closeStablePopup();
   });
   $('btn-solo-go').onclick = () => {
+    state.soloStarting = true;
     net.send({
       type: 'CREATE_ROOM',
       playerName: playerName(),

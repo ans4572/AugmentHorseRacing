@@ -26,7 +26,7 @@ export function computeOdds(
   const counts: Record<number, Record<BetType, number>> = {};
   const rankSum: Record<number, number> = {};
   for (const h of horses) {
-    counts[h.id] = { winner: 0, last: 0, top3: 0, bottom3: 0 };
+    counts[h.id] = { winner: 0, last: 0, top2: 0, bottom2: 0 };
     rankSum[h.id] = 0;
   }
 
@@ -39,8 +39,8 @@ export function computeOdds(
       rankSum[r.horseId] += r.rank;
       if (r.rank === 1) counts[r.horseId].winner++;
       if (r.rank === 6) counts[r.horseId].last++;
-      if (r.rank <= 3) counts[r.horseId].top3++;
-      if (r.rank >= 4) counts[r.horseId].bottom3++;
+      if (r.rank <= 2) counts[r.horseId].top2++;
+      if (r.rank >= 5) counts[r.horseId].bottom2++;
     }
   }
 
@@ -59,13 +59,13 @@ export function computeOdds(
   const prior: Record<BetType, Record<number, number>> = {
     winner: softmax(-1),
     last: softmax(1),
-    top3: Object.fromEntries(horses.map((h) => [h.id, sigmoid(1.3 * (3.5 - meanRank(h.id)))])),
-    bottom3: Object.fromEntries(horses.map((h) => [h.id, sigmoid(1.3 * (meanRank(h.id) - 3.5))]))
+    top2: Object.fromEntries(horses.map((h) => [h.id, sigmoid(1.3 * (2.5 - meanRank(h.id)))])),
+    bottom2: Object.fromEntries(horses.map((h) => [h.id, sigmoid(1.3 * (meanRank(h.id) - 4.5))]))
   };
 
   const table: OddsTable = {};
-  for (const h of horses) table[h.id] = { winner: 0, last: 0, top3: 0, bottom3: 0 };
-  for (const type of ['winner', 'last', 'top3', 'bottom3'] as BetType[]) {
+  for (const h of horses) table[h.id] = { winner: 0, last: 0, top2: 0, bottom2: 0 };
+  for (const type of ['winner', 'last', 'top2', 'bottom2'] as BetType[]) {
     const single = type === 'winner' || type === 'last';
     const tempered = horses.map((h) => {
       const count = counts[h.id][type];
@@ -76,8 +76,8 @@ export function computeOdds(
       const mixed = Math.min(0.995, Math.max(0.0004, (1 - priorWeight) * freq + priorWeight * prior[type][h.id]));
       return single ? Math.pow(mixed, ODDS_TEMPER_SINGLE) : sigmoid(ODDS_TEMPER_GROUP * logit(mixed));
     });
-    // 확률의 합을 원래 값(1마리 맞히기는 1, 3마리 안은 3)으로 되돌린다
-    const scale = (single ? 1 : 3) / tempered.reduce((x, y) => x + y, 0);
+    // 확률의 합을 원래 값(1마리 맞히기는 1, 2마리 안은 2)으로 되돌린다
+    const scale = (single ? 1 : 2) / tempered.reduce((x, y) => x + y, 0);
     horses.forEach((h, i) => {
       const q = Math.min(0.97, tempered[i] * scale);
       const raw = ODDS_HOUSE_FACTOR / q;

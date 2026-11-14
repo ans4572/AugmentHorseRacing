@@ -13,7 +13,7 @@ describe('배당 계산', () => {
   it('모든 배당이 허용 범위 안에 있고 소수점 둘째 자리까지다', () => {
     const odds = computeOdds(generateHorses(mulberry32(1)), 100, mulberry32(2));
     for (const horseId of [1, 2, 3, 4, 5, 6]) {
-      for (const type of ['winner', 'last', 'top3', 'bottom3'] as const) {
+      for (const type of ['winner', 'last', 'top2', 'bottom2'] as const) {
         const v = odds[horseId][type];
         expect(v).toBeGreaterThanOrEqual(ODDS_MIN);
         expect(v).toBeLessThanOrEqual(ODDS_MAX);
@@ -30,6 +30,6 @@ describe('배당 계산', () => {
     ];
     const odds = computeOdds(horses, 150, mulberry32(7));
     expect(odds[1].winner).toBeLessThan(odds[2].winner);
-    expect(odds[1].top3).toBeLessThan(odds[2].top3);
+    expect(odds[1].top2).toBeLessThan(odds[2].top2);
   });
 });

@@ -172,6 +172,8 @@ interface Rig {
   rideZ: number;
   /** 결승선을 지난 뒤 멈출 때까지 더 달려 나간 거리 */
   coast: number;
+  /** 꼬리 물기: 꼬리가 뒤로 당겨진 정도(0~1) */
+  tailPull: number;
   targetPos: number;
   speed: number;
   phase: number;
@@ -1046,6 +1048,7 @@ export class Race3DView {
       ride: 0,
       rideZ: laneZ(info.id),
       coast: 0,
+      tailPull: 0,
       targetPos: 0,
       speed: 0,
       phase: Math.random() * Math.PI * 2,
@@ -1504,6 +1507,16 @@ export class Race3DView {
     const sulk = vis.has('sulk'); // 당근을 놓치고 허탈
     const sneezing = vis.has('sneeze'); // 재채기 릴레이
     const surpriseK = oneShot('surprise'); // 결승선 당기기: 다 같이 펄쩍
+    const tailbite = vis.has('tailbite'); // 꼬리 물기
+    const sniff = vis.has('sniff') && !flying; // 결승선 냄새
+    const rage = vis.has('rage'); // 꼴찌의 분노
+    const booed = vis.has('booed'); // 관중 야유
+    const chugK = oneShot('chug'); // 물통 원샷: 앞 60%는 벌컥벌컥, 나머지는 배가 볼록
+    const gulping = chugK != null && chugK < 0.6;
+    const belly = chugK != null && chugK >= 0.55 ? Math.sin(Math.PI * Math.min(1, (chugK - 0.55) / 0.45)) : 0;
+    // 관중 야유: 토마토를 맞을 때마다 움찔한다 (0.9초에 한 번)
+    const boK = booed ? (t * 1.1 + r.info.id * 0.31) % 1 : 0;
+    const flinch = booed && boK < 0.15 ? Math.sin((boK / 0.15) * Math.PI) : 0;
     // 재채기 한 번(0.95초): 고개를 천천히 젖혔다가(에… 에…) 확 숙이며 온몸이 튄다(취!)
     const sneezeK = sneezing ? (t * 1.05 + r.info.id * 0.37) % 1 : 0;
     const sneezeSnap = sneezing && sneezeK > 0.62 && sneezeK < 0.8 ? Math.sin(((sneezeK - 0.62) / 0.18) * Math.PI) : 0;
@@ -1515,7 +1528,7 @@ export class Race3DView {
     r.dive = ease(r.dive, rocket ? 1 : 0, 7);
     // 한눈팔기: 고개를 옆(관중석 쪽)으로 돌린다
     r.lookBack = ease(r.lookBack, backpedal ? 1 : vis.has('whistle') ? 0.5 : 0, 9);
-    r.droop = ease(r.droop, vis.has('droop') && !flying ? 1 : sulk ? 0.7 : 0, 5);
+    r.droop = ease(r.droop, vis.has('droop') && !flying ? 1 : sulk ? 0.7 : sniff ? 0.6 : booed ? 0.35 : 0, 5);
     const diveAng = -0.52 * r.dive; // 엉덩이를 들어 올린 각도
 
     // 변신 수치 (부드럽게 변하도록 보간)
@@ -1657,6 +1670,20 @@ export class Race3DView {
           // 허탈: 다리에 힘이 풀린다
           leg.rotation.z = front ? 0.12 : -0.12;
           knee.rotation.z = -0.3;
+        } else if (tailbite) {
+          if (front) {
+            // 꼬리 물기: 앞다리는 제자리에서 미친 듯이 헛돈다
+            leg.rotation.z = Math.sin(t * 26 + i * Math.PI) * 0.75 + 0.2;
+            knee.rotation.z = -0.5 - Math.max(0, Math.sin(t * 26 + i * Math.PI)) * 0.8;
+          } else {
+            // 뒷다리는 앞으로 뻗은 채 질질 끌린다
+            leg.rotation.z = 0.75 + Math.sin(t * 21 + i) * 0.08;
+            knee.rotation.z = -0.1;
+          }
+        } else if (gulping && front) {
+          // 물통 원샷: 앞다리로 물통을 받쳐 든다
+          leg.rotation.z = 1.35 + Math.sin(t * 14) * 0.08;
+          knee.rotation.z = -1.3;
         }
       });
     }
@@ -1767,6 +1794,32 @@ export class Race3DView {
       y = Math.sin(Math.PI * surpriseK) * 1.6;
       pitch = 0.12;
     }
+    if (tailbite) {
+      // 엉덩이가 뒤로 당겨져 주저앉고 앞이 들린다
+      y = -0.25 + Math.sin(t * 24) * 0.03;
+      pitch = 0.2 + Math.sin(t * 13) * 0.04;
+    }
+    if (sniff) {
+      // 코를 박고 달리느라 앞으로 숙인다
+      pitch -= 0.2;
+    }
+    if (rage) {
+      // 씩씩대며 몸이 부르르 떨린다
+      roll += Math.sin(t * 43) * 0.05;
+      y += Math.sin(t * 37) * 0.03;
+      pitch -= 0.08; // 황소처럼 머리를 숙이고 돌진
+    }
+    if (booed) {
+      // 기가 죽어 몸을 웅크리고, 토마토를 맞으면 움찔한다
+      y = Math.min(y, 0) - 0.15;
+      pitch = -0.08 - flinch * 0.12;
+      roll += flinch * 0.18;
+    }
+    if (chugK != null) {
+      // 고개를 젖히느라 몸도 뒤로 젖힌다. 다 마시면 배가 무거워 살짝 내려앉는다
+      if (gulping) pitch += 0.16;
+      y -= belly * 0.12;
+    }
     // 비틀비틀: 몸이 좌우로 기우뚱거린다
     if (vis.has('wobble') && anim !== 'fallen') roll += Math.sin(t * 9) * 0.26;
     r.bobY = ease(r.bobY, y, 12);
@@ -1852,6 +1905,11 @@ export class Race3DView {
     if (cheering) headTarget = 0.3 + Math.sin(t * 15) * 0.12;
     if (sneezing) headTarget = (sneezeK < 0.62 ? (sneezeK / 0.62) * 0.55 : 0) - sneezeSnap * 0.95;
     if (surpriseK != null) headTarget = 0.4;
+    if (tailbite) headTarget = 0.45 + Math.sin(t * 19) * 0.1; // 아야! 하고 고개를 쳐든다
+    if (sniff) headTarget = -0.55 + Math.sin(t * 22) * 0.07; // 킁킁킁
+    if (rage) headTarget = -0.3 + Math.sin(t * 9) * 0.05;
+    if (booed) headTarget = -0.6 - flinch * 0.2;
+    if (gulping) headTarget = 1.0 + Math.sin(t * 14) * 0.07; // 꿀꺽꿀꺽
     r.head.rotation.z = ease(r.head.rotation.z, headTarget, 10);
 
     // 기린 목: 목을 늘리고 머리를 그만큼 올린다
@@ -1892,10 +1950,14 @@ export class Race3DView {
     r.head.rotation.y = r.heliAng + r.lookBack * 2.75 + (annoyed ? Math.sin(t * 17) * 0.55 : 0);
 
     // 풍선: 몸통이 둥글게 부푼다
-    r.body.scale.set(1.0 + 0.15 * r.inflate, 0.56 + 0.5 * r.inflate, 0.5 + 0.5 * r.inflate);
+    r.body.scale.set(1.0 + 0.15 * r.inflate + 0.06 * belly, 0.56 + 0.5 * r.inflate + 0.2 * belly, 0.5 + 0.5 * r.inflate + 0.24 * belly);
 
     // 꼬리는 속도가 붙을수록 뒤로 날린다
     r.tail.rotation.z = -runAmt * 0.65 + Math.sin(r.phase * 1.2) * 0.18 + (whistle || cheering ? Math.sin(t * 22) * 0.5 : 0); // 신나면 꼬리를 흔든다
+    // 꼬리 물기: 꼬리가 뒤로 팽팽하게 당겨져 길게 늘어난다
+    r.tailPull = ease(r.tailPull, tailbite ? 1 : 0, 10);
+    if (r.tailPull > 0.01) r.tail.rotation.z = r.tail.rotation.z * (1 - r.tailPull) + (-0.6 + Math.sin(t * 30) * 0.05) * r.tailPull;
+    r.tail.scale.x = 1 + 1.1 * r.tailPull;
 
     // 눈 (기절·졸림이면 감는다. 춤출 때는 뜬다)
     let eyeScale = 1;
@@ -1905,6 +1967,9 @@ export class Race3DView {
     if (lowbat) eyeScale = 0.28;
     if (whistle || carrot || cheering || surpriseK != null) eyeScale = 1.5; // 눈이 휘둥그레
     if (carrying || annoyed || sulk) eyeScale = 0.4; // 찡그린다
+    if (tailbite) eyeScale = 1.6; // 아야!
+    if (sniff || rage || booed) eyeScale = 0.4; // 집중 / 노려봄 / 시무룩
+    if (gulping) eyeScale = 0.1; // 눈 감고 벌컥벌컥
     if (sneezing) eyeScale = sneezeK > 0.5 && sneezeK < 0.85 ? 0.1 : 0.8; // 재채기 순간 질끈
     for (const eye of r.eyes) eye.scale.y = ease(eye.scale.y, eyeScale, 14);
 
@@ -1923,6 +1988,9 @@ export class Race3DView {
     // 디스코: 털 색이 무지개로 바뀐다
     if (disco) {
       r.coat.color.setHSL((t * 0.9 + r.info.id * 0.13) % 1, 0.85, 0.6);
+      r.discoOn = true;
+    } else if (rage) {
+      r.coat.color.copy(r.coatBase).lerp(RAGE_RED, 0.55 + Math.sin(t * 8) * 0.15);
       r.discoOn = true;
     } else if (r.discoOn) {
       r.coat.color.copy(r.coatBase);
@@ -1995,6 +2063,19 @@ export class Race3DView {
       if (vis.has('bighead')) pop(3, ['👑', '✨'], headX + rnd(1.5), headY + rnd(1.2), 0.8, 0.3); // 우승 후보 병: 벌써 왕관
       if (vis.has('giant')) pop(3, ['🦖', '💢'], X + rnd(2), 5.2, 1.2, 0.8); // 거대화
       if (fart) pop(4, ['💨', '🤢'], rearX - 0.6, 1.8 * s, 0.9); // 방귀 부스터: 뒤따르는 말의 심정
+      if (tailbite) {
+        pop(6, ['🦷', '😬', '💢'], rearX - 1.6 * r.tailPull, 1.4 * s, 0.85, 0.5); // 꼬리 끝을 물었다
+        pop(4, ['😱', '❗'], headX, headY + 1.0, 0.8, 0.8);
+      }
+      if (sniff) pop(8, ['👃', '💨', '🏁'], headX + 0.5 + rnd(0.4), Math.max(0.4, headY - 0.3), 0.7, 0.5); // 킁킁
+      if (rage) pop(9, ['💢', '♨️', '😤'], headX + rnd(0.5), headY + 0.9, 0.9, 1.4); // 머리에서 김이 난다
+      if (booed) {
+        // 움찔하는 순간마다 관중석 쪽에서 토마토가 날아와 머리에 맞는다
+        if (boK < dt * 1.1) this.spawnEmoji('🍅', headX + rnd(0.3), headY + 0.3, Z + 0.9, 1.0, -0.6);
+        pop(5, ['👎', '💦'], headX + rnd(1.2), headY + 1.3, 0.75, 0.6);
+      }
+      if (gulping) pop(9, ['💧', '🪣'], headX + 0.3 + rnd(0.3), headY + 0.4, 0.7, 0.6); // 벌컥벌컥
+      if (belly > 0.3) pop(5, ['😋', '💨', '✨'], headX + 0.3, headY + 0.6, 0.8, 0.9); // 끄윽
     }
 
     // 발굽 먼지 / 방귀 연기
@@ -2160,7 +2241,7 @@ export class Race3DView {
   private updateRings(dt: number): void {
     if (this.hlIds.size > 0) {
       // 어떤 털색에서도 눈에 띄도록 빛의 세기를 천천히 오르내린다
-      const glow = 0.95 + Math.sin(this.elapsed * 6) * 0.4;
+      const glow = 1.7 + Math.sin(this.elapsed * 6) * 0.5;
       for (const r of this.rigs) {
         if (!this.hlIds.has(r.info.id)) continue;
         for (const m of r.glowMats) m.emissiveIntensity = glow;
@@ -2413,6 +2494,8 @@ const GALLOP_OFFSETS = [0.3, 0.42, 0, 0.1];
 const GALLOP_STANCE = 0.3;
 /** 강조된 말의 몸에 얹는 옅은 노란빛 */
 const HIGHLIGHT_GLOW = 0xfff0a0;
+/** 꼴찌의 분노: 털에 섞는 빨간색 */
+const RAGE_RED = new THREE.Color(0xff2a1a);
 const byLabelDist = (a: Rig, b: Rig): number => a.ldist - b.ldist;
 
 /** 이름표에 붙는 상태 아이콘 (방어막, 기절, 지침, 걸린 증강 등). 겹치는 것은 한 번만, 5개까지 */

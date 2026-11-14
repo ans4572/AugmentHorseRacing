@@ -251,15 +251,15 @@ describe('판을 흔드는 카드', () => {
     expect(sim.horse(3).pos).toBeGreaterThan(ctrl.horse(3).pos);
   });
 
-  it('재채기 릴레이: 2초 뒤 한 등수 뒤 말에게 한 번만 옮는다', () => {
+  it('재채기 릴레이: 2.5초 뒤 한 등수 뒤 말에게 한 번만 옮는다', () => {
     const sim = spread();
     sim.applyAugment(AUGMENT_BY_ID['sneeze_relay'], { targetHorseId: 2 });
-    run(sim, 1);
+    run(sim, 1.5);
     expect(sim.horse(3).effects.some((e) => e.defId === 'sneeze_relay')).toBe(false);
     run(sim, 1.5);
     expect(sim.horse(2).effects.some((e) => e.defId === 'sneeze_relay')).toBe(false);
     expect(sim.horse(3).effects.some((e) => e.defId === 'sneeze_relay')).toBe(true);
-    run(sim, 2.5);
+    run(sim, 3);
     // 3번에서 끝나고 4번으로는 번지지 않는다
     expect(sim.horses.some((h) => h.effects.some((e) => e.defId === 'sneeze_relay'))).toBe(false);
   });

@@ -85,11 +85,11 @@ export interface AugmentPhaseDef {
 export const AUGMENT_PREVIEW_LEAD = 0.05;
 
 export const AUGMENT_PHASES: AugmentPhaseDef[] = [
-  { phase: 1, at: 0.1, durationMs: 7000 },
-  { phase: 2, at: 0.3, durationMs: 6000 },
-  { phase: 3, at: 0.5, durationMs: 6000 },
-  { phase: 4, at: 0.7, durationMs: 5000 },
-  { phase: 5, at: 0.9, durationMs: 5000 }
+  { phase: 1, at: 0.1, durationMs: 9000 },
+  { phase: 2, at: 0.3, durationMs: 8000 },
+  { phase: 3, at: 0.5, durationMs: 8000 },
+  { phase: 4, at: 0.7, durationMs: 7000 },
+  { phase: 5, at: 0.9, durationMs: 7000 }
 ];
 
 /** 같은 등급 안에서 희귀도별 가중치 (플래티넘 안에서 전설이 영웅보다 드물다) */

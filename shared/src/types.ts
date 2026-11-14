@@ -244,6 +244,11 @@ export type AugmentVisual =
   | 'lowbat' // 뚝뚝 끊기다 고개를 떨굼
   | 'warp' // 납작하게 눌렸다가 길게 늘어남
   | 'siren' // 머리에 경광등
+  | 'tailbite' // 꼬리를 물려 뒤로 당겨지고 앞발만 헛돈다
+  | 'sniff' // 코를 땅에 박고 킁킁대며 달린다
+  | 'rage' // 얼굴이 시뻘게지고 머리에서 김이 난다
+  | 'booed' // 고개를 푹 숙이고 토마토를 맞는다
+  | 'chug' // 고개를 젖혀 벌컥벌컥 마시고 배가 볼록해진다
   | 'swap'; // 하늘로 솟았다가 떨어짐
 
 export interface AugmentCardView {

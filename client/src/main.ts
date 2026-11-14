@@ -39,7 +39,7 @@ import { AUGMENT_BY_ID, AUGMENTS, TARGET_TYPE_LABELS } from '../../shared/src/au
 import { BREED_INFO, EMOTES, conditionNote } from '../../shared/src/names';
 import { Net, loadToken, saveToken } from './net';
 import { Race3DView, type CameraTarget } from './race3d';
-import { claimGameBonus, claimRoundPrize, myHorseEntry, stable } from './stable';
+import { claimGameBonus, claimRoundPrize, myHorseEntry, onStableChange, stable } from './stable';
 import { closeStable, horseSummary, initStableUi, openStable } from './stableUi';
 import { bib, icon, inkOn, mountIcons, rankBadge } from './icons';
 import { startTitleBg, stopTitleBg } from './titleBg';
@@ -402,6 +402,8 @@ function refreshStableBadges(): void {
   $('main-carrots').innerHTML = `${icon('carrot')}${stable().carrots}`;
   $('solo-horse-summary').innerHTML = `${icon('star')}${esc(horseSummary())}`;
 }
+
+onStableChange(refreshStableBadges);
 
 /** 꾸미기 창을 연다. 뒤의 화면은 그대로 두고, 타이틀의 배경 경주만 잠시 멈춘다 */
 function openStablePopup(): void {
@@ -1745,7 +1747,6 @@ net.on((msg: S2C) => {
       state.augment = null;
       renderAugmentBar();
       view?.showFinish(msg.rankings);
-      sfx('finish');
       break;
     }
 
@@ -1754,9 +1755,8 @@ net.on((msg: S2C) => {
       const mine = msg.results.find((r) => r.playerId === state.myId);
       if (mine) state.coins = mine.coins;
       // 내 배팅이 하나라도 맞았으면 축하, 다 빗나갔으면 뿜뿜뿜
-      // 결과 창이 뜰 때 북을 울리고, 이어서 맞았는지 틀렸는지 알린다
-      sfx('result');
-      if (mine) sfx(mine.bets.length === 0 ? 'bell' : mine.bets.some((b) => b.hit) ? 'win' : 'lose', 0, 1.0);
+      // 결과 창이 뜨면 맞았는지 틀렸는지만 알린다
+      if (mine) sfx(mine.bets.length === 0 ? 'bell' : mine.bets.some((b) => b.hit) ? 'win' : 'lose');
       state.players = state.players.map((p) => {
         const res = msg.results.find((r) => r.playerId === p.id);
         return res ? { ...p, coins: res.coins } : p;

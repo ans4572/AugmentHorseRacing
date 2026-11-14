@@ -38,13 +38,14 @@ function fresh(): StableData {
   };
 }
 
-let data: StableData = load();
+let data: StableData = read() ?? fresh();
 
-function load(): StableData {
+/** 저장된 값을 읽는다. 저장된 것이 없거나 읽을 수 없으면 null */
+function read(): StableData | null {
   const base = fresh();
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return base;
+    if (!raw) return null;
     const p = JSON.parse(raw) as Partial<StableData>;
     const num = (v: unknown, d = 0): number =>
       typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : d;
@@ -68,8 +69,32 @@ function load(): StableData {
     }
     return out;
   } catch {
-    return base;
+    return null;
   }
+}
+
+/**
+ * 고치기 전에 저장된 최신 값을 다시 읽는다. 탭을 여러 개 띄워 두면 다른 탭이 그사이에
+ * 사거나 입힌 것이 있는데, 이 탭이 예전에 읽어 둔 값으로 덮어쓰면 그 꾸미기가 사라진다.
+ */
+function sync(): void {
+  const latest = read();
+  if (latest) data = latest;
+}
+
+let externalChange: () => void = () => {};
+
+/** 다른 탭에서 마구간이 바뀌었을 때 화면을 고칠 함수를 등록한다 */
+export function onStableChange(listener: () => void): void {
+  externalChange = listener;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (ev) => {
+    if (ev.key !== KEY) return;
+    sync();
+    externalChange();
+  });
 }
 
 function save(): void {
@@ -99,12 +124,14 @@ export function myHorseEntry(): MyHorseEntry {
 }
 
 export function setHorseName(raw: string): void {
+  sync();
   data.name = sanitizeHorseName(raw);
   save();
 }
 
 /** 보유한 항목을 착용한다 */
 export function equip(id: string): boolean {
+  sync();
   const item = COSMETIC_BY_ID[id];
   if (!item || !isOwned(id)) return false;
   data.look[item.slot] = id;
@@ -114,6 +141,7 @@ export function equip(id: string): boolean {
 
 /** 당근으로 항목을 사고 바로 착용한다 */
 export function buy(id: string): 'ok' | 'owned' | 'poor' | 'unknown' {
+  sync();
   const item = COSMETIC_BY_ID[id];
   if (!item) return 'unknown';
   if (isOwned(id)) return 'owned';
@@ -126,6 +154,7 @@ export function buy(id: string): 'ok' | 'owned' | 'poor' | 'unknown' {
 }
 
 function claim(key: string, carrots: number): boolean {
+  sync();
   if (data.claimed.includes(key)) return false;
   data.claimed.push(key);
   data.claimed = data.claimed.slice(-CLAIM_MEMORY);

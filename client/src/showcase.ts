@@ -17,7 +17,8 @@ const CARDS = PICKED ? PICKED.split(',') : [
   'bipedal', 'pony_morph', 'giraffe_neck', 'balloon_horse', 'giant_horse', 'paper_horse',
   'moonwalk', 'dizzy_spin', 'disco_time', 'cool_shades', 'bunny_hop', 'fart_boost',
   'bulk_up', 'feather_body',
-  'first_suffering', 'mukbang', 'leg_tangle', 'popular_tragedy', 'light_feather'
+  'first_suffering', 'mukbang', 'leg_tangle', 'popular_tragedy', 'light_feather',
+  'front_check', 'last_spurt', 'last_miracle', 'popularity_crash', 'infinite_stamina'
 ];
 const STEP_MS = 3200;
 

@@ -201,7 +201,7 @@ describe('코믹 변신 증강', () => {
     expect(sim.horse(3).effects.some((e) => e.defId === 'bipedal')).toBe(false);
   });
 
-  it('디스코 타임은 현재 1~3등만 1초 멈춘다', () => {
+  it('디스코 타임은 현재 1~3등만 1.8초 멈춘다', () => {
     const sim = new RaceSim(sixHorses(), mulberry32(1));
     setPositions(sim, { 1: 100, 2: 600, 3: 300, 4: 500, 5: 200, 6: 400 });
     const result = sim.applyAugment(AUGMENT_BY_ID['disco_time'], {});
@@ -214,7 +214,7 @@ describe('코믹 변신 증강', () => {
     }
     sim.tick(50);
     expect(sim.horse(2).pos).toBe(600); // 멈춘 동안 이동 없음
-    for (let i = 0; i < 22; i++) sim.tick(50);
+    for (let i = 0; i < 38; i++) sim.tick(50);
     expect(sim.horse(2).effects.some((e) => e.effectType === 'stop')).toBe(false);
   });
 

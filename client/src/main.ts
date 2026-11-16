@@ -40,7 +40,7 @@ import { EMOTES, conditionNote } from '../../shared/src/names';
 import { esc, particle } from './text';
 import { Net, loadToken, saveToken } from './net';
 import { Race3DView, type CameraTarget } from './race3d';
-import { claimGameBonus, claimRoundPrize, myHorseEntry, onStableChange, stable } from './stable';
+import { claimGameBonus, claimGift, claimPromos, claimRoundPrize, myHorseEntry, onStableChange, stable } from './stable';
 import { closeStable, horseSummary, initStableUi, openStable } from './stableUi';
 import { bib, icon, inkOn, mountIcons, rankBadge } from './icons';
 import { startTitleBg, stopTitleBg } from './titleBg';
@@ -71,6 +71,8 @@ const state = {
   selBetType: 'winner' as BetType,
   selHorse: null as number | null,
   readySent: false,
+  /** 걸기를 눌러 서버 답을 기다리는 중 (두 번 눌러 두 배로 걸리는 것을 막는다) */
+  betPending: false,
   augment: null as {
     phase: number;
     tier: AugmentTier;
@@ -414,6 +416,18 @@ function addLog(html: string, cls = ''): void {
 function refreshStableBadges(): void {
   $('main-carrots').innerHTML = `${icon('carrot')}${stable().carrots}`;
   $('solo-horse-summary').innerHTML = `${icon('star')}${esc(horseSummary())}`;
+  sendHello();
+}
+
+/** 서버에 이 브라우저의 기수 이름과 당근 수를 알린다 (관리자 화면의 접속자 목록용). 바뀐 것이 없으면 보내지 않는다 */
+let lastHello = '';
+function sendHello(force = false): void {
+  const name = $<HTMLInputElement>('main-name').value.trim();
+  const carrots = stable().carrots;
+  const key = `${name}|${carrots}`;
+  if (!force && key === lastHello) return;
+  lastHello = key;
+  if (name || carrots) net.send({ type: 'HELLO', playerName: name, carrots });
 }
 
 onStableChange(refreshStableBadges);
@@ -453,7 +467,10 @@ function ownerTag(h: HorseInfo | undefined): string {
   if (!h?.ownerId) return '';
   if (h.ownerId === state.myId) return `<span class="tag mine">${icon('star')}내 말</span>`;
   const owner = state.players.find((p) => p.id === h.ownerId);
-  return owner ? `<span class="tag owner" style="--pc:${playerColor(owner.id)}">${esc(owner.name)}의 말</span>` : '';
+  // 이름이 길면 이름만 말줄임으로 줄이고 "의 말"은 남긴다 (전체 이름은 마우스를 올리면 보인다)
+  return owner
+    ? `<span class="tag owner" style="--pc:${playerColor(owner.id)}" title="${esc(owner.name)}의 말"><span class="owner-name">${esc(owner.name)}</span>의 말</span>`
+    : '';
 }
 
 /** 이름 끝 글자에 받침이 있으면 '은', 없으면 '는' */
@@ -581,7 +598,7 @@ function renderLobby(): void {
       <span class="dot${p.connected || p.isNpc ? '' : ' off'}"></span>
       ${playerChip(p.id, p.name + (p.id === state.myId ? ' (나)' : ''))}
       ${p.isHost ? icon('crown') : ''}${p.isNpc ? NPC_TAG : ''}
-      ${p.horseName ? `<span class="lobby-horse">${icon('star')}${esc(p.horseName)}</span>` : ''}
+      ${p.horseName ? `<span class="lobby-horse" title="${esc(p.horseName)}">${icon('star')}<span class="lobby-horse-name">${esc(p.horseName)}</span></span>` : ''}
     </div>`
     )
     .join('');
@@ -950,6 +967,23 @@ function betLimitNow(): { limit: number; used: number } {
   return { limit, used };
 }
 
+let betPendingTimer: number | null = null;
+/** 걸기 단추 잠금. 서버 답이 끝내 안 오면 3초 뒤에 풀어 다시 누를 수 있게 한다 */
+function setBetPending(on: boolean, redraw = true): void {
+  state.betPending = on;
+  if (betPendingTimer !== null) window.clearTimeout(betPendingTimer);
+  betPendingTimer = on ? window.setTimeout(() => setBetPending(false), 3000) : null;
+  if (redraw) updateBetSelInfo();
+}
+
+/** 금액 칸이 지금 더 걸 수 있는 코인을 넘으면 그만큼으로 줄인다 */
+function clampBetAmount(): void {
+  const input = $<HTMLInputElement>('bet-amount');
+  const { limit, used } = betLimitNow();
+  const left = Math.max(0, Math.floor(Math.min(limit - used, state.coins)));
+  if (Number(input.value) > left) input.value = String(left);
+}
+
 function updateBetSelInfo(): void {
   const { limit, used } = betLimitNow();
   const left = Math.max(0, Math.min(limit - used, state.coins));
@@ -964,7 +998,10 @@ function updateBetSelInfo(): void {
   const pay = horse && odds && amount >= BET_MIN ? Math.floor(amount * odds) : 0;
   $('ticket-pay').textContent = pay.toLocaleString('ko-KR');
   $('ticket-pay').classList.toggle('zero', pay === 0);
-  if (!horse) {
+  if (state.betPending) {
+    btn.disabled = true;
+    btn.textContent = '거는 중…';
+  } else if (!horse) {
     btn.disabled = true;
     btn.textContent = '말을 먼저 고르세요';
   } else if (amount < BET_MIN) {
@@ -1481,6 +1518,8 @@ net.on((msg: S2C) => {
   switch (msg.type) {
     case 'WELCOME': {
       state.lastWelcome = { playerId: msg.playerId, secret: msg.secret };
+      // 새 접속마다 서버는 이름을 모르므로 다시 알린다
+      sendHello(true);
       const tok = loadToken();
       if (tok?.roomId) {
         state.waitingReconnect = true;
@@ -1504,6 +1543,15 @@ net.on((msg: S2C) => {
 
     case 'ROOM_LIST':
       break; // 방은 초대 코드로만 들어온다 (목록 없음)
+
+    case 'GIFT': {
+      if (claimGift(msg.giftId, msg.carrots)) {
+        sfx('coin');
+        toast(`관리자가 당근 ${msg.carrots}개를 선물했습니다.${msg.note ? ` "${msg.note}"` : ''}`, false);
+        refreshStableBadges();
+      }
+      break;
+    }
 
     case 'ROOM_UPDATE': {
       state.players = msg.players;
@@ -1536,6 +1584,7 @@ net.on((msg: S2C) => {
     }
 
     case 'ERROR': {
+      if (state.betPending) setBetPending(false);
       if (state.waitingReconnect) {
         // 재접속 실패 → 새 세션으로 시작
         state.waitingReconnect = false;
@@ -1583,6 +1632,9 @@ net.on((msg: S2C) => {
       state.augment = null;
       state.selHorse = null;
       state.readySent = false;
+      // 새 라운드는 금액 칸을 비우고 시작한다 (지난 라운드 금액이 남아 있으면 헷갈린다)
+      $<HTMLInputElement>('bet-amount').value = '0';
+      setBetPending(false, false);
       hide('overlay-result');
       hide('overlay-reveal');
       $('augment-bar').classList.add('hidden');
@@ -1616,6 +1668,7 @@ net.on((msg: S2C) => {
     }
 
     case 'BET_ACCEPTED': {
+      setBetPending(false, false);
       // 같은 말에 같은 종류로 또 걸면 서버가 금액을 합친 마권을 같은 번호로 보낸다
       const at = state.myBets.findIndex((b) => b.betId === msg.bet.betId);
       if (at >= 0) state.myBets[at] = msg.bet;
@@ -1623,6 +1676,7 @@ net.on((msg: S2C) => {
       sfx('coin');
       state.coins = msg.coins;
       renderMyBets();
+      clampBetAmount();
       updateBetSelInfo();
       updateTopbar();
       break;
@@ -1978,11 +2032,19 @@ function bindUI(): void {
   // 경주 중에 뜨는 카드 이름과 설명의 글자를 미리 받아 둔다
   if (document.fonts?.load) {
     const cardText = AUGMENTS.map((a) => a.name + a.description).join('');
-    for (const weight of [500, 800]) void document.fonts.load(`${weight} 16px "Gothic A1"`, cardText).catch(() => undefined);
+    for (const weight of [500, 800, 900]) void document.fonts.load(`${weight} 16px "Pretendard"`, cardText).catch(() => undefined);
   }
   bindSoundButtons();
   const savedName = safeGet('augment-derby-name');
   if (savedName) $<HTMLInputElement>('main-name').value = savedName;
+  // 모두에게 한 번씩 주는 당근 선물 (이 브라우저에서 아직 안 받았으면 지금 받는다)
+  const promoCarrots = claimPromos();
+  if (promoCarrots > 0) {
+    refreshStableBadges();
+    toast(`선물로 당근 ${promoCarrots.toLocaleString('ko-KR')}개를 받았습니다. 내 마구간에서 꾸미기를 사 보세요.`, false);
+  }
+  // 이름을 고치고 칸을 벗어나면 관리자 화면의 접속자 목록에도 바로 반영한다
+  $('main-name').addEventListener('change', () => sendHello());
 
   $('btn-goto-create').onclick = () => {
     // 방 이름을 비워 두면 쓰이는 이름을 미리 보여 준다
@@ -2174,9 +2236,9 @@ function bindUI(): void {
   $('btn-place-bet').onclick = () => {
     if (state.selHorse == null) return toast('말을 먼저 고르세요.');
     net.send({ type: 'PLACE_BET', betType: state.selBetType, horseId: state.selHorse, amount: Number(amountInput.value) });
-    // 다음 마권을 새로 적을 수 있게 금액을 비운다
-    amountInput.value = '0';
-    updateBetSelInfo();
+    // 금액은 비우지 않는다: 같은 금액으로 다른 말에 바로 또 걸 수 있다.
+    // 대신 서버 답이 올 때까지 단추를 잠가 두 번 눌러도 한 번만 걸리게 한다
+    setBetPending(true);
   };
   /** 지금 더 걸 수 있는 코인. 금액 칸은 이 값을 넘지 못한다 */
   const maxBet = (): number => {

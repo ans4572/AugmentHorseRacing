@@ -12,10 +12,17 @@ import { GameHub } from '../../server/src/hub';
 interface Env {
   ASSETS: Fetcher;
   GAME_HUB: DurableObjectNamespace<GameHubDO>;
+  /** 관리자 화면 비밀번호: `npx wrangler secret put ADMIN_PASSWORD` 로 넣는다. 없으면 관리자 기능이 꺼진다 */
+  ADMIN_PASSWORD?: string;
 }
 
 export class GameHubDO extends DurableObject<Env> {
-  private hub = new GameHub();
+  private hub: GameHub;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.hub = new GameHub({ adminPassword: env.ADMIN_PASSWORD });
+  }
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade') !== 'websocket') {

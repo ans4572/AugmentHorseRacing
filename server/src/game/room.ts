@@ -113,6 +113,9 @@ export function makeRoomCode(): string {
 }
 
 export class Room {
+  /** 관리자 화면용: 만든 시각과 혼자 하기 여부 */
+  readonly createdAt = Date.now();
+  solo = false;
   id: string;
   settings: RoomSettings;
   hostId: string;

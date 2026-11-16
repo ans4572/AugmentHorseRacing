@@ -1,0 +1,170 @@
+/* ============================================================
+   증강 경마 관리자 — 게임의 전광판(남색 바탕, 형광 숫자)과 마권 종이를 그대로 쓴다.
+   오래 들여다보는 화면이라 바탕은 잔디 대신 옅은 종이색으로 차분하게 둔다.
+   ============================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --turf: #1a6d43;
+  --turf-2: #1f7a4c;
+  --paper: #ffffff;
+  --paper-2: #eef2ea;
+  --ink: #1a2150;
+  --ink-soft: #565d84;
+  --line: #c9cfdf;
+  --hl: #ffe23f;
+  --stamp: #d92b22;
+  --good: #0f7a50;
+  --board-soft: #c9d2ff;
+  /* 제목과 본문이 같은 글꼴: 제목은 가장 굵은 900, 본문은 500~800 */
+  --display: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --body: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --r: 4px;
+}
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  font-family: var(--body); font-weight: 500; font-size: 15px; line-height: 1.45;
+  color: var(--ink); background: var(--paper-2); min-height: 100vh;
+}
+button, input { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+.muted { color: var(--ink-soft); }
+.num { font-variant-numeric: tabular-nums; }
+.r { text-align: right; }
+
+/* ---------- 단추와 입력 ---------- */
+.btn {
+  cursor: pointer; border: 2px solid var(--ink); border-radius: var(--r);
+  background: var(--hl); color: var(--ink); font-weight: 800; padding: 9px 18px;
+  box-shadow: 0 3px 0 var(--ink); white-space: nowrap;
+}
+.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.btn:disabled { opacity: 0.5; cursor: progress; }
+.btn.ghost { background: var(--paper); box-shadow: none; }
+.btn.small { padding: 5px 11px; font-size: 13px; box-shadow: 0 2px 0 var(--ink); }
+.btn:focus-visible, input:focus-visible, .quick button:focus-visible { outline: 3px solid #2447d6; outline-offset: 2px; }
+input {
+  width: 100%; border: 2px solid var(--ink); border-radius: var(--r); background: var(--paper);
+  padding: 9px 11px; font-size: 16px;
+}
+label { display: block; font-weight: 800; font-size: 14px; margin: 12px 0 5px; }
+.msg { min-height: 1.4em; color: var(--stamp); font-weight: 700; font-size: 14px; margin-top: 8px; }
+
+.slip { background: var(--paper); border-radius: var(--r); box-shadow: 0 6px 0 rgba(26, 33, 80, 0.25); }
+
+/* ---------- 로그인: 게임처럼 잔디 위에 마권 한 장 ---------- */
+.login {
+  min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  background: repeating-linear-gradient(180deg, var(--turf) 0 92px, var(--turf-2) 92px 184px);
+}
+.login-slip { width: min(380px, 100%); padding: 28px 26px 24px; }
+.login-slip h1 { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 28px; line-height: 1.15; margin-bottom: 6px; }
+.login-slip .btn { width: 100%; margin-top: 6px; }
+
+/* ---------- 상단 전광판 ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 16px; padding: 12px clamp(14px, 3vw, 28px);
+  background: var(--ink); color: #fff;
+}
+.topbar h1 { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; white-space: nowrap; }
+.conn { color: var(--board-soft); font-size: 13px; font-weight: 700; margin-left: auto; }
+.conn.warn { color: var(--hl); }
+.topbar .btn.ghost { background: transparent; color: #fff; border-color: #8f97c9; padding: 6px 14px; }
+
+/* 숫자판: 전광판 아래로 이어지는 형광 숫자 */
+.stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  background: var(--ink); color: #fff; padding: 4px clamp(14px, 3vw, 28px) 18px; gap: 4px 0;
+}
+.stat { display: flex; flex-direction: column; padding: 6px 14px 6px 0; border-left: 0; }
+.stat + .stat { padding-left: 14px; border-left: 1px solid rgba(201, 210, 255, 0.25); }
+.stat b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 34px; line-height: 1.1; color: var(--hl); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 13px; font-weight: 800; color: #fff; }
+.stat small { font-size: 12px; color: var(--board-soft); min-height: 1.3em; }
+
+/* ---------- 두 칸: 접속자 / 열린 방 ---------- */
+.cols { display: grid; gap: 18px; padding: 20px clamp(14px, 3vw, 28px) 40px; align-items: start; }
+@media (min-width: 1040px) { .cols { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); } }
+.panel { background: var(--paper); border-radius: var(--r); padding: 16px 18px 18px; box-shadow: 0 2px 0 var(--line); }
+.panel-head { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.panel-head h2 { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; }
+.hint { font-size: 13px; color: var(--ink-soft); }
+.empty { color: var(--ink-soft); padding: 18px 0 6px; }
+
+/* 접속자 표 */
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { text-align: left; font-size: 12px; font-weight: 800; color: var(--ink-soft); padding: 6px 8px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+.tbl th.r { text-align: right; }
+.tbl td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tbl tbody tr:nth-child(even) { background: var(--paper-2); }
+.tbl .name { font-weight: 800; max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbl .where { max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbl td.r { white-space: nowrap; }
+.code { font-family: var(--display); font-weight: 900; letter-spacing: 0.04em; background: var(--paper-2); border-radius: 3px; padding: 2px 7px; }
+.tbl tbody tr:nth-child(even) .code { background: var(--paper); }
+
+/* 방 카드 */
+.rooms { display: grid; gap: 12px; }
+.room { border: 2px solid var(--line); border-radius: var(--r); padding: 12px 14px; }
+.room.live { border-color: var(--ink); }
+.room header { display: flex; align-items: center; gap: 12px; }
+.code.big { font-size: 22px; padding: 2px 8px; background: var(--ink); color: var(--hl); }
+.room-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.room-title b { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-title .muted { font-size: 12px; }
+.phase { font-size: 13px; font-weight: 800; padding: 3px 10px; border-radius: 3px; white-space: nowrap; background: var(--paper-2); }
+.phase-preview, .phase-betting, .phase-reveal, .phase-countdown, .phase-roundResult { background: var(--hl); }
+.phase-racing { background: var(--stamp); color: #fff; }
+.players { list-style: none; margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 14px; }
+.players li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px dashed var(--line); font-size: 14px; min-width: 0; }
+.players li.off { color: var(--ink-soft); }
+.pname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.coins { margin-left: auto; font-weight: 800; }
+.tag { font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 3px; background: var(--paper-2); white-space: nowrap; flex: none; }
+.tag.npc { color: var(--ink-soft); }
+.tag.off { background: var(--stamp); color: #fff; }
+.room-foot { font-size: 12px; margin-top: 8px; }
+
+/* ---------- 당근 보내기 창 ---------- */
+.gift { border: 0; padding: 0; background: transparent; margin: auto; width: min(400px, calc(100vw - 32px)); }
+.gift::backdrop { background: rgba(26, 33, 80, 0.55); }
+.gift .slip { padding: 22px 22px 20px; }
+.gift h2 { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 24px; }
+.gift-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 4px; }
+.gift-who b { font-size: 17px; }
+.gift-who .muted { font-size: 13px; }
+.quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 14px; }
+.quick button {
+  cursor: pointer; border: 2px solid var(--ink); border-radius: var(--r); background: var(--paper);
+  font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; padding: 6px 0;
+}
+.quick button:hover { background: var(--hl); }
+.opt { font-weight: 500; color: var(--ink-soft); font-size: 12px; margin-left: 4px; }
+.gift .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* 알림 */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 10;
+  background: var(--ink); color: #fff; font-weight: 700; padding: 10px 18px; border-radius: var(--r);
+  box-shadow: 0 4px 0 rgba(26, 33, 80, 0.3); max-width: calc(100vw - 32px);
+}
+
+/* ---------- 폰 ---------- */
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; gap: 6px 12px; }
+  .topbar h1 { font-size: 19px; }
+  .conn { order: 3; flex-basis: 100%; margin-left: 0; }
+  .topbar .btn.ghost { margin-left: auto; }
+  .stats { grid-template-columns: repeat(3, 1fr); }
+  .stat, .stat + .stat { padding: 6px 8px 6px 0; border-left: 0; }
+  .stat b { font-size: 26px; }
+  /* 접속자 표: 접속 시간은 빼고, 있는 곳은 방 코드만 */
+  .tbl th:nth-child(4), .tbl td:nth-child(4) { display: none; }
+  .tbl .where { max-width: 7em; }
+  .tbl td, .tbl th { padding: 7px 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn:active { transform: none; }
+}

@@ -116,8 +116,17 @@ export const DEFAULT_LOOK: HorseLook = {
 export const DEFAULT_HORSE_NAME = '당근이';
 export const HORSE_NAME_MAX = 8;
 
-/** 처음 마구간을 열면 주는 당근 */
-export const WELCOME_CARROTS = 100;
+/** 처음 마구간을 열면 주는 당근 (처음 온 사람은 이것만 받고 아래 선물은 받지 않는다) */
+export const WELCOME_CARROTS = 1000;
+
+/**
+ * 이미 마구간이 있는 브라우저에 한 번씩 주는 당근 선물.
+ * 처음 온 사람은 이 선물들을 이미 받은 것으로 치고 시작하므로 WELCOME_CARROTS만 받는다.
+ * 받은 선물 id는 브라우저에 남으므로, 같은 id로는 두 번 받지 않는다. 새로 주려면 id가 다른 항목을 더한다.
+ */
+export const CARROT_PROMOS: readonly { id: string; carrots: number }[] = [
+  { id: 'promo-2026-11-carrot-1000', carrots: 1000 }
+];
 /** 내 말의 라운드 순위(1~6위)별 당근 상금 */
 export const ROUND_PRIZE_CARROTS = [60, 40, 25, 10, 10, 10];
 /** 게임 최종 순위(1위, 2위, 3위)별 당근 보너스. 그 아래 순위는 PLACEMENT_CARROTS_OTHER */

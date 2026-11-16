@@ -1,4 +1,4 @@
-import type { C2S, HorseLook, RoomSummary, S2C } from '../../shared/src/types';
+import type { AdminState, C2S, HorseLook, RoomSummary, S2C } from '../../shared/src/types';
 import { MAX_PLAYERS_LIMIT, MAX_ROUNDS, MIN_ROUNDS } from '../../shared/src/constants';
 import { sanitizeHorseName, sanitizeLook } from '../../shared/src/stable';
 import { Room, makeRoomCode, uid, type Player } from './game/room';
@@ -17,6 +17,17 @@ export interface HubConnection {
 }
 
 interface Session {
+  /** 접속 하나의 번호 (재접속으로 playerId가 바뀌어도 그대로다). 관리자 화면에서 선물 대상을 가리킨다 */
+  sid: string;
+  /** 브라우저가 HELLO로 알려 준 이름과 당근 수 */
+  name: string | null;
+  carrots: number | null;
+  connectedAt: number;
+  /** 관리자 비밀번호를 맞힌 접속 */
+  admin: boolean;
+  /** 이 접속에서 관리자 비밀번호를 틀린 횟수 */
+  adminFails: number;
+  send: (msg: S2C) => void;
   playerId: string;
   secret: string;
   roomId: string | null;
@@ -40,13 +51,63 @@ function sanitizeName(name: unknown): string {
   return s.length > 0 ? s : '이름없는기수';
 }
 
+/** 관리자 비밀번호 비교: 틀린 글자를 찾는 시간 차로 비밀번호를 알아내지 못하게, 늘 끝까지 비교한다 */
+function sameSecret(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * 관리자 비밀번호 대입 막기: 접속 하나는 3번까지 틀릴 수 있고(다시 접속해야 또 시도),
+ * 서버 전체로는 10분에 30번 틀리면 잠시 막는다. 전체 한도를 넉넉히 둬서 남이 일부러 틀려 관리자를 잠그기 어렵다.
+ */
+const ADMIN_FAIL_WINDOW_MS = 10 * 60 * 1000;
+const ADMIN_FAIL_LIMIT = 30;
+const ADMIN_FAIL_PER_CONN = 3;
+/** 한 번에 보낼 수 있는 당근 */
+const GIFT_MAX = 10000;
+
+export interface GameHubOptions {
+  /** 관리자 화면 비밀번호. 비어 있으면 관리자 기능을 끈다 */
+  adminPassword?: string;
+}
+
 export class GameHub {
   readonly rooms = new Map<string, Room>();
+  /** 지금 열려 있는 접속 */
+  private readonly sessions = new Set<Session>();
+  private readonly adminPassword: string;
+  private readonly startedAt = Date.now();
+  private connectionsTotal = 0;
+  private roomsCreated = 0;
+  private giftsSent = 0;
+  /** 관리자 비밀번호를 틀린 시각들 */
+  private adminFails: number[] = [];
+
+  constructor(opts: GameHubOptions = {}) {
+    this.adminPassword = (opts.adminPassword ?? '').trim();
+  }
 
   /** 새 연결을 받는다. sendRaw는 닫힌 연결에 보내도 예외를 던지지 않아야 한다 */
   open(sendRaw: (data: string) => void): HubConnection {
-    const session: Session = { playerId: uid('p'), secret: uid('s'), roomId: null, wrapper: null };
     const send = (msg: S2C): void => sendRaw(JSON.stringify(msg));
+    const session: Session = {
+      sid: uid('c'),
+      name: null,
+      carrots: null,
+      connectedAt: Date.now(),
+      admin: false,
+      adminFails: 0,
+      send,
+      playerId: uid('p'),
+      secret: uid('s'),
+      roomId: null,
+      wrapper: null
+    };
+    this.sessions.add(session);
+    this.connectionsTotal++;
     send({ type: 'WELCOME', playerId: session.playerId, secret: session.secret });
 
     return {
@@ -68,6 +129,7 @@ export class GameHub {
         }
       },
       close: () => {
+        this.sessions.delete(session);
         const room = session.roomId ? this.rooms.get(session.roomId) : undefined;
         if (!room) return;
         const player = room.players.get(session.playerId);
@@ -122,7 +184,16 @@ export class GameHub {
     const currentRoom = (): Room | null => (session.roomId ? (rooms.get(session.roomId) ?? null) : null);
     const sendError = (message: string): void => send({ type: 'ERROR', message });
 
+    if (msg.type.startsWith('ADMIN_')) return this.handleAdmin(session, msg);
+
     switch (msg.type) {
+      case 'HELLO': {
+        session.name = sanitizeName(msg.playerName);
+        const c = int(msg.carrots, -1);
+        session.carrots = c >= 0 ? Math.min(c, 10_000_000) : null;
+        break;
+      }
+
       case 'LIST_ROOMS': {
         send({ type: 'ROOM_LIST', rooms: this.roomList() });
         break;
@@ -147,9 +218,12 @@ export class GameHub {
           session.playerId
         );
         room.onEmpty = () => rooms.delete(id);
+        room.solo = !!msg.autoStart;
         rooms.set(id, room);
+        this.roomsCreated++;
 
         const player = this.makePlayer(session, sanitizeName(msg.playerName), sendRaw);
+        session.name = player.name;
         // 멀티: 데려온 말은 게임 중 몇 라운드에 출전한다 (싱글 모드는 아래에서 따로 등록한다)
         if (msg.myHorse && !msg.autoStart) player.horse = sanitizeMyHorse(msg.myHorse);
         room.addPlayer(player);
@@ -182,6 +256,7 @@ export class GameHub {
         if (room.players.size >= room.settings.maxPlayers) return sendError('방이 가득 찼습니다.');
 
         const player = this.makePlayer(session, sanitizeName(msg.playerName), sendRaw);
+        session.name = player.name;
         if (msg.myHorse) player.horse = sanitizeMyHorse(msg.myHorse);
         room.addPlayer(player);
         session.roomId = room.id;
@@ -323,5 +398,105 @@ export class GameHub {
         break;
       }
     }
+  }
+
+  // ---------------- 관리자 ----------------
+
+  private handleAdmin(session: Session, msg: C2S): void {
+    const deny = (message: string): void => session.send({ type: 'ADMIN_DENIED', message });
+    if (msg.type === 'ADMIN_LOGIN') {
+      if (!this.adminPassword) return deny('관리자 기능이 꺼져 있습니다. 서버에 ADMIN_PASSWORD를 설정해 주세요.');
+      const now = Date.now();
+      this.adminFails = this.adminFails.filter((t) => now - t < ADMIN_FAIL_WINDOW_MS);
+      if (session.adminFails >= ADMIN_FAIL_PER_CONN) return deny('비밀번호를 3번 틀렸습니다. 페이지를 새로 고친 뒤 다시 해 보세요.');
+      if (this.adminFails.length >= ADMIN_FAIL_LIMIT) {
+        const waitMin = Math.ceil((this.adminFails[0] + ADMIN_FAIL_WINDOW_MS - now) / 60000);
+        return deny(`비밀번호를 여러 번 틀려 잠겼습니다. ${waitMin}분 뒤에 다시 해 보세요.`);
+      }
+      if (!sameSecret(String(msg.password ?? ''), this.adminPassword)) {
+        this.adminFails.push(now);
+        session.adminFails++;
+        return deny('비밀번호가 맞지 않습니다.');
+      }
+      session.admin = true;
+      session.send({ type: 'ADMIN_OK' });
+      session.send({ type: 'ADMIN_STATE', state: this.adminState() });
+      return;
+    }
+    if (!session.admin) return deny('먼저 비밀번호를 입력해 주세요.');
+
+    switch (msg.type) {
+      case 'ADMIN_REFRESH':
+        session.send({ type: 'ADMIN_STATE', state: this.adminState() });
+        break;
+      case 'ADMIN_GIFT': {
+        const result = (ok: boolean, message: string): void => session.send({ type: 'ADMIN_RESULT', ok, message });
+        const carrots = int(msg.carrots, 0);
+        if (carrots < 1 || carrots > GIFT_MAX) {
+          return result(false, `당근은 1~${GIFT_MAX.toLocaleString('ko-KR')}개까지 보낼 수 있습니다.`);
+        }
+        const target = [...this.sessions].find((x) => x.sid === msg.sid && !x.admin);
+        if (!target) return result(false, '그 접속자는 이미 나갔습니다.');
+        const note = String(msg.note ?? '').trim().slice(0, 40);
+        target.send({ type: 'GIFT', giftId: uid('g'), carrots, note });
+        // 브라우저가 다시 알려 주기 전까지 목록에 바로 반영해 둔다
+        if (target.carrots !== null) target.carrots += carrots;
+        this.giftsSent++;
+        result(true, `${target.name ?? '이름 없는 접속자'}에게 당근 ${carrots}개를 보냈습니다.`);
+        session.send({ type: 'ADMIN_STATE', state: this.adminState() });
+        break;
+      }
+    }
+  }
+
+  private adminState(): AdminState {
+    // 메모리는 Node 서버에서만 잴 수 있다 (Cloudflare에는 process가 없다)
+    const proc = (globalThis as { process?: { memoryUsage?: () => { rss: number } } }).process;
+    const memoryMB = proc?.memoryUsage ? Math.round(proc.memoryUsage().rss / 1048576) : null;
+    const users = [...this.sessions]
+      .filter((x) => !x.admin)
+      .map((x) => {
+        const room = x.roomId ? this.rooms.get(x.roomId) : undefined;
+        return {
+          sid: x.sid,
+          name: room?.players.get(x.playerId)?.name ?? x.name,
+          carrots: x.carrots,
+          roomId: room ? room.id : null,
+          roomName: room ? room.settings.roomName : null,
+          connectedAt: x.connectedAt
+        };
+      })
+      .sort((a, b) => a.connectedAt - b.connectedAt);
+    const rooms = [...this.rooms.values()]
+      .map((r) => ({
+        id: r.id,
+        name: r.settings.roomName,
+        solo: r.solo,
+        isPrivate: r.settings.isPrivate,
+        blindBets: !!r.settings.blindBets,
+        phase: r.phase,
+        round: r.round,
+        totalRounds: r.settings.totalRounds,
+        createdAt: r.createdAt,
+        players: [...r.players.values()].map((p) => ({
+          name: p.name,
+          isNpc: p.isNpc,
+          connected: p.isNpc || p.connected,
+          coins: p.coins,
+          isHost: p.id === r.hostId
+        }))
+      }))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    return {
+      now: Date.now(),
+      startedAt: this.startedAt,
+      connections: users.length,
+      connectionsTotal: this.connectionsTotal,
+      roomsCreated: this.roomsCreated,
+      giftsSent: this.giftsSent,
+      memoryMB,
+      rooms,
+      users
+    };
   }
 }

@@ -21,8 +21,9 @@
   --good: #0f7a50;
   --carrot: #b83c08;
   /* 글꼴 */
-  --display: 'Black Han Sans', 'Gothic A1', sans-serif;
-  --body: 'Gothic A1', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  /* 제목과 본문이 같은 글꼴: 제목은 가장 굵은 900, 본문은 500~800 */
+  --display: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --body: 'Pretendard', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
   --r: 4px;
 }
 
@@ -47,7 +48,7 @@ body {
 .center { text-align: center; }
 b, strong { font-weight: 800; }
 
-h2 { font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1.15; letter-spacing: -0.2px; }
+h2 { font-family: var(--display); font-weight: 900; font-size: 28px; line-height: 1.15; letter-spacing: -0.025em; }
 h3 { font-size: 16px; font-weight: 800; margin-top: 4px; }
 
 /* 아이콘 */
@@ -57,7 +58,7 @@ h3 { font-size: 16px; font-weight: 800; margin-top: 4px; }
 .bib {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 3px; flex-shrink: 0;
-  font-family: var(--display); font-size: 18px; line-height: 1; color: #fff;
+  font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; line-height: 1; color: #fff;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), inset 0 0 0 3px rgba(26, 33, 80, 0.25);
   vertical-align: middle;
 }
@@ -71,7 +72,7 @@ h3 { font-size: 16px; font-weight: 800; margin-top: 4px; }
 .rank-badge {
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
-  font-family: var(--display); font-size: 16px; line-height: 1;
+  font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 16px; line-height: 1;
   background: var(--paper-2); color: var(--ink-soft);
 }
 .rank-badge.r1 { background: var(--hl); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
@@ -80,7 +81,7 @@ h3 { font-size: 16px; font-weight: 800; margin-top: 4px; }
 
 /* 인주 도장 */
 .stamp {
-  display: inline-block; font-family: var(--display); color: var(--stamp);
+  display: inline-block; font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; color: var(--stamp);
   border: 3px solid var(--stamp); border-radius: 6px; padding: 0 10px 1px;
   font-size: 22px; line-height: 1.35; transform: rotate(-7deg); white-space: nowrap;
 }
@@ -93,7 +94,7 @@ h3 { font-size: 16px; font-weight: 800; margin-top: 4px; }
 .tag.mine { background: var(--hl); }
 .horse-chip { display: inline-flex; align-items: center; gap: 5px; font-weight: 800; vertical-align: middle; }
 .coin { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-weight: 800; }
-.code { font-family: var(--display); font-weight: 400; font-size: 22px; letter-spacing: 3px; margin-left: 6px; }
+.code { font-family: var(--display); font-weight: 900; font-size: 22px; letter-spacing: 3px; margin-left: 6px; }
 .tag.npc { color: var(--ink-soft); }
 .tag.gone { color: var(--ink-soft); }
 .standing-row.gone { opacity: 0.55; }
@@ -153,8 +154,8 @@ body[data-screen='scr-main'] .finish-line { display: none; }
   background: repeating-linear-gradient(90deg, #fff 0 5px, transparent 5px 86px);
 }
 .logo {
-  font-family: var(--display); font-weight: 400; color: #fff;
-  font-size: clamp(60px, 10vw, 112px); line-height: 0.95; letter-spacing: -2px;
+  font-family: var(--display); font-weight: 900; color: #fff;
+  font-size: clamp(60px, 10vw, 112px); line-height: 1; letter-spacing: -0.045em;
 }
 .tagline { color: #fff; font-size: 18px; margin-top: 12px; max-width: 30em; }
 
@@ -249,11 +250,11 @@ label > span { font-weight: 800; }
   font-size: 16px; font-weight: 700;
   position: relative; z-index: 60;
 }
-#top-round { font-family: var(--display); font-weight: 400; font-size: 18px; white-space: nowrap; }
+#top-round { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; white-space: nowrap; }
 #top-phase { color: #c9d2ff; white-space: nowrap; }
-#top-timer { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--hl); min-width: 58px; white-space: nowrap; }
+#top-timer { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; color: var(--hl); min-width: 58px; white-space: nowrap; }
 #top-coins {
-  margin-left: auto; font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--hl);
+  margin-left: auto; font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; color: var(--hl);
   display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
 }
 #btn-game-leave { white-space: nowrap; background: transparent; color: #fff; border-color: #8f97c9; }
@@ -303,7 +304,7 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
 #camera-select .cam-label { display: inline-flex; font-size: 16px; margin: 0 2px; }
 #camera-select button {
   width: 28px; height: 28px; border-radius: 3px; border: 0;
-  color: #fff; cursor: pointer; font-family: var(--display); font-size: 18px; line-height: 1;
+  color: #fff; cursor: pointer; font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; line-height: 1;
   opacity: 0.6; display: inline-flex; align-items: center; justify-content: center;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
 }
@@ -319,7 +320,7 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
 #overlay-countdown {
   position: absolute; inset: 0; z-index: 5;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--display); font-size: 150px; color: #fff;
+  font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 150px; color: #fff;
   -webkit-text-stroke: 10px var(--ink); paint-order: stroke fill;
   background: rgba(10, 35, 22, 0.3);
 }
@@ -330,7 +331,7 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
   background: rgba(26, 33, 80, 0.95); padding: 9px 12px 12px;
 }
 .augment-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: #fff; margin-bottom: 7px; font-size: 14px; font-weight: 700; }
-.augment-head #augment-remain { font-family: var(--display); font-size: 22px; color: var(--hl); white-space: nowrap; }
+.augment-head #augment-remain { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; color: var(--hl); white-space: nowrap; }
 .aug-tier-chip {
   display: inline-flex; align-items: center; gap: 4px; color: #fff;
   border-radius: 3px; padding: 1px 8px; margin: 0 3px; white-space: nowrap; font-weight: 800;
@@ -349,13 +350,13 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
   display: inline-flex; align-items: center; gap: 3px;
   background: none !important;
 }
-.augment-card .aug-name { font-family: var(--display); font-size: 18px; line-height: 1.2; }
+.augment-card .aug-name { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; line-height: 1.2; }
 .augment-card .aug-desc { font-size: 14px; color: var(--ink-soft); }
 .augment-card .aug-target { font-size: 12px; font-weight: 800; color: var(--pen); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
 .augment-pickhorse { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .augment-pickhorse .pick {
   width: 34px; height: 34px; border: 0; border-radius: 3px; cursor: pointer;
-  font-family: var(--display); font-size: 22px; color: #fff;
+  font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; color: #fff;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 2px var(--ink);
 }
 .augment-pickhorse .pick.dk { color: var(--ink); }
@@ -397,7 +398,7 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
 }
 .side-player.me { background: var(--hl); padding: 5px 6px; border-radius: 3px; border-bottom-color: transparent; }
 .side-player .off { color: #a0a6bd; }
-.side-player b { font-family: var(--display); font-weight: 400; font-size: 16px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.side-player b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 16px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .side-bet { font-size: 12px; padding: 6px 8px; line-height: 1.5; }
 
 /* ---------- 게임 오버레이 ---------- */
@@ -414,7 +415,7 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
   width: 880px; max-width: 96vw; max-height: 92vh; overflow-y: auto;
   display: flex; flex-direction: column; gap: 12px;
 }
-.phase-timer { font-family: var(--display); font-size: 28px; color: var(--stamp); white-space: nowrap; }
+.phase-timer { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 28px; color: var(--stamp); white-space: nowrap; }
 
 /* ---------- 출마표 (말 카드) ---------- */
 .horse-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -436,7 +437,7 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
   margin: 7px -11px -9px; padding: 5px 11px 6px; background: var(--paper-2);
   display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 700;
 }
-.hc-odds b { font-family: var(--display); font-weight: 400; font-size: 22px; line-height: 1; }
+.hc-odds b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; line-height: 1; }
 
 /* ---------- 마권 표기 (배팅 컨트롤) ---------- */
 .bet-controls { display: flex; flex-direction: column; gap: 9px; }
@@ -451,9 +452,9 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
 .btn.bet-go { width: 100%; font-size: 18px; padding: 12px 14px; flex-wrap: wrap; }
 .ready-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .bet-amount-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.bet-amount-row input { width: 110px; font-family: var(--display); font-weight: 400; font-size: 22px; padding: 5px 10px; }
+.bet-amount-row input { width: 110px; font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; padding: 5px 10px; }
 #bet-selected-info { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink); }
-#bet-selected-info .odds { font-family: var(--display); font-size: 18px; }
+#bet-selected-info .odds { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; }
 #my-bets { display: flex; flex-direction: column; }
 .my-bet-item {
   display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -488,7 +489,7 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
 .result-table td { padding: 6px; text-align: left; }
 .result-table tr:nth-child(odd) td { background: var(--paper-2); }
 .result-table td .rp-bet { font-weight: 700; }
-.result-table .num { text-align: right; font-family: var(--display); font-size: 16px; white-space: nowrap; }
+.result-table .num { text-align: right; font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 16px; white-space: nowrap; }
 .result-table .pos { color: var(--good); }
 .result-table .neg { color: var(--stamp); }
 .result-table .miss { color: var(--ink-soft); font-size: 12px; font-weight: 700; }
@@ -497,13 +498,13 @@ body[data-screen='scr-game'] .sound-ctl.corner { display: none; }
   padding: 7px 8px; font-size: 16px; font-weight: 700;
 }
 .standing-row .sr-main { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.standing-row b { font-family: var(--display); font-weight: 400; font-size: 18px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.standing-row b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .standing-row.me { background: var(--hl); padding: 7px 8px; border-radius: 3px; border-bottom-color: transparent; }
 .award-row { padding: 6px 8px; font-size: 14px; }
 
 /* ---------- 기타 ---------- */
 .howto { padding-left: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 16px; max-width: 42em; }
-.howto li::marker { font-family: var(--display); }
+.howto li::marker { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; }
 
 #conn-banner {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
@@ -526,7 +527,7 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
 /* ---------- 마구간 (내 말 꾸미기) ---------- */
 .carrot-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  font-family: var(--display); font-weight: 400; color: var(--carrot);
+  font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; color: var(--carrot);
   white-space: nowrap; line-height: 1;
 }
 .carrot-chip.big { font-size: 28px; }
@@ -576,7 +577,7 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
 }
 .carrot-box { border-top: 2px solid var(--ink); display: flex; flex-direction: column; margin-bottom: 6px; }
 .carrot-box > div { display: flex; justify-content: space-between; gap: 10px; padding: 5px 2px;  }
-.carrot-box b { font-family: var(--display); font-weight: 400; color: var(--carrot); display: inline-flex; align-items: center; gap: 3px; }
+.carrot-box b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; color: var(--carrot); display: inline-flex; align-items: center; gap: 3px; }
 .carrot-box .carrot-total { font-size: 18px; font-weight: 800; border-bottom: 2px solid var(--ink); }
 
 /* ---------- 3D 경주 화면 오버레이 ---------- */
@@ -603,7 +604,7 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
 }
 .r3d-dot {
   position: absolute; top: 2px; left: 0; width: 18px; height: 18px; margin-left: -9px; will-change: transform;
-  border-radius: 3px; color: #fff; font-family: var(--display); font-size: 14px; line-height: 18px; text-align: center;
+  border-radius: 3px; color: #fff; font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 14px; line-height: 18px; text-align: center;
   text-shadow: 0 1px 0 rgba(26, 33, 80, 0.6);
 }
 .r3d-dot.dk { color: var(--ink); text-shadow: none; }
@@ -611,7 +612,7 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
 .r3d-dot.mine { box-shadow: 0 0 0 2px var(--hl); z-index: 3; }
 .r3d-announce {
   position: absolute; left: 50%; top: 20%; transform: translateX(-50%);
-  font-family: var(--display); font-size: 28px; white-space: nowrap;
+  font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 28px; white-space: nowrap;
   -webkit-text-stroke: 6px var(--ink); paint-order: stroke fill;
   animation: r3d-rise 2.6s ease-out forwards;
 }
@@ -634,7 +635,7 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
   background: rgba(26, 33, 80, 0.94); border-radius: var(--r); padding: 12px 28px 14px;
   text-align: center; white-space: nowrap;
 }
-.r3d-banner-title { font-family: var(--display); font-size: 36px; color: var(--hl); }
+.r3d-banner-title { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 36px; color: var(--hl); }
 .r3d-banner-sub { font-size: 16px; font-weight: 800; color: #fff; margin-top: 6px; display: flex; gap: 16px; justify-content: center; align-items: center; }
 .r3d-banner-sub span { display: inline-flex; align-items: center; gap: 6px; }
 .r3d-unsupported { padding: 40px 20px; text-align: center; color: var(--ink-soft); font-size: 16px; }
@@ -780,7 +781,7 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
 #btn-ready.waiting { background: var(--paper-2); border-style: dashed; }
 
 /* 초대 코드 입력 칸 */
-input.code-input { font-family: var(--display); font-weight: 400; font-size: 36px; letter-spacing: 8px; text-align: center; text-transform: uppercase; padding: 10px; }
+input.code-input { font-family: var(--display); font-weight: 900; font-size: 36px; letter-spacing: 8px; text-align: center; text-transform: uppercase; padding: 10px; }
 input.code-input::placeholder { color: #7d85a9; }
 
 /* ---------- 화면 점검 뒤 손본 것 ---------- */
@@ -791,7 +792,7 @@ input.code-input::placeholder { color: #7d85a9; }
 }
 /* 슬라이더 항목: 이름 옆에 값을 나란히 놓는다 */
 label:has(> input[type='range']) { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: baseline; }
-label:has(> input[type='range']) > span { font-family: var(--display); font-weight: 400; font-size: 18px; }
+label:has(> input[type='range']) > span { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; }
 label:has(> input[type='range']) > input { flex-basis: 100%; }
 .top-break { display: none; }
 .result-table td:first-child, .result-table th:first-child { white-space: nowrap; }
@@ -879,7 +880,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .rb-row { display: flex; align-items: center; gap: 6px; padding: 2px 6px 2px 4px; border-radius: 3px; font-size: 14px; font-weight: 800; }
 .rb-row.mine { background: var(--hl); color: var(--ink); }
 .rb-row.done { opacity: 0.6; }
-.rb-rank { font-family: var(--display); font-size: 16px; width: 14px; text-align: center; }
+.rb-rank { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 16px; width: 14px; text-align: center; }
 .rb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 /* ---------- 기록 칸을 넉넉하게 ---------- */
 #bottom-bar { min-height: 160px; max-height: 160px; }
@@ -986,7 +987,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
   background: var(--hl); border: 3px solid var(--ink); border-radius: var(--r); padding: 8px 14px;
   box-shadow: 0 4px 0 rgba(10, 20, 50, 0.4);
 }
-.aug-pill #augment-remain { font-family: var(--display); font-size: 18px; }
+.aug-pill #augment-remain { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 18px; }
 @media (prefers-reduced-motion: reduce) { #augment-bar { animation: none; } }
 @media (max-width: 900px) {
   #augment-bar .augment-card { min-height: 0; padding: 8px 10px; }
@@ -1115,9 +1116,9 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .howto > li::before {
   content: counter(howto); position: absolute; left: 0; top: 0; width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center; border-radius: 3px;
-  background: var(--ink); color: #fff; font-family: var(--display); font-size: 22px; line-height: 1;
+  background: var(--ink); color: #fff; font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; line-height: 1;
 }
-.howto h3 { font-family: var(--display); font-size: 18px; font-weight: 400; margin: 5px 0 4px; }
+.howto h3 { font-family: var(--display); font-size: 18px; font-weight: 900; letter-spacing: -0.02em; margin: 5px 0 4px; }
 .howto p { font-size: 14px; margin: 0; max-width: 38em; }
 .howto p + p, .howto div + p { margin-top: 6px; }
 .howto-bets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 2px; }
@@ -1126,7 +1127,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .howto-bets span { font-size: 12px; }
 .howto-kinds { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 2px; }
 .howto-kinds > div { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.howto-sub { font-family: var(--display); font-size: 18px; font-weight: 400; margin: 18px 0 8px; padding-top: 14px; border-top: 2px dashed var(--ink-soft); }
+.howto-sub { font-family: var(--display); font-size: 18px; font-weight: 900; letter-spacing: -0.02em; margin: 18px 0 8px; padding-top: 14px; border-top: 2px dashed var(--ink-soft); }
 .howto-legend { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .howto-legend li { display: flex; align-items: center; gap: 10px; }
 .lg-sample { flex: 0 0 76px; text-align: center; font-size: 12px; font-weight: 800; padding: 4px 0; border-radius: 3px; color: var(--ink); }
@@ -1143,8 +1144,8 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 #modal-howto .btn-row { position: sticky; bottom: -22px; background: var(--paper); padding: 10px 0 12px; margin-top: 12px; box-shadow: 0 -2px 0 var(--ink); }
 
 /* ================= 글꼴과 크기 정리 ================= */
-/* 제목용 글꼴(Black Han Sans)은 획이 굵어 작게 쓰면 글자 속이 메워진다.
-   22px 이상과 숫자에만 쓰고, 그보다 작은 제목은 본문 글꼴의 굵은 체로 쓴다 */
+/* 제목용 굵기(900)는 획이 굵어 작게 쓰면 글자 속이 메워진다.
+   22px 이상과 숫자에만 쓰고, 그보다 작은 제목은 800으로 쓴다 */
 .augment-card .aug-name, #augment-bar .augment-card .aug-name,
 .howto h3, .howto-sub, #top-round {
   font-family: var(--body); font-weight: 800; letter-spacing: -0.01em;
@@ -1222,7 +1223,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .horse-row .hc-cond { margin-top: 0; }
 .hr-odds { text-align: right; }
 .hr-odds span { display: block; font-size: 12px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
-.hr-odds b { font-family: var(--display); font-weight: 400; font-size: 24px; font-variant-numeric: tabular-nums; }
+.hr-odds b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 24px; font-variant-numeric: tabular-nums; }
 
 .ticket { position: relative; background: var(--ink); color: #fff; border-radius: 6px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
 /* 마권 양옆의 반달 홈: 절취선 자리 */
@@ -1231,7 +1232,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .t-head { display: flex; align-items: center; gap: 12px; min-height: 80px; padding-bottom: 14px; border-bottom: 2px dashed rgba(255, 255, 255, 0.45); }
 .t-head .bib { width: 60px; height: 60px; font-size: 40px; border-color: #fff; flex: none; }
 .t-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.t-who b { font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1.15; }
+.t-who b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 28px; line-height: 1.15; }
 .t-who span { font-size: 14px; font-weight: 700; color: rgba(255, 255, 255, 0.85); word-break: keep-all; }
 .t-types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .t-type {
@@ -1243,7 +1244,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .tt-label { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .tt-label b { font-size: 16px; font-weight: 800; }
 .tt-label small { font-size: 12px; font-weight: 700; opacity: 0.85; word-break: keep-all; }
-.tt-odds { font-family: var(--display); font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tt-odds { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ticket .bet-amount-row { gap: 6px; }
 .ticket .bet-amount-row input { flex: 1 1 96px; min-width: 0; width: auto; font-size: 28px; border: 0; border-radius: var(--r); background: #fff; color: var(--ink); }
 .ticket .btn.small { box-shadow: none; }
@@ -1253,7 +1254,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .t-link:hover { color: #fff; }
 .t-pay { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .t-pay span { font-size: 16px; font-weight: 800; }
-.t-pay b { font-family: var(--display); font-weight: 400; font-size: 54px; line-height: 1; color: var(--hl); font-variant-numeric: tabular-nums; }
+.t-pay b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 54px; line-height: 1; color: var(--hl); font-variant-numeric: tabular-nums; }
 .ticket .btn.bet-go { font-size: 20px; padding: 14px; box-shadow: 0 4px 0 #0c1030; }
 .ticket .btn.bet-go:disabled { background: rgba(255, 255, 255, 0.16); color: rgba(255, 255, 255, 0.8); border-color: rgba(255, 255, 255, 0.35); box-shadow: none; font-size: 16px; }
 
@@ -1265,7 +1266,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .od-horse { display: flex; align-items: center; gap: 7px; font-weight: 800; font-size: 16px; min-width: 0; }
 .od-horse span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .od-cell {
-  position: relative; font-family: var(--display); font-size: 20px; font-variant-numeric: tabular-nums; color: var(--ink); background: var(--paper);
+  position: relative; font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 20px; font-variant-numeric: tabular-nums; color: var(--ink); background: var(--paper);
   border: 2px solid var(--ink); border-radius: var(--r); box-shadow: 0 3px 0 var(--ink); padding: 9px 0; cursor: pointer;
 }
 .od-cell.hot { color: var(--stamp); }
@@ -1360,7 +1361,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .aug-band span { font-size: 16px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aug-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .aug-fx { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-right: 0; }
-.aug-fx-main { font-family: var(--display); font-size: 28px; line-height: 1.1; word-break: keep-all; }
+.aug-fx-main { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 28px; line-height: 1.1; word-break: keep-all; }
 .augment-card.good .aug-fx-main { color: #0b6b3a; }
 .augment-card.bad .aug-fx-main { color: #c21d15; }
 .aug-fx-chip { font-size: 14px; font-weight: 800; color: var(--ink); background: var(--paper-2); border-radius: 3px; padding: 3px 8px; white-space: nowrap; }
@@ -1613,7 +1614,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .horse-line.selected .hl-sub, .horse-line.selected .ms-label, .horse-line.selected .hl-odds span { color: var(--ink); }
 .hl-odds { text-align: right; min-width: 94px; }
 .hl-odds span { display: block; font-size: 12px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
-.hl-odds b { font-family: var(--display); font-weight: 400; font-size: 24px; font-variant-numeric: tabular-nums; }
+.hl-odds b { font-family: var(--display); font-weight: 900; letter-spacing: -0.02em; font-size: 24px; font-variant-numeric: tabular-nums; }
 /* 좁은 두 단 화면: 막대는 빼고 숫자만 */
 @media (max-width: 1099px) {
   .ms-track { display: none; }
@@ -1725,4 +1726,38 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 @media (max-width: 640px) and (orientation: portrait) {
   #rank-board .rb-row { flex-wrap: nowrap; }
   #rank-board .rb-bets { flex: 0 1 auto; flex-wrap: nowrap; padding-left: 2px; }
+}
+
+/* ================= 긴 이름: 말 이름, 주인 이름이 길어도 옆 칸을 침범하지 않는다 ================= */
+/* 주인 딱지: 사람 이름만 말줄임으로 줄이고 "의 말"은 남긴다 */
+.tag.owner { min-width: 0; }
+.tag.owner .owner-name { display: inline-block; min-width: 2.5em; max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+/* 배팅 목록 윗줄: 말 이름(최대 8자)은 그대로 두고, 주인 딱지만 줄어든다 */
+.hl-main { container-type: inline-size; }
+.hl-top { min-width: 0; }
+.hl-top .hc-name { flex: none; }
+.hl-top .tag.owner { flex: 0 1 auto; overflow: hidden; }
+.hl-stats { flex: none; }
+/* 줄이 좁으면 능력치 막대를 빼고 숫자만 둔다 (긴 이름과 주인 딱지가 들어갈 자리) */
+@container (max-width: 600px) {
+  .ms-track { display: none; }
+  .hl-stats { gap: 8px; }
+}
+/* 출마표 카드 머리: 이름은 그대로, 주인 딱지가 줄어든다 */
+.hc-head { min-width: 0; }
+.hc-head .hc-name { flex: none; white-space: nowrap; }
+.hc-head .tag.owner { flex: 0 1 auto; overflow: hidden; }
+/* 대기방 참가자 줄: 사람 이름과 데려온 말 이름이 길면 둘 다 말줄임으로 줄여 한 줄에 둔다 */
+.lobby-player { min-width: 0; }
+.lobby-player > .pchip { flex: 0 1 auto; min-width: 3em; }
+.lobby-player .lobby-horse { flex: 0 1 auto; min-width: 3.5em; overflow: hidden; }
+.lobby-player .lobby-horse .ic { flex: none; }
+.lobby-horse-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ================= Pretendard로 바꾼 뒤 다듬기 ================= */
+/* 좁은 폰: 배팅 종류 칸에서 "우승마"와 배당 숫자가 붙지 않게 숫자를 줄이고 칸 안쪽 여백을 조인다 */
+@media (max-width: 420px) {
+  .t-type { padding-left: 8px; padding-right: 8px; column-gap: 8px; }
+  .tt-label b { font-size: 15px; }
+  .tt-odds { font-size: 17px; }
 }

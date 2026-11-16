@@ -243,7 +243,7 @@ function signTexture(text: string, bg: string, fg: string): THREE.CanvasTexture 
     g.strokeStyle = '#3a2a1e';
     g.strokeRect(5, 5, 246, 118);
     g.fillStyle = fg;
-    g.font = 'bold 72px Jua, sans-serif';
+    g.font = '900 72px Pretendard, sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText(text, 128, 68);
@@ -490,7 +490,7 @@ export class Race3DView {
       g.fillStyle = '#2b2c34';
       g.fillRect(0, 0, 1024, 128);
       g.fillStyle = '#ffd803';
-      g.font = 'bold 92px Jua, sans-serif';
+      g.font = '900 92px Pretendard, sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText('🏁 FINISH 🏁', 512, 70);

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#1a2150" />
+  <title>증강 경마 관리자</title>
+  <!-- 글꼴: Pretendard 하나로 한글·영문·숫자의 크기를 맞춘다. 화면에 나온 글자 묶음만 내려받는다 -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
+  <link rel="stylesheet" href="/src/admin.css" />
+</head>
+<body>
+  <!-- 로그인 -->
+  <main id="login" class="login">
+    <form id="login-form" class="slip login-slip" autocomplete="off">
+      <h1>증강 경마 관리자</h1>
+      <label for="login-pw">비밀번호</label>
+      <input id="login-pw" type="password" autocomplete="current-password" required />
+      <p id="login-msg" class="msg" role="alert"></p>
+      <button id="login-go" class="btn" type="submit">들어가기</button>
+    </form>
+  </main>
+
+  <!-- 관리 화면 -->
+  <div id="board" class="board" hidden>
+    <header class="topbar">
+      <h1>증강 경마 관리자</h1>
+      <p id="conn" class="conn"></p>
+      <button id="logout" class="btn ghost" type="button">나가기</button>
+    </header>
+
+    <section class="stats" aria-label="서버 상태">
+      <div class="stat"><b id="st-conn">0</b><span>지금 접속</span></div>
+      <div class="stat"><b id="st-rooms">0</b><span>열린 방</span><small id="st-playing"></small></div>
+      <div class="stat"><b id="st-created">0</b><span>만든 방</span><small>서버가 켜진 뒤</small></div>
+      <div class="stat"><b id="st-total">0</b><span>누적 접속</span><small>서버가 켜진 뒤</small></div>
+      <div class="stat"><b id="st-gifts">0</b><span>보낸 선물</span></div>
+      <div class="stat"><b id="st-up">-</b><span>가동 시간</span><small id="st-mem"></small></div>
+    </section>
+
+    <div class="cols">
+      <section class="panel" aria-labelledby="users-title">
+        <div class="panel-head">
+          <h2 id="users-title">접속자</h2>
+          <p class="hint">당근은 각 브라우저에 저장되므로 지금 접속한 사람에게만 보낼 수 있습니다.</p>
+        </div>
+        <div id="users" class="users"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="rooms-title">
+        <div class="panel-head">
+          <h2 id="rooms-title">열린 방</h2>
+        </div>
+        <div id="rooms" class="rooms"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 당근 보내기 창 -->
+  <dialog id="gift" class="gift">
+    <form id="gift-form" method="dialog" class="slip">
+      <h2>당근 보내기</h2>
+      <p id="gift-who" class="gift-who"></p>
+      <div class="quick" role="group" aria-label="빠른 금액">
+        <button type="button" data-n="10">10</button>
+        <button type="button" data-n="50">50</button>
+        <button type="button" data-n="100">100</button>
+        <button type="button" data-n="500">500</button>
+      </div>
+      <label for="gift-n">당근 수</label>
+      <input id="gift-n" type="number" min="1" max="10000" step="1" value="50" required />
+      <label for="gift-note">한마디 <span class="opt">받는 사람 화면에 함께 보입니다 (선택)</span></label>
+      <input id="gift-note" type="text" maxlength="40" placeholder="예: 버그 제보 고마워요" />
+      <p id="gift-msg" class="msg" role="alert"></p>
+      <div class="row">
+        <button type="button" id="gift-cancel" class="btn ghost">닫기</button>
+        <button type="submit" id="gift-go" class="btn">보내기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script type="module" src="/src/admin.ts"></script>
+</body>
+</html>

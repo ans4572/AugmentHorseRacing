@@ -401,7 +401,13 @@ export type C2S =
   | { type: 'NEXT_ROUND' }
   | { type: 'RESTART' }
   | { type: 'EMOTE'; emoji: string }
-  | { type: 'RECONNECT'; playerId: string; secret: string; roomId: string };
+  | { type: 'RECONNECT'; playerId: string; secret: string; roomId: string }
+  /** 이 브라우저의 기수 이름과 당근 수 (관리자 화면의 접속자 목록에 보인다) */
+  | { type: 'HELLO'; playerName: string; carrots: number }
+  // ---- 관리자 ----
+  | { type: 'ADMIN_LOGIN'; password: string }
+  | { type: 'ADMIN_REFRESH' }
+  | { type: 'ADMIN_GIFT'; sid: string; carrots: number; note?: string };
 
 // ---------------- 메시지: 서버 → 클라이언트 ----------------
 
@@ -431,4 +437,53 @@ export type S2C =
   | { type: 'GAME_RESULT'; standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus; ownerBonuses?: OwnerBonus[] }
   | { type: 'EMOTE'; playerName: string; emoji: string }
   | { type: 'LOBBY_RETURN' }
-  | { type: 'ROOM_CLOSED'; reason: string };
+  | { type: 'ROOM_CLOSED'; reason: string }
+  /** 관리자가 보낸 당근 선물. giftId로 같은 선물을 두 번 받지 않는다 */
+  | { type: 'GIFT'; giftId: string; carrots: number; note: string }
+  // ---- 관리자 ----
+  | { type: 'ADMIN_OK' }
+  | { type: 'ADMIN_DENIED'; message: string }
+  | { type: 'ADMIN_STATE'; state: AdminState }
+  | { type: 'ADMIN_RESULT'; ok: boolean; message: string };
+
+// ---------------- 관리자 화면 ----------------
+
+export interface AdminRoom {
+  id: string;
+  name: string;
+  /** 혼자 하기 방 */
+  solo: boolean;
+  isPrivate: boolean;
+  blindBets: boolean;
+  phase: RoomPhase;
+  round: number;
+  totalRounds: number;
+  createdAt: number;
+  players: { name: string; isNpc: boolean; connected: boolean; coins: number; isHost: boolean }[];
+}
+
+export interface AdminUser {
+  /** 접속 하나를 가리키는 번호 (선물 보낼 때 쓴다) */
+  sid: string;
+  name: string | null;
+  /** 브라우저가 알려 준 당근 수 */
+  carrots: number | null;
+  roomId: string | null;
+  roomName: string | null;
+  connectedAt: number;
+}
+
+export interface AdminState {
+  now: number;
+  startedAt: number;
+  /** 지금 열려 있는 접속 (관리자 제외) */
+  connections: number;
+  /** 서버가 켜진 뒤 누적 */
+  connectionsTotal: number;
+  roomsCreated: number;
+  giftsSent: number;
+  /** Node 서버에서만 (Cloudflare에서는 null) */
+  memoryMB: number | null;
+  rooms: AdminRoom[];
+  users: AdminUser[];
+}

@@ -4,6 +4,7 @@ import {
   DEFAULT_HORSE_NAME,
   DEFAULT_LOOK,
   WELCOME_CARROTS,
+  CARROT_PROMOS,
   sanitizeHorseName,
   sanitizeLook
 } from '../../shared/src/stable';
@@ -24,6 +25,8 @@ export interface StableData {
   name: string;
   look: HorseLook;
   claimed: string[];
+  /** 이미 받은 당근 선물(CARROT_PROMOS) id. claimed와 달리 오래돼도 지우지 않는다 (지우면 같은 선물을 또 받는다) */
+  promos: string[];
   stats: { races: number; wins: number; podiums: number; games: number; earned: number };
 }
 
@@ -34,6 +37,8 @@ function fresh(): StableData {
     name: DEFAULT_HORSE_NAME,
     look: { ...DEFAULT_LOOK },
     claimed: [],
+    // 처음 온 사람은 시작 당근만 받는다: 지금 있는 선물은 받은 것으로 친다
+    promos: CARROT_PROMOS.map((p) => p.id),
     stats: { races: 0, wins: 0, podiums: 0, games: 0, earned: 0 }
   };
 }
@@ -55,6 +60,8 @@ function read(): StableData | null {
       name: sanitizeHorseName(p.name),
       look: sanitizeLook(p.look),
       claimed: Array.isArray(p.claimed) ? p.claimed.map(String).slice(-CLAIM_MEMORY) : [],
+      // 저장된 기록에 선물 목록이 없으면 선물이 생기기 전부터 있던 마구간이다 → 선물을 받는다
+      promos: Array.isArray(p.promos) ? p.promos.map(String).slice(-100) : [],
       stats: {
         races: num(p.stats?.races),
         wins: num(p.stats?.wins),
@@ -169,6 +176,29 @@ export function claimRoundPrize(prize: OwnerPrize): boolean {
   data.stats.races++;
   if (prize.rank === 1) data.stats.wins++;
   if (prize.rank <= 3) data.stats.podiums++;
+  save();
+  return true;
+}
+
+/** 아직 안 받은 당근 선물(CARROT_PROMOS)을 받는다. 이번에 받은 당근 합계를 돌려준다 (없으면 0) */
+export function claimPromos(): number {
+  sync();
+  let total = 0;
+  for (const promo of CARROT_PROMOS) {
+    if (data.promos.includes(promo.id)) continue;
+    data.promos.push(promo.id);
+    data.carrots += promo.carrots;
+    data.stats.earned += promo.carrots;
+    total += promo.carrots;
+  }
+  if (total > 0) save();
+  return total;
+}
+
+/** 관리자가 보낸 당근 선물을 받는다. 같은 선물은 한 번만 */
+export function claimGift(giftId: string, carrots: number): boolean {
+  if (!Number.isInteger(carrots) || carrots < 1) return false;
+  if (!claim(`gift:${giftId}`, carrots)) return false;
   save();
   return true;
 }

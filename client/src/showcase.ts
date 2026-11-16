@@ -130,10 +130,10 @@ function runMotionDemo(view: Race3DView, horses: HorseInfo[], captionEl: HTMLEle
   const scenes = only >= 1 && only <= MOTION_SCENES.length ? [MOTION_SCENES[only - 1]] : MOTION_SCENES;
   const total = scenes.reduce((sum, sc) => sum + (sc.ms ?? 4200), 0);
   const bar = document.createElement('div');
-  bar.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:50;background:#1a2150;color:#fff;font:800 18px/1.5 "Gothic A1",sans-serif;padding:10px 14px 10px 18px;border-radius:4px;max-width:94vw;display:flex;align-items:center;gap:14px';
+  bar.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:50;background:#1a2150;color:#fff;font:800 18px/1.5 "Pretendard",sans-serif;padding:10px 14px 10px 18px;border-radius:4px;max-width:94vw;display:flex;align-items:center;gap:14px';
   const note = document.createElement('span');
   note.style.cssText = 'text-align:left';
-  const btnCss = 'font:800 15px "Gothic A1",sans-serif;color:#1a2150;background:#ffe23f;border:2px solid #fff;border-radius:4px;padding:8px 12px;cursor:pointer;white-space:nowrap;flex:none';
+  const btnCss = 'font:800 15px "Pretendard",sans-serif;color:#1a2150;background:#ffe23f;border:2px solid #fff;border-radius:4px;padding:8px 12px;cursor:pointer;white-space:nowrap;flex:none';
   // 소리: 브라우저는 한 번 눌러야 소리를 낼 수 있어서 단추로 켠다. 켜 두면 장면이 바뀔 때마다 그 카드의 효과음이 난다
   const soundBtn = document.createElement('button');
   soundBtn.style.cssText = btnCss;

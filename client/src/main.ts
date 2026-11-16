@@ -36,7 +36,7 @@ import {
   PLAYER_COLORS
 } from '../../shared/src/constants';
 import { AUGMENT_BY_ID, AUGMENTS, TARGET_TYPE_LABELS } from '../../shared/src/augments';
-import { EMOTES, conditionNote } from '../../shared/src/names';
+import { EMOTES, conditionLevel, conditionNote } from '../../shared/src/names';
 import { esc, particle } from './text';
 import { Net, loadToken, saveToken } from './net';
 import { Race3DView, type CameraTarget } from './race3d';
@@ -835,14 +835,9 @@ function statBar(label: string, value: number, color: string): string {
   </div>`;
 }
 
-/** 컨디션 수치(1~100)를 화면에 보이는 1~10으로 */
-function conditionShown(luck: number): number {
-  return Math.max(1, Math.min(10, Math.round(luck / 10)));
-}
-
 /** 컨디션 사유 한 줄 */
 function condHtml(h: HorseInfo): string {
-  const c = conditionShown(h.stats.luck);
+  const c = conditionLevel(h.stats.luck);
   return `<div class="hc-cond ${c >= 7 ? 'good' : c <= 4 ? 'bad' : ''}">${esc(conditionNote(h))}</div>`;
 }
 
@@ -879,7 +874,7 @@ function renderHorseCards(): void {
               <span class="hl-stats">${miniStat('속력', h.stats.speed, '#d92b22')}${miniStat('가속', h.stats.accel, '#2447d6')}${miniStat('지구력', h.stats.stamina, '#0f7a50')}</span>
             </div>
             <div class="hl-bottom">
-              <span class="hl-sub">${h.stats.weight}kg, 컨디션 ${conditionShown(h.stats.luck)}</span>
+              <span class="hl-sub">${h.stats.weight}kg, 컨디션 ${conditionLevel(h.stats.luck)}</span>
               ${condHtml(h)}
               <span class="hl-bets">${myBetChips(h.id)}</span>
             </div>
@@ -896,7 +891,7 @@ function renderHorseCards(): void {
         ${statBar('속력', h.stats.speed, '#d92b22')}
         ${statBar('가속', h.stats.accel, '#2447d6')}
         ${statBar('지구력', h.stats.stamina, '#0f7a50')}
-        <div class="hc-extra">몸무게 ${h.stats.weight}kg, 컨디션 ${conditionShown(h.stats.luck)}</div>
+        <div class="hc-extra">몸무게 ${h.stats.weight}kg, 컨디션 ${conditionLevel(h.stats.luck)}</div>
         ${condHtml(h)}
         <div class="hc-odds">
           <span>${BET_TYPE_INFO[state.selBetType].label}<span class="hc-odds-word"> 배당</span></span>

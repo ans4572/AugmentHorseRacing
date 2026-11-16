@@ -136,11 +136,19 @@ const CONDITION_NOTES: string[][] = [
 ];
 
 /**
+ * 컨디션 수치(1~100)를 화면에 보이는 1~10으로 바꾼다. 1~10은 1, 11~20은 2, … 91~100은 10.
+ * 올림을 쓰므로 1~10이 모두 10%씩 나온다 (반올림은 1이 14%, 10이 6%로 치우쳤다)
+ */
+export function conditionLevel(luck: number): number {
+  return Math.max(1, Math.min(10, Math.ceil(luck / 10)));
+}
+
+/**
  * 말의 컨디션 수치에 어울리는 가상의 사유를 돌려준다.
  * 같은 말은 라운드 내내, 모든 사람 화면에서 같은 문구가 나오도록 능력치로 고른다.
  */
 export function conditionNote(horse: { id: number; name: string; stats: { speed: number; accel: number; stamina: number; weight: number; luck: number } }): string {
-  const shown = Math.max(1, Math.min(10, Math.round(horse.stats.luck / 10)));
+  const shown = conditionLevel(horse.stats.luck);
   const notes = CONDITION_NOTES[Math.floor((shown - 1) / 2)];
   const s = horse.stats;
   let hash = horse.id * 31 + s.speed * 7 + s.accel * 13 + s.stamina * 17 + s.weight * 3 + s.luck * 11;

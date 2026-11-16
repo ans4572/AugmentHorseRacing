@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateHorses, pickBreed, STAT_SUM_MAX, STAT_SUM_MIN } from '../src/sim/horses';
-import { BREED_INFO } from '../../shared/src/names';
+import { BREED_INFO, conditionLevel } from '../../shared/src/names';
 import { mulberry32 } from '../src/sim/rng';
 import { DEFAULT_LOOK } from '../../shared/src/stable';
 
@@ -116,5 +116,14 @@ describe('이름에 맞는 능력치', () => {
       }
     }
     expect(checked).toBeGreaterThan(100);
+  });
+});
+
+describe('화면 컨디션', () => {
+  it('1~100을 1~10으로 고르게 나눈다 (숫자마다 정확히 10개)', () => {
+    const count = new Array(11).fill(0);
+    for (let luck = 1; luck <= 100; luck++) count[conditionLevel(luck)]++;
+    expect(count.slice(1)).toEqual(new Array(10).fill(10));
+    expect([conditionLevel(1), conditionLevel(10), conditionLevel(11), conditionLevel(100)]).toEqual([1, 1, 2, 10]);
   });
 });

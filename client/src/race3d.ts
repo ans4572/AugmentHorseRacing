@@ -1390,7 +1390,8 @@ export class Race3DView {
       more.className = 'r3d-crowd-more';
       el.append(row, more);
       this.shoutLayer.appendChild(el);
-      c = { el, row, more, horseId, kind, count: 0, until: 0, x: -1 };
+      c = { el, row, more, horseId, kind, count: 0, until: 0, x: rig.labelShown ? rig.lsx : -1 };
+      if (c.x >= 0) el.style.transform = `translateX(${c.x.toFixed(1)}px) translateX(-50%)`;
       this.crowds.set(key, c);
     }
     c.count++;
@@ -1426,10 +1427,11 @@ export class Race3DView {
     c.el.classList.remove('out');
   }
 
-  /** 피켓을 말 아래로 옮기고, 시간이 다 된 무리는 내린다 */
+  /** 피켓을 말 아래로 옮기고, 시간이 다 된 무리는 내린다. 말이 붙어 달려도 무리끼리 겹치지 않게 옆으로 민다 */
   private updateShouts(): void {
     if (this.crowds.size === 0) return;
     const w = this.viewW;
+    const live: { c: ShoutCrowd; want: number; half: number }[] = [];
     for (const [key, c] of this.crowds) {
       if (this.elapsed > c.until) {
         if (!c.el.classList.contains('out')) {
@@ -1441,18 +1443,32 @@ export class Race3DView {
         }
         continue;
       }
+      if (c.el.classList.contains('out')) continue;
       const rig = this.rigs.find((r) => r.info.id === c.horseId);
-      // 화면 밖의 말은 가까운 쪽 가장자리에 세운다
-      let x = rig && rig.labelShown ? rig.lsx : c.x >= 0 ? c.x : w / 2;
-      // 같은 말에 다른 외침이 떠 있으면 견제는 오른쪽으로 비켜 선다
-      if (c.kind === 'check' && this.crowds.has(`${c.horseId}:go`)) x += Math.min(120, w * 0.18);
-      const half = (c.el.offsetWidth || 120) / 2;
-      x = Math.max(half + 4, Math.min(w - half - 4, x));
+      // 화면 밖의 말은 마지막 자리(처음이면 가운데)에 세운다
+      let want = rig && rig.labelShown ? rig.lsx : c.x >= 0 ? c.x : w / 2;
+      // 같은 말에 두 외침이 함께 떠 있으면 가즈아는 왼쪽, 견제는 오른쪽에 선다
+      if (this.crowds.has(`${c.horseId}:${c.kind === 'go' ? 'check' : 'go'}`)) want += c.kind === 'go' ? -1 : 1;
+      live.push({ c, want, half: (c.el.offsetWidth || 120) / 2 });
+    }
+    // 왼쪽부터 놓으며 앞 무리와 겹치면 오른쪽으로 밀고, 화면 오른쪽을 넘으면 거꾸로 왼쪽으로 민다
+    live.sort((a, b) => a.want - b.want);
+    const xs = live.map((l) => l.want);
+    for (let i = 0; i < live.length; i++) {
+      const min = i === 0 ? live[i].half + 4 : xs[i - 1] + live[i - 1].half + live[i].half + 4;
+      xs[i] = Math.max(xs[i], min);
+    }
+    for (let i = live.length - 1; i >= 0; i--) {
+      const max = i === live.length - 1 ? w - live[i].half - 4 : xs[i + 1] - live[i + 1].half - live[i].half - 4;
+      xs[i] = Math.min(xs[i], max);
+    }
+    live.forEach(({ c }, i) => {
+      const x = xs[i];
       if (Math.abs(x - c.x) > 0.5) {
         c.x = x;
         c.el.style.transform = `translateX(${x.toFixed(1)}px) translateX(-50%)`;
       }
-    }
+    });
   }
 
   private clearShouts(): void {

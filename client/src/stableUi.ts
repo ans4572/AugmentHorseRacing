@@ -110,6 +110,8 @@ function renderHorses(): void {
     });
 
   const isActive = editing === s.active;
+  // 말이 한 마리뿐이면 출전마를 바꿀 일이 없으므로 출전·내보내기 줄을 숨긴다
+  el('btn-stable-active').parentElement!.hidden = s.horses.length <= 1;
   const go = el<HTMLButtonElement>('btn-stable-active');
   go.disabled = isActive;
   go.innerHTML = isActive ? `${icon('star')}출전하는 말` : '이 말로 출전';

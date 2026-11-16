@@ -1807,8 +1807,14 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 }
 .stable-horse-actions { display: flex; gap: 8px; }
 .stable-horse-actions #btn-stable-active { flex: 1; }
-.stable-horse-actions #btn-stable-active:disabled { opacity: 1; background: var(--hl); color: var(--ink); cursor: default; }
+.stable-horse-actions #btn-stable-active:disabled { opacity: 1; color: var(--ink); cursor: default; }
 .stable-horse-actions .btn[hidden] { display: none; }
+.stable-horse-actions[hidden] { display: none; }
+/* 지금 출전하는 말: 누를 단추가 아니라 상태 표시로 보이게 한다 (노란 기본 단추는 '닫기' 하나만) */
+.stable-horse-actions #btn-stable-active:disabled { background: var(--paper-2); border-color: transparent; border-bottom-width: 2px; box-shadow: none; }
+.stable-horse-actions #btn-stable-active:disabled .ic { color: #b45309; }
+/* 말이 한 마리뿐인 출전마 표시 (혼자 하기, 대기방) */
+.seg.horse-pick.single button { background: var(--paper-2); color: var(--ink); cursor: default; }
 
 /* 출전마 고르기 (혼자 하기, 대기방): 말 수만큼 칸이 나뉜다 */
 .seg.horse-pick button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
@@ -1840,32 +1846,46 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 /* ================= 경주 중 외침: 가즈아! · 견제해! ================= */
 /* 기록 칸 왼쪽: 반응 이모티콘 한 줄 + (말 고르기 · 외침 단추) 한 줄 */
 #cheer-board { flex: 0 0 auto; width: 344px; display: flex; flex-direction: column; gap: 6px; }
+/* 넓은 화면: 말 번호 한 줄, 그 아래 큰 외침 단추 두 개 (아래 칸 높이를 다 쓴다) */
 #cheer-board #emotes { grid-template-rows: none; grid-auto-flow: row; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
 #cheer-board #emotes button { height: 32px; padding: 0; }
-#shout-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px; align-items: stretch; }
-#shout-who { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+#shout-row { position: relative; display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: 'who who' 'go check'; gap: 7px 6px; align-items: stretch; }
+#shout-who { grid-area: who; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+#btn-shout-go { grid-area: go; }
+#btn-shout-check { grid-area: check; }
+/* 고르지 않은 말도 제 색 그대로 둔다 (흐리게 하면 꺼진 단추처럼 보인다). 고른 말은 남색 테두리로 들어 올린다 */
 .sw-bib {
-  position: relative; height: 34px; min-width: 0; border: 0; border-radius: 3px; cursor: pointer;
-  color: #fff; font: inherit; font-weight: 900; font-size: 15px; opacity: 0.5; transition: opacity 0.12s;
+  position: relative; height: 32px; min-width: 0; border: 0; border-radius: 3px; cursor: pointer;
+  color: #fff; font: inherit; font-weight: 900; font-size: 15px;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18); transition: transform 0.08s;
 }
 .sw-bib.dk { color: var(--ink); }
-.sw-bib.on { opacity: 1; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); z-index: 1; }
-.sw-bib:disabled { opacity: 0.25; cursor: default; box-shadow: none; }
+.sw-bib:hover:not(:disabled) { transform: translateY(-1px); }
+.sw-bib.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4.5px var(--ink); transform: translateY(-2px); z-index: 1; }
+/* 경주 밖(배팅 등): 색을 빼서 지금은 못 누른다는 것만 알린다 */
+.sw-bib:disabled { filter: grayscale(0.85); opacity: 0.45; cursor: default; transform: none; box-shadow: none; }
 .sw-bib:focus-visible { outline: 3px solid var(--pen); outline-offset: 2px; }
 .sw-mine {
   position: absolute; top: -6px; right: -4px; width: 15px; height: 15px; border-radius: 50%;
   background: var(--hl); color: var(--ink); font-size: 10px; font-style: normal; line-height: 15px; box-shadow: 0 0 0 1.5px var(--ink);
 }
 .shout-btn {
-  height: 34px; padding: 0 11px; border: 2px solid var(--ink); border-radius: var(--r); cursor: pointer;
-  font: inherit; font-weight: 900; font-size: 16px; letter-spacing: -0.02em; white-space: nowrap;
+  position: relative; overflow: hidden; height: 40px; padding: 0 11px; border: 2.5px solid var(--ink); border-radius: var(--r); cursor: pointer;
+  font: inherit; font-weight: 900; font-size: 19px; letter-spacing: -0.02em; white-space: nowrap;
   box-shadow: 0 3px 0 var(--ink); transition: transform 0.06s, box-shadow 0.06s;
 }
+/* 쉬는 중: 색은 그대로, 단추 안의 어두운 막대가 왼쪽으로 줄어들고 그동안은 눌리지 않는다 */
+.shout-btn.cooling { pointer-events: none; }
+.shout-btn.cooling::after {
+  content: ''; position: absolute; inset: 0; background: rgba(26, 33, 80, 0.32); transform-origin: left;
+  animation: shout-cool 1.5s linear forwards;
+}
+@keyframes shout-cool { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 .shout-btn.go { background: var(--hl); color: var(--ink); }
 .shout-btn.check { background: var(--stamp); color: #fff; }
 .shout-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 0 0 var(--ink); }
-.shout-btn:disabled { opacity: 0.4; cursor: default; box-shadow: none; transform: translateY(3px); }
-#shout-cool { position: absolute; left: 0; right: 0; bottom: -5px; height: 3px; border-radius: 2px; background: var(--ink); transform: scaleX(0); transform-origin: left; pointer-events: none; }
+.shout-btn:disabled { filter: grayscale(0.85); opacity: 0.45; cursor: default; box-shadow: none; transform: translateY(3px); }
+.shout-btn:focus-visible { outline: 3px solid var(--pen); outline-offset: 2px; }
 
 /* 경주 화면 아래에서 올라오는 응원 피켓 */
 .r3d-shouts { position: absolute; left: 0; right: 0; bottom: var(--shout-lift, 0px); height: 0; pointer-events: none; z-index: 3; transition: bottom 0.2s ease-out; }
@@ -1874,6 +1894,8 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
   transition: translate 0.35s ease-in; will-change: transform;
 }
 .r3d-crowd.out { translate: 0 110%; }
+.shouts-lifted .r3d-crowd { scale: 0.86; transform-origin: 50% 100%; }
+.shouts-lifted .r3d-sign-stick { height: 12px; }
 .r3d-crowd-row { display: flex; align-items: flex-end; gap: 2px; }
 .r3d-crowd-more:empty { display: none; }
 .r3d-crowd-more {
@@ -1919,8 +1941,10 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 @media (max-width: 640px) and (orientation: portrait) {
   #cheer-board { width: 100%; }
   #cheer-board #emotes button { height: 36px; }
+  #shout-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'who go check'; gap: 5px; }
+  #shout-who { gap: 3px; }
   .sw-bib, .shout-btn { height: 36px; }
-  .shout-btn { font-size: 15px; padding: 0 9px; }
+  .shout-btn { font-size: 15px; padding: 0 9px; border-width: 2px; }
   /* 외침 줄이 하나 늘어난 만큼 기록 칸 자리를 늘린다 */
   #bottom-bar { min-height: 244px; max-height: 244px; }
   .r3d-sign-board { font-size: 12px; padding: 3px 6px 2px; }
@@ -1936,6 +1960,7 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 }
 /* 낮은 가로 화면: 기록 칸이 낮으므로 단추를 줄인다 */
 @media (max-height: 560px) and (orientation: landscape) {
+  #shout-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'who go check'; gap: 4px; }
   #cheer-board #emotes button, .sw-bib, .shout-btn { height: 28px; }
   .shout-btn { font-size: 14px; }
   #cheer-board { gap: 4px; }

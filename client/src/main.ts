@@ -442,6 +442,8 @@ function enteredInLobby(): boolean {
 function renderHorsePick(box: HTMLElement): void {
   const s = stable();
   box.style.gridTemplateColumns = `repeat(${s.horses.length}, minmax(0, 1fr))`;
+  // 말이 한 마리뿐이면 고를 것이 없다: 단추가 아니라 출전마 표시로 보이게 한다
+  box.classList.toggle('single', s.horses.length === 1);
   box.innerHTML = s.horses
     .map((h, i) => {
       const on = i === s.active;
@@ -1095,8 +1097,12 @@ function liftShouts(): void {
     const c = canvas.getBoundingClientRect();
     const a = bar.getBoundingClientRect();
     if (a.height > 0 && a.top < c.bottom && a.bottom > c.top) lift = Math.max(0, Math.round(c.bottom - a.top + 4));
+    // 창 위에 남는 자리가 피켓 하나 높이도 안 되면(폰 가로 등) 올리지 않는다: 창 뒤에 가려지는 편이 경주를 덮는 것보다 낫다
+    if (c.height - lift < 120) lift = 0;
   }
   canvas.style.setProperty('--shout-lift', `${lift}px`);
+  // 창 위로 올라간 피켓은 막대를 줄이고 조금 작게 세워 말을 덜 가린다
+  canvas.classList.toggle('shouts-lifted', lift > 0);
 }
 new ResizeObserver(() => liftShouts()).observe(document.getElementById('augment-bar')!);
 // 폰 세로의 카드 창은 아래에서 미끄러져 올라오므로, 다 올라온 뒤에 다시 잰다
@@ -1235,8 +1241,8 @@ function renderRoundResult(data: {
   // 내 말의 순위 상금 (당근) — 같은 상금은 한 번만 받는다. 멀티에서는 여러 사람의 상금 중 내 것을 찾는다
   const prize = [...(data.ownerPrizes ?? []), ...(data.ownerPrize ? [data.ownerPrize] : [])].find((x) => x.playerId === state.myId) ?? null;
   if (prize && claimRoundPrize(prize)) {
+    // 받은 당근은 결과 창 안의 줄에 바로 보이므로 알림은 띄우지 않는다 (알림이 결과 창 제목을 가렸다)
     sfx('carrot', 0, 1.5);
-    toast(`내 말 ${prize.rank}위, 당근 +${prize.carrots}`, false);
   }
   const prizeHtml = prize
     ? `<div class="carrot-row">${icon('star')}<span>내 말 <b>${esc(prize.horseName)}</b> ${prize.rank}위</span>
@@ -1310,8 +1316,8 @@ function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerB
   // 게임 종료 당근 보너스 — 한 번만 받는다
   const bonus = [...(data.ownerBonuses ?? []), ...(data.ownerBonus ? [data.ownerBonus] : [])].find((x) => x.playerId === state.myId) ?? null;
   if (bonus && claimGameBonus(bonus)) {
+    // 보너스는 최종 결과의 당근 정산에 바로 보이므로 알림은 띄우지 않는다
     sfx('carrot', 0, 2.6);
-    toast(`게임 보너스, 당근 +${bonus.placementCarrots + bonus.profitCarrots}`, false);
   }
   const carrots = (n: number): string => `<b>${icon('carrot')}+${n}</b>`;
   const bonusHtml = bonus
@@ -1480,10 +1486,13 @@ function renderShoutBar(): void {
 
 function syncShoutButtons(): void {
   const live = SHOUT_PHASES.has(state.phase);
+  // 쉬는 동안에는 단추 색은 그대로 두고 누르지만 못하게 한다 (흐리게 하면 꺼진 단추처럼 보인다)
   const cooling = performance.now() < shoutCoolUntil;
   for (const id of ['btn-shout-go', 'btn-shout-check']) {
     const b = $<HTMLButtonElement>(id);
-    b.disabled = !live || cooling || shoutTarget === null;
+    b.disabled = !live || shoutTarget === null;
+    b.classList.toggle('cooling', live && cooling);
+    b.setAttribute('aria-disabled', String(!live || cooling));
     b.title = live ? '' : '경주가 시작되면 외칠 수 있습니다';
   }
   $('shout-row').classList.toggle('off', !live);
@@ -1495,8 +1504,12 @@ function sendShout(kind: ShoutKind): void {
   if (now < shoutCoolUntil) return;
   shoutCoolUntil = now + SHOUT_COOLDOWN_MS;
   net.send({ type: 'SHOUT', kind, horseId: shoutTarget });
-  // 다시 외칠 수 있을 때까지 단추 아래 막대가 줄어든다
-  $('shout-cool').animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: SHOUT_COOLDOWN_MS });
+  // 다시 외칠 수 있을 때까지 단추 안의 어두운 막대가 줄어든다 (애니메이션을 처음부터 다시 튼다)
+  for (const id of ['btn-shout-go', 'btn-shout-check']) {
+    const b = $(id);
+    b.classList.remove('cooling');
+    void b.offsetWidth;
+  }
   syncShoutButtons();
   setTimeout(syncShoutButtons, SHOUT_COOLDOWN_MS + 30);
 }

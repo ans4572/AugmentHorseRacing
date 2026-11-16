@@ -1692,7 +1692,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
   #augment-bar .aug-reroll { width: 34px; height: 34px; top: 1px; }
   #augment-bar .aug-band { padding-right: 46px; }
   /* 알림은 아래쪽 단추(준비 완료, 다음 라운드)를 가리지 않게 그 위에 띄운다 */
-  #toast-area { bottom: calc(84px + env(safe-area-inset-bottom)); width: calc(100vw - 24px); }
+  #toast-area { width: calc(100vw - 24px); }
 }
 @keyframes aug-sheet { from { transform: translateY(40px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #augment-bar:not(.folded) { animation: none !important; } }
@@ -1760,4 +1760,27 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
   .t-type { padding-left: 8px; padding-right: 8px; column-gap: 8px; }
   .tt-label b { font-size: 15px; }
   .tt-odds { font-size: 17px; }
+}
+
+/* ================= 화면 점검 (PC·모바일) ================= */
+/* 게임 중 알림은 상단 바 바로 아래에 띄운다: 아래쪽에 띄우면 준비 완료·다음 라운드·다시 하기 단추와 결과 표를 가린다 */
+body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
+@media (max-width: 640px) and (orientation: portrait) {
+  body[data-screen='scr-game'] #toast-area { top: 104px; }
+}
+/* 기록이 비어 있을 때 안내 문구는 칸 왼쪽 위에 (기록은 아래에서 위로 쌓이므로 그대로 두면 맨 아래에 홀로 남는다) */
+#game-log:empty { justify-content: flex-end; padding: 6px 8px; }
+/* 창 안 스크롤 막대를 종이·잉크 색으로 */
+.overlay-inner, #game-log, #side-bets, .stable-items { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+/* 폰: 최종 결과 단추 — 다시 하기를 맨 위에 꽉 차게, 그 아래 마구간 가기와 나가기를 반반 */
+@media (max-width: 640px) {
+  .final-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .final-actions > .btn-row { display: contents; }
+  .final-actions .btn { width: 100%; justify-content: center; }
+  .final-actions #btn-restart, .final-actions > .btn-row > p { grid-column: 1 / -1; order: -1; }
+  .final-actions #btn-to-stable { order: 1; }
+  .final-actions #btn-to-main { order: 2; }
+  .final-actions:not(:has(#btn-to-stable)) #btn-to-main { grid-column: 1 / -1; }
+  /* 게임 방법: 닫기 단추를 꽉 차게 (마구간 창과 같게) */
+  #modal-howto .btn-row .btn { width: 100%; }
 }

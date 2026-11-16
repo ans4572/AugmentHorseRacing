@@ -1245,6 +1245,8 @@ function renderRoundResult(data: {
     <h3>현재 순위</h3>
     <div>${standingsHtml}</div>
     <div class="btn-row" style="justify-content:flex-end">${hostBtn}</div>`;
+  // 같은 창을 다시 쓰므로, 지난 결과를 아래로 내려 둔 채로 열리지 않게 맨 위로 올린다
+  $('result-inner').scrollTop = 0;
   show('overlay-result');
   const btn = document.getElementById('btn-next-round');
   if (btn) btn.onclick = () => net.send({ type: 'NEXT_ROUND' });
@@ -1296,15 +1298,17 @@ function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerB
       winner ? `<span class="stamp">${icon('trophy')} ${esc(winner.name)} 우승</span>` : ''
     }</div>
     <div>${standingsHtml}</div>
-    ${bonusHtml}
     ${data.awards.length ? '<h3>이번 판의 기록</h3>' + awardsHtml : ''}
-    <div class="btn-row">
+    ${bonusHtml}
+    <div class="btn-row final-actions">
       <button id="btn-to-main" class="btn ghost">나가기</button>
       <span class="btn-row">
         ${bonus ? '<button id="btn-to-stable" class="btn big alt">마구간 가기</button>' : ''}
         ${hostBtn}
       </span>
     </div>`;
+  // 라운드 결과에서 아래로 내려 "최종 결과 보기"를 눌렀어도 우승자부터 보이게
+  $('result-inner').scrollTop = 0;
   show('overlay-result');
   const restart = document.getElementById('btn-restart');
   if (restart) restart.onclick = () => net.send({ type: 'RESTART' });
@@ -1639,6 +1643,8 @@ net.on((msg: S2C) => {
       hide('overlay-reveal');
       $('augment-bar').classList.add('hidden');
       state.cameraSel = 'leader';
+      // 새 라운드의 출마표는 맨 위(1번 말)부터 보이게 한다 (지난 라운드에 마권까지 내려 둔 자리가 남아 있다)
+      document.querySelector('#overlay-betting .overlay-inner')?.scrollTo(0, 0);
       enterGameScreen();
       view?.clearBanner();
       view?.setupRace(msg.horses, state.myId);

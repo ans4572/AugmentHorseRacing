@@ -1640,8 +1640,13 @@ export class Race3DView {
     if (portraitPhone && this.container.clientHeight > 120) h = this.container.clientHeight;
     // 모바일 가로처럼 화면이 낮으면 상단 바를 뺀 높이에 맞춘다 (잘리지 않게)
     else if (window.innerHeight < 560) h = Math.max(180, Math.min(h, window.innerHeight - 58));
-    // 넓은 화면에서도 상단 바와 기록 칸이 함께 보이도록 높이를 화면에 맞춘다
-    else if (!portraitPhone) h = Math.min(h, Math.max(260, window.innerHeight - 236));
+    // 넓은 화면에서도 상단 바와 기록 칸이 함께 보이도록 높이를 화면에 맞춘다.
+    // 상단 바와 기록 칸의 실제 높이를 빼고, 남는 40px은 화면 여백·칸 사이·테두리다 (예전 고정값 236은 20px 모자라 스크롤이 생겼다)
+    else if (!portraitPhone) {
+      const topbar = document.getElementById('topbar')?.offsetHeight || 48;
+      const bottomBar = document.getElementById('bottom-bar')?.offsetHeight || 170;
+      h = Math.min(h, Math.max(260, window.innerHeight - topbar - bottomBar - 40));
+    }
     this.viewW = w;
     this.viewH = h;
     this.renderer.setSize(w, h, false);

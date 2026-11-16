@@ -1,5 +1,14 @@
 import type { AdminState, C2S, HorseLook, RoomSummary, S2C } from '../../shared/src/types';
-import { MAX_PLAYERS_LIMIT, MAX_ROUNDS, MIN_ROUNDS } from '../../shared/src/constants';
+import {
+  EMOTE_SERVER_GAP_MS,
+  HORSES_PER_RACE,
+  MAX_PLAYERS_LIMIT,
+  MAX_ROUNDS,
+  MIN_ROUNDS,
+  SHOUT_SERVER_GAP_MS,
+  SHOUT_TEXT
+} from '../../shared/src/constants';
+import { EMOTES } from '../../shared/src/names';
 import { sanitizeHorseName, sanitizeLook } from '../../shared/src/stable';
 import { Room, makeRoomCode, uid, type Player } from './game/room';
 
@@ -27,6 +36,9 @@ interface Session {
   admin: boolean;
   /** 이 접속에서 관리자 비밀번호를 틀린 횟수 */
   adminFails: number;
+  /** 마지막으로 외침·이모티콘을 받아 준 시각 (도배 방지) */
+  lastShoutAt: number;
+  lastEmoteAt: number;
   send: (msg: S2C) => void;
   playerId: string;
   secret: string;
@@ -100,6 +112,8 @@ export class GameHub {
       connectedAt: Date.now(),
       admin: false,
       adminFails: 0,
+      lastShoutAt: 0,
+      lastEmoteAt: 0,
       send,
       playerId: uid('p'),
       secret: uid('s'),
@@ -393,8 +407,29 @@ export class GameHub {
         const room = currentRoom();
         if (!room) return;
         const player = room.players.get(session.playerId);
-        const emoji = String(msg.emoji).slice(0, 4);
-        if (player) room.broadcast({ type: 'EMOTE', playerName: player.name, emoji });
+        // 목록에 있는 이모티콘만, 너무 잦으면 버린다
+        const emoji = String(msg.emoji);
+        const now = Date.now();
+        if (!player || !EMOTES.includes(emoji) || now - session.lastEmoteAt < EMOTE_SERVER_GAP_MS) return;
+        session.lastEmoteAt = now;
+        room.broadcast({ type: 'EMOTE', playerName: player.name, emoji });
+        break;
+      }
+
+      case 'SHOUT': {
+        const room = currentRoom();
+        if (!room) return;
+        const player = room.players.get(session.playerId);
+        const horseId = Number(msg.horseId);
+        const now = Date.now();
+        // 경주가 보이는 동안만, 정해 둔 두 가지 외침과 말 번호만 받는다
+        if (!player || player.isNpc) return;
+        if (room.phase !== 'countdown' && room.phase !== 'racing') return;
+        if (!Object.prototype.hasOwnProperty.call(SHOUT_TEXT, msg.kind)) return;
+        if (!Number.isInteger(horseId) || horseId < 1 || horseId > HORSES_PER_RACE) return;
+        if (now - session.lastShoutAt < SHOUT_SERVER_GAP_MS) return;
+        session.lastShoutAt = now;
+        room.broadcast({ type: 'SHOUT', playerId: player.id, playerName: player.name, kind: msg.kind, horseId });
         break;
       }
     }

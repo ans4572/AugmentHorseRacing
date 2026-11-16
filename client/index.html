@@ -198,7 +198,16 @@
           <div id="augment-bar" class="hidden"></div>
         </div>
         <div id="bottom-bar">
-          <div id="emotes"></div>
+          <div id="cheer-board">
+            <div id="emotes"></div>
+            <!-- 경주 중 외침: 말을 고르고 한 번 누르면 경주 화면 아래에서 응원 피켓이 올라온다 -->
+            <div id="shout-row">
+              <div id="shout-who" role="radiogroup" aria-label="외칠 말"></div>
+              <button id="btn-shout-go" type="button" class="shout-btn go">가즈아!</button>
+              <button id="btn-shout-check" type="button" class="shout-btn check">견제해!</button>
+              <i id="shout-cool" aria-hidden="true"></i>
+            </div>
+          </div>
           <div id="game-log"></div>
         </div>
       </div>

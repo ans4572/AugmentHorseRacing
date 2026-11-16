@@ -4,6 +4,7 @@ import type {
   BetCount,
   Bet,
   BetType,
+  ShoutKind,
   AugmentDefinition,
   HorseInfo,
   HorseSnapshot,
@@ -33,7 +34,8 @@ import {
   TIER_OF_RARITY,
   ROUND_COINS,
   AUGMENT_PHASES,
-  PLAYER_COLORS
+  PLAYER_COLORS,
+  SHOUT_COOLDOWN_MS
 } from '../../shared/src/constants';
 import { AUGMENT_BY_ID, AUGMENTS, TARGET_TYPE_LABELS } from '../../shared/src/augments';
 import { EMOTES, conditionLevel, conditionNote } from '../../shared/src/names';
@@ -1081,6 +1083,26 @@ function renderAugmentBar(): void {
   applyAugmentHighlight();
 }
 
+/**
+ * 증강 카드 창이 경주 화면 아래쪽을 덮고 있으면, 응원 피켓을 그 창 바로 위로 올린다.
+ * (넓은 화면은 가운데 아래, 폰 세로는 아래에서 올라오는 창. 창이 경주 화면 밖에 있으면 0)
+ */
+function liftShouts(): void {
+  const canvas = $('race-canvas');
+  const bar = $('augment-bar');
+  let lift = 0;
+  if ($('race-wrap').classList.contains('augment-open') && !bar.classList.contains('hidden')) {
+    const c = canvas.getBoundingClientRect();
+    const a = bar.getBoundingClientRect();
+    if (a.height > 0 && a.top < c.bottom && a.bottom > c.top) lift = Math.max(0, Math.round(c.bottom - a.top + 4));
+  }
+  canvas.style.setProperty('--shout-lift', `${lift}px`);
+}
+new ResizeObserver(() => liftShouts()).observe(document.getElementById('augment-bar')!);
+// 폰 세로의 카드 창은 아래에서 미끄러져 올라오므로, 다 올라온 뒤에 다시 잰다
+document.getElementById('augment-bar')!.addEventListener('animationend', () => liftShouts());
+window.addEventListener('resize', () => liftShouts());
+
 function renderAugmentBarInner(): void {
   const aug = state.augment;
   const bar = $('augment-bar');
@@ -1093,6 +1115,7 @@ function renderAugmentBarInner(): void {
   view?.setBottomInset(open && PORTRAIT_PHONE.matches);
   $('race-wrap').classList.toggle('augment-open', open);
   bar.classList.toggle('folded', !!aug && !open);
+  requestAnimationFrame(liftShouts);
   if (!aug) {
     bar.classList.add('hidden');
     return;
@@ -1381,6 +1404,7 @@ function leaveToMain(): void {
   renderRankBoard(null);
   $('race-wrap').classList.remove('augment-open');
   view?.setBottomInset(false);
+  liftShouts();
   $('camera-select').classList.add('hidden');
   $('game-log').innerHTML = '';
   view?.destroy();
@@ -1402,12 +1426,88 @@ const PHASE_LABELS: Record<RoomPhase, string> = {
   gameResult: '최종 결과'
 };
 
+// ============ 외침 (가즈아! / 견제해!) ============
+// 말을 고르고 외침을 한 번 누르면 모두의 경주 화면 아래에서 응원 피켓이 올라온다. 경주에는 영향이 없다.
+
+/** 외칠 말. 직접 고르기 전에는 내가 가장 많이 건 말을 따라간다 (라운드마다 다시) */
+let shoutTarget: number | null = null;
+let shoutPicked = false;
+let shoutCoolUntil = 0;
+let shoutWhoKey = '';
+/** 경주 화면이 보이는 단계에서만 외칠 수 있다 */
+const SHOUT_PHASES = new Set<string>(['countdown', 'racing']);
+
+function defaultShoutTarget(): number | null {
+  const sums = new Map<number, number>();
+  for (const b of state.myBets) sums.set(b.horseId, (sums.get(b.horseId) ?? 0) + b.amount);
+  let best: number | null = null;
+  let top = 0;
+  for (const [id, amount] of sums) {
+    if (amount > top) {
+      top = amount;
+      best = id;
+    }
+  }
+  return best ?? state.horses[0]?.id ?? null;
+}
+
+/** 말 고르기 단추와 외침 단추를 지금 단계·배팅에 맞춘다 (바뀐 것이 없으면 다시 그리지 않는다) */
+function renderShoutBar(): void {
+  if (!shoutPicked || !state.horses.some((h) => h.id === shoutTarget)) shoutTarget = defaultShoutTarget();
+  const live = SHOUT_PHASES.has(state.phase);
+  const key = `${state.horses.map((h) => `${h.id}${h.color}${h.name}`).join()}|${state.myBets.map((b) => b.horseId).join()}|${shoutTarget}|${live}`;
+  if (key !== shoutWhoKey) {
+    shoutWhoKey = key;
+    const who = $('shout-who');
+    who.innerHTML = state.horses
+      .map((h) => {
+        const on = h.id === shoutTarget;
+        const mine = state.myBets.some((b) => b.horseId === h.id);
+        return `<button type="button" role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" class="sw-bib${on ? ' on' : ''}${inkOn(h.color) ? ' dk' : ''}" style="background:${h.color}" data-h="${h.id}" title="${h.id}번 ${esc(h.name)}${mine ? ' (내 배팅)' : ''}" aria-label="${h.id}번 ${esc(h.name)}"${live ? '' : ' disabled'}>${h.id}${mine ? '<i class="sw-mine" aria-hidden="true">★</i>' : ''}</button>`;
+      })
+      .join('');
+    who.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+      b.onclick = () => {
+        shoutTarget = Number(b.dataset.h);
+        shoutPicked = true;
+        renderShoutBar();
+        $('shout-who').querySelector<HTMLButtonElement>(`[data-h="${shoutTarget}"]`)?.focus({ preventScroll: true });
+      };
+    });
+  }
+  syncShoutButtons();
+}
+
+function syncShoutButtons(): void {
+  const live = SHOUT_PHASES.has(state.phase);
+  const cooling = performance.now() < shoutCoolUntil;
+  for (const id of ['btn-shout-go', 'btn-shout-check']) {
+    const b = $<HTMLButtonElement>(id);
+    b.disabled = !live || cooling || shoutTarget === null;
+    b.title = live ? '' : '경주가 시작되면 외칠 수 있습니다';
+  }
+  $('shout-row').classList.toggle('off', !live);
+}
+
+function sendShout(kind: ShoutKind): void {
+  if (!SHOUT_PHASES.has(state.phase) || shoutTarget === null) return;
+  const now = performance.now();
+  if (now < shoutCoolUntil) return;
+  shoutCoolUntil = now + SHOUT_COOLDOWN_MS;
+  net.send({ type: 'SHOUT', kind, horseId: shoutTarget });
+  // 다시 외칠 수 있을 때까지 단추 아래 막대가 줄어든다
+  $('shout-cool').animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: SHOUT_COOLDOWN_MS });
+  syncShoutButtons();
+  setTimeout(syncShoutButtons, SHOUT_COOLDOWN_MS + 30);
+}
+
 function updateTopbar(): void {
   $('top-round').textContent = state.round > 0 ? `${state.round}/${state.totalRounds} 라운드` : '';
   $('top-phase').textContent = PHASE_LABELS[state.phase];
   // 화면 단계에 따라 CSS가 달라지는 곳(상단 바의 남은 시간 등)에서 쓴다
   $('scr-game').dataset.phase = state.phase;
   $('top-coins').innerHTML = `${icon('coin')}${state.coins}`;
+  renderShoutBar();
 }
 
 function enterGameScreen(): void {
@@ -1651,6 +1751,8 @@ net.on((msg: S2C) => {
 
     case 'ROUND_START': {
       state.soloStarting = false;
+      // 새 라운드: 외칠 말은 다시 내 배팅 말을 따라간다
+      shoutPicked = false;
       lastSnaps = [];
       // 새 라운드: 지난 라운드의 증강 기록을 비운다
       $('game-log').innerHTML = '';
@@ -1916,6 +2018,17 @@ net.on((msg: S2C) => {
 
     case 'EMOTE': {
       view?.showEmote(msg.playerName, msg.emoji);
+      sfx('pop');
+      break;
+    }
+
+    case 'SHOUT': {
+      liftShouts();
+      view?.showShout(msg.horseId, msg.kind, {
+        id: msg.playerId,
+        name: msg.playerName,
+        color: playerColor(msg.playerId)
+      });
       sfx('pop');
       break;
     }
@@ -2337,6 +2450,10 @@ function bindUI(): void {
   document.querySelectorAll<HTMLElement>('#emotes button').forEach((el) => {
     el.onclick = () => net.send({ type: 'EMOTE', emoji: el.dataset.emote! });
   });
+  // 외침
+  $('btn-shout-go').onclick = () => sendShout('go');
+  $('btn-shout-check').onclick = () => sendShout('check');
+  renderShoutBar();
 }
 
 // ============ 시작 ============

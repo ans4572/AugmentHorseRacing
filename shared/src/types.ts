@@ -313,6 +313,9 @@ export interface RoomSummary {
   state: RoomPhase;
 }
 
+/** 경주 중 외침: go = 가즈아!, check = 견제해! */
+export type ShoutKind = 'go' | 'check';
+
 export type RoomPhase =
   | 'lobby'
   | 'preview'     // 말 능력치 확인
@@ -401,6 +404,8 @@ export type C2S =
   | { type: 'NEXT_ROUND' }
   | { type: 'RESTART' }
   | { type: 'EMOTE'; emoji: string }
+  /** 경주 중 말 한 마리에게 외친다 (가즈아! / 견제해!). 화면에만 보이고 경주에는 영향이 없다 */
+  | { type: 'SHOUT'; kind: ShoutKind; horseId: number }
   | { type: 'RECONNECT'; playerId: string; secret: string; roomId: string }
   /** 이 브라우저의 기수 이름과 당근 수 (관리자 화면의 접속자 목록에 보인다) */
   | { type: 'HELLO'; playerName: string; carrots: number }
@@ -436,6 +441,7 @@ export type S2C =
   | { type: 'ROUND_RESULT'; round: number; results: PlayerRoundResult[]; standings: Standing[]; isFinal: boolean; ownerPrize?: OwnerPrize; /** 이번 라운드에 출전한 말 주인들의 상금 (멀티) */ ownerPrizes?: OwnerPrize[] }
   | { type: 'GAME_RESULT'; standings: Standing[]; awards: Award[]; ownerBonus?: OwnerBonus; ownerBonuses?: OwnerBonus[] }
   | { type: 'EMOTE'; playerName: string; emoji: string }
+  | { type: 'SHOUT'; playerId: string; playerName: string; kind: ShoutKind; horseId: number }
   | { type: 'LOBBY_RETURN' }
   | { type: 'ROOM_CLOSED'; reason: string }
   /** 관리자가 보낸 당근 선물. giftId로 같은 선물을 두 번 받지 않는다 */

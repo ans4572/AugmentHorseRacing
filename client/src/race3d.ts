@@ -11,6 +11,27 @@ import { COURSE_LENGTH } from '../../shared/src/constants';
 import { AUGMENT_BY_ID } from '../../shared/src/augments';
 import { COSMETIC_BY_ID } from '../../shared/src/stable';
 import { inkOn } from './icons';
+import { drawFxArt, fxArtUrl } from './fxArt';
+import { SHOUT_TEXT } from '../../shared/src/constants';
+import type { ShoutKind } from '../../shared/src/types';
+
+/** 응원 피켓 한 무리: 같은 말에 같은 외침이 이어지면 하나로 합쳐 피켓이 늘어난다 */
+interface ShoutCrowd {
+  el: HTMLDivElement;
+  row: HTMLDivElement;
+  more: HTMLSpanElement;
+  horseId: number;
+  kind: ShoutKind;
+  /** 받은 외침 수 */
+  count: number;
+  /** 이 시각(elapsed)이 지나면 내려간다 */
+  until: number;
+  x: number;
+}
+/** 피켓이 떠 있는 시간(초). 새 외침이 오면 처음으로 돌아간다 */
+const SHOUT_LIFE = 2.6;
+/** 한 무리에 세우는 피켓 수. 넘으면 ×숫자로 센다 */
+const SHOUT_MAX_SIGNS = 5;
 
 // ============================================================
 // 3D 경주 뷰 (Three.js)
@@ -147,6 +168,8 @@ interface Rig {
   /** 아래 값들은 서버 상태가 올 때(pushState) 한 번 계산하고, 프레임에서는 읽기만 한다 */
   vis: Set<AugmentVisual>;
   fxText: string;
+  /** 이름표 상태 아이콘 하나하나 (fxText는 이것을 이은 것, 바뀌었는지 비교용) */
+  fxList: string[];
   /** 화면에 마지막으로 쓴 값 — 같으면 DOM을 건드리지 않는다 */
   labelShown: boolean;
   labelTf: string;
@@ -1205,6 +1228,7 @@ export class Race3DView {
       labelH: 0,
       vis: new Set(),
       fxText: '',
+      fxList: [],
       labelShown: true,
       labelTf: '',
       dotPct: -1,
@@ -1250,6 +1274,7 @@ export class Race3DView {
   setupRace(infos: HorseInfo[], myId: string | null = null): void {
     this.myId = myId;
     this.clearHighlightRings();
+    this.clearShouts();
     this.setFinishLine();
     for (const r of this.rigs) {
       this.scene.remove(r.root);
@@ -1289,7 +1314,8 @@ export class Race3DView {
         }
         if (v) r.vis.add(v);
       }
-      r.fxText = labelFxText(snap, r.vis);
+      r.fxList = labelFxList(snap, r.vis);
+      r.fxText = r.fxList.join('');
     }
   }
 
@@ -1335,6 +1361,103 @@ export class Race3DView {
     el.append(e, n);
     this.overlay.appendChild(el);
     setTimeout(() => el.remove(), 2000);
+  }
+
+  // ---------- 응원 피켓 (가즈아! / 견제해!) ----------
+  private shoutLayer: HTMLDivElement | null = null;
+  private crowds = new Map<string, ShoutCrowd>();
+
+  /**
+   * 관중석에서 응원하듯 화면 아래에서 피켓이 올라와 흔들린다. 그 말이 화면에 있으면 말 바로 아래로 따라간다.
+   * 같은 말에 같은 외침이 떠 있는 동안 다시 오면 피켓이 하나씩 늘고, 다섯 개가 넘으면 ×숫자로 센다.
+   */
+  showShout(horseId: number, kind: ShoutKind, from: { id: string; name: string; color: string }): void {
+    const rig = this.rigs.find((r) => r.info.id === horseId);
+    if (!rig) return;
+    if (!this.shoutLayer) {
+      this.shoutLayer = document.createElement('div');
+      this.shoutLayer.className = 'r3d-shouts';
+      this.overlay.appendChild(this.shoutLayer);
+    }
+    const key = `${horseId}:${kind}`;
+    let c = this.crowds.get(key);
+    if (!c) {
+      const el = document.createElement('div');
+      el.className = `r3d-crowd ${kind}`;
+      const row = document.createElement('div');
+      row.className = 'r3d-crowd-row';
+      const more = document.createElement('span');
+      more.className = 'r3d-crowd-more';
+      el.append(row, more);
+      this.shoutLayer.appendChild(el);
+      c = { el, row, more, horseId, kind, count: 0, until: 0, x: -1 };
+      this.crowds.set(key, c);
+    }
+    c.count++;
+    c.until = this.elapsed + SHOUT_LIFE;
+    // 같은 사람이 또 외치면 그 사람 피켓을 맨 앞으로 다시 세운다
+    c.row.querySelector(`[data-from="${CSS.escape(from.id)}"]`)?.remove();
+    const sign = document.createElement('div');
+    sign.className = 'r3d-sign';
+    sign.dataset.from = from.id;
+    sign.style.setProperty('--wave-delay', `${(-Math.random() * 0.8).toFixed(2)}s`);
+    // 피켓: 윗줄 "② 가즈아!", 아랫줄 "-외친 사람-" (이름 밑줄은 그 사람 색)
+    const board = document.createElement('div');
+    board.className = 'r3d-sign-board';
+    const line = document.createElement('div');
+    line.className = 'r3d-sign-line';
+    const bib = document.createElement('span');
+    bib.className = 'r3d-sign-bib';
+    bib.style.background = rig.info.color;
+    if (inkOn(rig.info.color)) bib.classList.add('dk');
+    bib.textContent = String(horseId);
+    line.append(bib, document.createTextNode(SHOUT_TEXT[kind]));
+    const who = document.createElement('div');
+    who.className = 'r3d-sign-who';
+    who.style.setProperty('--pc', from.color);
+    who.textContent = `-${from.name}-`;
+    board.append(line, who);
+    const stick = document.createElement('div');
+    stick.className = 'r3d-sign-stick';
+    sign.append(board, stick);
+    c.row.appendChild(sign);
+    while (c.row.children.length > SHOUT_MAX_SIGNS) c.row.firstElementChild?.remove();
+    c.more.textContent = c.count > SHOUT_MAX_SIGNS ? `×${c.count}` : '';
+    c.el.classList.remove('out');
+  }
+
+  /** 피켓을 말 아래로 옮기고, 시간이 다 된 무리는 내린다 */
+  private updateShouts(): void {
+    if (this.crowds.size === 0) return;
+    const w = this.viewW;
+    for (const [key, c] of this.crowds) {
+      if (this.elapsed > c.until) {
+        if (!c.el.classList.contains('out')) {
+          c.el.classList.add('out');
+          c.until = this.elapsed + 0.4; // 내려가는 동안 기다렸다가 지운다
+        } else {
+          c.el.remove();
+          this.crowds.delete(key);
+        }
+        continue;
+      }
+      const rig = this.rigs.find((r) => r.info.id === c.horseId);
+      // 화면 밖의 말은 가까운 쪽 가장자리에 세운다
+      let x = rig && rig.labelShown ? rig.lsx : c.x >= 0 ? c.x : w / 2;
+      // 같은 말에 다른 외침이 떠 있으면 견제는 오른쪽으로 비켜 선다
+      if (c.kind === 'check' && this.crowds.has(`${c.horseId}:go`)) x += Math.min(120, w * 0.18);
+      const half = (c.el.offsetWidth || 120) / 2;
+      x = Math.max(half + 4, Math.min(w - half - 4, x));
+      if (Math.abs(x - c.x) > 0.5) {
+        c.x = x;
+        c.el.style.transform = `translateX(${x.toFixed(1)}px) translateX(-50%)`;
+      }
+    }
+  }
+
+  private clearShouts(): void {
+    for (const c of this.crowds.values()) c.el.remove();
+    this.crowds.clear();
   }
 
   /** 증강을 맞은 말 머리 위에 카드 이름과 쓴 사람을 몇 초간 붙여 둔다 */
@@ -1669,6 +1792,7 @@ export class Race3DView {
     this.update(dt, rawDt);
     this.renderer.render(this.scene, this.camera);
     this.updateLabels();
+    this.updateShouts();
     this.raf = requestAnimationFrame(this.loop);
   };
 
@@ -2483,6 +2607,8 @@ export class Race3DView {
     let tex = this.emojiTex.get(emoji);
     if (!tex) {
       tex = canvasTexture(96, 96, (g) => {
+        // 자주 나오는 기호는 툰 말에 맞춰 직접 그린 만화 기호로, 나머지는 이모지로
+        if (drawFxArt(g, emoji, 96)) return;
         g.font = '72px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
         g.textAlign = 'center';
         g.textBaseline = 'middle';
@@ -2739,7 +2865,19 @@ export class Race3DView {
     if (r.fxText) {
       const f = document.createElement('div');
       f.className = 'r3d-label-fx';
-      f.textContent = r.fxText;
+      // 상태 기호(방어막, 잠, 땀, 어지러움, 결승)는 직접 그린 그림으로, 카드 그림 이모지는 그대로
+      for (const e of r.fxList) {
+        const url = fxArtUrl(e);
+        if (url) {
+          const img = document.createElement('img');
+          img.className = 'r3d-fx-ic';
+          img.src = url;
+          img.alt = '';
+          f.appendChild(img);
+        } else {
+          f.appendChild(document.createTextNode(e));
+        }
+      }
       r.label.appendChild(f);
     }
     if (r.betMark) {
@@ -2893,7 +3031,7 @@ const CLOUD_FLASH = new THREE.Color(0xfff6c2);
 const byLabelDist = (a: Rig, b: Rig): number => a.ldist - b.ldist;
 
 /** 이름표에 붙는 상태 아이콘 (방어막, 기절, 지침, 걸린 증강 등). 겹치는 것은 한 번만, 5개까지 */
-function labelFxText(snap: HorseSnapshot, vis: Set<AugmentVisual>): string {
+function labelFxList(snap: HorseSnapshot, vis: Set<AugmentVisual>): string[] {
   const fx: string[] = [];
   const add = (e: string): void => {
     if (fx.length < 5 && !fx.includes(e)) fx.push(e);
@@ -2906,7 +3044,7 @@ function labelFxText(snap: HorseSnapshot, vis: Set<AugmentVisual>): string {
   if (snap.anim === 'fallen') add('💫');
   if (snap.anim === 'finished') add('🏁');
   for (const e of snap.effects) add(e.emoji);
-  return fx.join('');
+  return fx;
 }
 
 // ---------------- 말 부품 합치기 ----------------

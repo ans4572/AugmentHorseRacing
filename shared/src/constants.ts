@@ -1,4 +1,4 @@
-import type { AugmentTier, BetType, Rarity } from './types';
+import type { AugmentTier, BetType, Rarity, ShoutKind } from './types';
 
 // ---------------- 경주 ----------------
 
@@ -159,3 +159,10 @@ export const SERVER_PORT = 3001;
 export const OWNER_HORSE_APPEARANCES = 2;
 /** 한 경주에 나오는 말의 수 */
 export const HORSES_PER_RACE = 6;
+/** 경주 중 외침의 종류와 화면 문구 */
+export const SHOUT_TEXT: Record<ShoutKind, string> = { go: '가즈아!', check: '견제해!' };
+/** 외침은 한 사람당 이 간격에 한 번 (도배 방지). 화면은 1.5초, 서버는 늦게 도착하는 것을 감안해 조금 짧게 잡는다 */
+export const SHOUT_COOLDOWN_MS = 1500;
+export const SHOUT_SERVER_GAP_MS = 1200;
+/** 반응 이모티콘도 너무 잦으면 버린다 */
+export const EMOTE_SERVER_GAP_MS = 400;

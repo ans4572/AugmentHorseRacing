@@ -587,7 +587,8 @@ button, .btn, .horse-card, .augment-card, .bet-tab, .stable-tab, .stable-item {
   display: flex; flex-direction: column; align-items: center; gap: 1px;
   will-change: transform; white-space: nowrap;
 }
-.r3d-label-fx { font-size: 18px; line-height: 1.1; }
+.r3d-label-fx { display: flex; align-items: center; gap: 1px; font-size: 18px; line-height: 1.1; }
+.r3d-fx-ic { width: 22px; height: 22px; display: block; }
 .r3d-label-name {
   font-size: 14px; font-weight: 800; color: #fff; background: rgba(26, 33, 80, 0.9);
   border: 2px solid #fff; border-radius: 3px; padding: 0 7px;
@@ -1834,4 +1835,108 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 @media (max-width: 640px) {
   .sh-emoji .breed-ic { width: 40px; height: 40px; }
   .hp-emoji .breed-ic { width: 30px; height: 30px; }
+}
+
+/* ================= 경주 중 외침: 가즈아! · 견제해! ================= */
+/* 기록 칸 왼쪽: 반응 이모티콘 한 줄 + (말 고르기 · 외침 단추) 한 줄 */
+#cheer-board { flex: 0 0 auto; width: 344px; display: flex; flex-direction: column; gap: 6px; }
+#cheer-board #emotes { grid-template-rows: none; grid-auto-flow: row; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+#cheer-board #emotes button { height: 32px; padding: 0; }
+#shout-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px; align-items: stretch; }
+#shout-who { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+.sw-bib {
+  position: relative; height: 34px; min-width: 0; border: 0; border-radius: 3px; cursor: pointer;
+  color: #fff; font: inherit; font-weight: 900; font-size: 15px; opacity: 0.5; transition: opacity 0.12s;
+}
+.sw-bib.dk { color: var(--ink); }
+.sw-bib.on { opacity: 1; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); z-index: 1; }
+.sw-bib:disabled { opacity: 0.25; cursor: default; box-shadow: none; }
+.sw-bib:focus-visible { outline: 3px solid var(--pen); outline-offset: 2px; }
+.sw-mine {
+  position: absolute; top: -6px; right: -4px; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--hl); color: var(--ink); font-size: 10px; font-style: normal; line-height: 15px; box-shadow: 0 0 0 1.5px var(--ink);
+}
+.shout-btn {
+  height: 34px; padding: 0 11px; border: 2px solid var(--ink); border-radius: var(--r); cursor: pointer;
+  font: inherit; font-weight: 900; font-size: 16px; letter-spacing: -0.02em; white-space: nowrap;
+  box-shadow: 0 3px 0 var(--ink); transition: transform 0.06s, box-shadow 0.06s;
+}
+.shout-btn.go { background: var(--hl); color: var(--ink); }
+.shout-btn.check { background: var(--stamp); color: #fff; }
+.shout-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 0 0 var(--ink); }
+.shout-btn:disabled { opacity: 0.4; cursor: default; box-shadow: none; transform: translateY(3px); }
+#shout-cool { position: absolute; left: 0; right: 0; bottom: -5px; height: 3px; border-radius: 2px; background: var(--ink); transform: scaleX(0); transform-origin: left; pointer-events: none; }
+
+/* 경주 화면 아래에서 올라오는 응원 피켓 */
+.r3d-shouts { position: absolute; left: 0; right: 0; bottom: var(--shout-lift, 0px); height: 0; pointer-events: none; z-index: 3; transition: bottom 0.2s ease-out; }
+.r3d-crowd {
+  position: absolute; left: 0; bottom: -6px; display: flex; align-items: flex-end; gap: 4px;
+  transition: translate 0.35s ease-in; will-change: transform;
+}
+.r3d-crowd.out { translate: 0 110%; }
+.r3d-crowd-row { display: flex; align-items: flex-end; gap: 2px; }
+.r3d-crowd-more:empty { display: none; }
+.r3d-crowd-more {
+  align-self: center; margin-bottom: 34px; padding: 3px 8px; border-radius: 99px;
+  background: var(--ink); color: #fff; font-weight: 900; font-size: 14px; box-shadow: 0 0 0 2px #fff;
+}
+.r3d-sign {
+  display: flex; flex-direction: column; align-items: center; transform-origin: 50% 100%;
+  animation: sign-rise 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4) backwards, sign-wave 0.8s ease-in-out var(--wave-delay, 0s) infinite alternate;
+}
+.r3d-sign-board {
+  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 9px 3px; white-space: nowrap;
+  border: 3px solid var(--ink); border-radius: 5px; box-shadow: 0 3px 0 rgba(26, 33, 80, 0.35);
+  font-weight: 900; font-size: 15px; letter-spacing: -0.02em;
+}
+.r3d-crowd.go .r3d-sign-board { background: var(--hl); color: var(--ink); }
+.r3d-crowd.check .r3d-sign-board { background: var(--stamp); color: #fff; }
+.r3d-sign-line { display: flex; align-items: center; gap: 5px; }
+/* 외친 사람: 작은 글씨, 그 사람 색 밑줄. 긴 이름은 말줄임 */
+.r3d-sign-who {
+  max-width: 8.5em; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11px; font-weight: 800; letter-spacing: 0; line-height: 1.25;
+  border-bottom: 2.5px solid var(--pc); opacity: 0.9;
+}
+.r3d-sign-bib {
+  min-width: 20px; height: 20px; padding: 0 4px; border-radius: 3px; color: #fff; font-size: 12px; font-weight: 900;
+  display: inline-grid; place-items: center; box-shadow: 0 0 0 1.5px var(--ink); flex: none;
+}
+.r3d-sign-bib.dk { color: var(--ink); }
+.r3d-sign-stick { width: 6px; height: 40px; background: #9c6b3f; border: 2px solid var(--ink); border-top: 0; }
+@keyframes sign-rise { from { translate: 0 100%; } }
+@keyframes sign-wave { from { rotate: -7deg; } to { rotate: 7deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .r3d-sign { animation: sign-rise 0.2s ease-out backwards; }
+}
+
+/* 좁은 화면: 반응 단추와 외침 줄을 기록 칸 위에 가로로 편다 */
+@media (max-width: 900px) {
+  #cheer-board { width: 316px; }
+  .r3d-sign-board { font-size: 13px; padding: 3px 8px 2px; border-width: 2.5px; }
+  .r3d-sign-stick { height: 30px; }
+}
+@media (max-width: 640px) and (orientation: portrait) {
+  #cheer-board { width: 100%; }
+  #cheer-board #emotes button { height: 36px; }
+  .sw-bib, .shout-btn { height: 36px; }
+  .shout-btn { font-size: 15px; padding: 0 9px; }
+  /* 외침 줄이 하나 늘어난 만큼 기록 칸 자리를 늘린다 */
+  #bottom-bar { min-height: 244px; max-height: 244px; }
+  .r3d-sign-board { font-size: 12px; padding: 3px 6px 2px; }
+  .r3d-sign-line { gap: 3px; }
+  .r3d-sign-who { font-size: 9.5px; max-width: 7.5em; }
+  .r3d-sign-bib { min-width: 16px; height: 16px; font-size: 10px; }
+  .r3d-sign-stick { height: 24px; width: 5px; }
+  .r3d-crowd-more { font-size: 12px; margin-bottom: 22px; }
+}
+@media (max-width: 380px) {
+  .shout-btn { font-size: 14px; padding: 0 7px; }
+  .sw-bib { font-size: 14px; }
+}
+/* 낮은 가로 화면: 기록 칸이 낮으므로 단추를 줄인다 */
+@media (max-height: 560px) and (orientation: landscape) {
+  #cheer-board #emotes button, .sw-bib, .shout-btn { height: 28px; }
+  .shout-btn { font-size: 14px; }
+  #cheer-board { gap: 4px; }
 }

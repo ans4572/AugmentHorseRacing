@@ -1665,3 +1665,64 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 @media (min-width: 641px) and (max-width: 1099px) {
   .hl-bottom:has(.bet-chip + .bet-chip) .hc-cond { visibility: hidden; }
 }
+
+/* ================= 폰 세로: 경주 화면이 남는 높이를 다 쓴다 ================= */
+@media (max-width: 640px) and (orientation: portrait) {
+  /* 게임 화면을 기기 높이에 맞춰 고정한다: 경주 화면이 상단 바와 기록 칸 사이를 채운다 */
+  #scr-game { height: 100svh; min-height: 0; overflow: hidden; }
+  #game-body, #game-left { min-height: 0; }
+  #race-wrap { flex: 1 1 0; min-height: 220px; display: flex; flex-direction: column; }
+  #race-canvas { flex: 1 1 0; min-height: 0; position: relative; }
+  #race-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* 반응 단추는 한 줄로 펴고 누르기 쉽게 키운다. 그 아래가 기록 칸 */
+  #bottom-bar { flex-direction: column; gap: 6px; padding: 6px 8px; min-height: 204px; max-height: 204px; }
+  #emotes { grid-template-rows: none; grid-auto-flow: row; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+  #emotes button { height: 38px; padding: 0; font-size: 20px; }
+  #game-log { min-height: 0; }
+  /* 증강 카드는 아래에서 올라와 기록 칸 위를 덮고, 경주는 위쪽에서 계속 보인다 */
+  #augment-bar:not(.folded) {
+    top: auto; bottom: 0; left: 0; right: 0; width: auto; transform: none;
+    max-height: calc(100svh - 280px); padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+    border-width: 3px 0 0; border-radius: var(--r) var(--r) 0 0;
+    box-shadow: 0 -6px 0 rgba(10, 20, 50, 0.25);
+    animation: aug-sheet 0.18s ease-out;
+  }
+  /* 카드 새로고침 단추를 손가락 크기로 */
+  #augment-bar .aug-reroll { width: 34px; height: 34px; top: 1px; }
+  #augment-bar .aug-band { padding-right: 46px; }
+  /* 알림은 아래쪽 단추(준비 완료, 다음 라운드)를 가리지 않게 그 위에 띄운다 */
+  #toast-area { bottom: calc(84px + env(safe-area-inset-bottom)); width: calc(100vw - 24px); }
+}
+@keyframes aug-sheet { from { transform: translateY(40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #augment-bar:not(.folded) { animation: none !important; } }
+
+/* ================= 폰: 누르기 쉬운 크기 ================= */
+@media (max-width: 640px) {
+  /* 꾸미기 창의 종류 탭 */
+  .stable-tab { padding: 10px 12px; }
+  /* 출마표 배당 띠: "우승마 배당"이 두 줄로 쪼개지지 않게 */
+  .hc-odds { gap: 6px; }
+  .hc-odds > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .hc-odds b { flex: none; font-size: 20px; }
+}
+
+/* ================= 폰 가로: 경주 화면이 화면 높이에 딱 맞게 ================= */
+/* 관전 단추 줄이 경주 화면 아래에 붙으면 화면 밖으로 밀려나므로, 넓은 화면처럼 경주 화면 오른쪽 위에 띄운다 */
+@media (max-height: 560px) and (orientation: landscape) {
+  #camera-select { position: absolute; top: 34px; right: 6px; border-radius: var(--r); background: rgba(26, 33, 80, 0.72); flex-wrap: nowrap; }
+}
+/* 좁은 폰(375px 이하): 관전 단추 줄이 두 줄로 넘어가지 않게 조금 줄인다 */
+@media (max-width: 380px) {
+  #camera-select { gap: 4px; padding: 4px; }
+  #camera-select button { width: 30px; height: 30px; }
+  #camera-select button.cam-mode { padding: 0 6px; }
+}
+/* 좁은 출마표 카드: 배당 띠는 "우승마 ×3.24"처럼 종류와 숫자만 */
+@media (max-width: 420px) {
+  .hc-odds-word { display: none; }
+}
+/* 폰 세로: 등수표 한 줄에 등수·번호·배팅 딱지를 모두 놓아 높이를 절반으로 (말을 덜 가린다) */
+@media (max-width: 640px) and (orientation: portrait) {
+  #rank-board .rb-row { flex-wrap: nowrap; }
+  #rank-board .rb-bets { flex: 0 1 auto; flex-wrap: nowrap; padding-left: 2px; }
+}

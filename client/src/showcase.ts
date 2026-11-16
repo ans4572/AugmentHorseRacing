@@ -18,7 +18,9 @@ const CARDS = PICKED ? PICKED.split(',') : [
   'moonwalk', 'dizzy_spin', 'disco_time', 'cool_shades', 'bunny_hop', 'fart_boost',
   'bulk_up', 'feather_body',
   'first_suffering', 'mukbang', 'leg_tangle', 'popular_tragedy', 'light_feather',
-  'front_check', 'last_spurt', 'last_miracle', 'popularity_crash', 'infinite_stamina'
+  'front_check', 'last_spurt', 'last_miracle', 'popularity_crash', 'infinite_stamina',
+  'odd_bless', 'odd_curse', 'even_curse', 'unpopular_rebellion', 'rival_duel', 'front_fatigue', 'fat_strike',
+  'back_recover', 'slow_cheer', 'escape_last'
 ];
 const STEP_MS = 3200;
 

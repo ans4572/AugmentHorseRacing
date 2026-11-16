@@ -846,7 +846,7 @@ function renderHorseCards(): void {
         <div class="hc-extra">몸무게 ${h.stats.weight}kg, 컨디션 ${conditionShown(h.stats.luck)}</div>
         ${condHtml(h)}
         <div class="hc-odds">
-          <span>${BET_TYPE_INFO[state.selBetType].label} 배당</span>
+          <span>${BET_TYPE_INFO[state.selBetType].label}<span class="hc-odds-word"> 배당</span></span>
           <b>${oddsText}</b>
         </div>
       </div>`;
@@ -1000,6 +1000,8 @@ function renderMyBetsSummary(): void {
 /** 증강 창을 접어 두었는지. 접으면 아래쪽 작은 단추만 남고, 새 증강이 오면 다시 펼쳐진다 */
 let augFolded = false;
 let augFoldPhase = -1;
+/** 세로로 든 폰 (style.css의 같은 조건과 맞춘다) */
+const PORTRAIT_PHONE = window.matchMedia('(max-width: 640px) and (orientation: portrait)');
 
 function renderAugmentBar(): void {
   renderAugmentBarInner();
@@ -1014,13 +1016,13 @@ function renderAugmentBar(): void {
 function renderAugmentBarInner(): void {
   const aug = state.augment;
   const bar = $('augment-bar');
-  // 증강은 화면 가운데 창으로 뜨므로 카메라를 올릴 필요가 없다
-  view?.setBottomInset(false);
   if (aug && aug.phase !== augFoldPhase) {
     augFoldPhase = aug.phase;
     augFolded = false;
   }
   const open = !!aug && !aug.used && !augFolded;
+  // 넓은 화면에서는 증강이 가운데 창으로 뜬다. 폰 세로에서는 아래에서 올라오므로 말이 화면 위쪽에 오게 카메라를 낮춘다
+  view?.setBottomInset(open && PORTRAIT_PHONE.matches);
   $('race-wrap').classList.toggle('augment-open', open);
   bar.classList.toggle('folded', !!aug && !open);
   if (!aug) {
@@ -1306,6 +1308,7 @@ function leaveToMain(): void {
   $('augment-bar').classList.add('hidden');
   renderRankBoard(null);
   $('race-wrap').classList.remove('augment-open');
+  view?.setBottomInset(false);
   $('camera-select').classList.add('hidden');
   $('game-log').innerHTML = '';
   view?.destroy();

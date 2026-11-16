@@ -163,6 +163,16 @@ interface Rig {
   /** 당근 낚싯대: 머리에 단 낚싯대와 줄 끝의 당근 (처음 쓸 때 만든다) */
   rod: THREE.Group | null;
   rodLine: THREE.Group | null;
+  /** 떡락: 머리 위를 따라다니는 먹구름 (처음 쓸 때 만든다) */
+  cloud: THREE.Group | null;
+  cloudMat: THREE.MeshToonMaterial | null;
+  /** 꼴찌 전용 각설탕: 하늘에서 떨어지는 각설탕 (처음 쓸 때 만든다) */
+  sugar: THREE.Mesh | null;
+  /** 무관심이 약: 몸이 투명해진 정도(0~1)와 원래 재질 값 */
+  ghost: number;
+  ghostMats: { m: THREE.Material; transparent: boolean; opacity: number }[] | null;
+  /** 라이벌 대결: 상대 쪽으로 고개를 돌린 각도 */
+  glare: number;
   /** 나란히 달리기: 짝 쪽으로 몸을 튼 각도 */
   pairTurn: number;
   /** 자석: 앞뒤로 늘어난 정도 */
@@ -1208,6 +1218,12 @@ export class Race3DView {
       displayPos: 0,
       rod: null,
       rodLine: null,
+      cloud: null,
+      cloudMat: null,
+      sugar: null,
+      ghost: 0,
+      ghostMats: null,
+      glare: 0,
       pairTurn: 0,
       stretch: 0,
       ride: 0,
@@ -1390,6 +1406,64 @@ export class Race3DView {
     r.rodLine = line;
   }
 
+  /** 떡락 먹구름: 뭉게뭉게 공 몇 개. 말의 몸 대신 바닥 기준(root)에 달아 몸이 기울어도 수평을 유지한다 */
+  private buildCloud(r: Rig): void {
+    const cloud = new THREE.Group();
+    const mat = new THREE.MeshToonMaterial({ color: CLOUD_GREY });
+    const puffs: [number, number, number, number][] = [
+      [0, 0, 0, 0.62],
+      [0.55, -0.08, 0.12, 0.48],
+      [-0.55, -0.1, -0.1, 0.5],
+      [0.18, 0.3, -0.05, 0.45],
+      [-0.25, 0.22, 0.2, 0.4]
+    ];
+    for (const [x, y, z, k] of puffs) {
+      const puff = new THREE.Mesh(GEO.sphere, mat);
+      puff.position.set(x, y, z);
+      puff.scale.set(k, k * 0.78, k);
+      cloud.add(puff);
+    }
+    r.root.add(cloud);
+    r.cloud = cloud;
+    r.cloudMat = mat;
+  }
+
+  /** 꼴찌 전용 각설탕: 하얀 정육면체 한 알 */
+  private buildSugar(r: Rig): void {
+    const sugar = new THREE.Mesh(GEO.box, new THREE.MeshToonMaterial({ color: 0xfffaf0 }));
+    sugar.scale.setScalar(0.42);
+    r.root.add(sugar);
+    r.sugar = sugar;
+  }
+
+  /** 무관심이 약: 몸 전체를 반투명하게. 투명도가 0이 되면 원래 재질 값으로 되돌린다 */
+  private applyGhost(r: Rig): void {
+    if (r.ghost < 0.01 && !r.ghostMats) return;
+    if (!r.ghostMats) {
+      const seen = new Set<THREE.Material>();
+      r.inner.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) seen.add(m);
+      });
+      r.ghostMats = [...seen].map((m) => ({ m, transparent: m.transparent, opacity: m.opacity }));
+      // 투명으로 바꾸면 셰이더가 다시 만들어진다
+      for (const g of r.ghostMats) {
+        g.m.transparent = true;
+        g.m.needsUpdate = true;
+      }
+    }
+    if (r.ghost < 0.01) {
+      for (const g of r.ghostMats) {
+        g.m.transparent = g.transparent;
+        g.m.opacity = g.opacity;
+        g.m.needsUpdate = true;
+      }
+      r.ghostMats = null;
+      return;
+    }
+    for (const g of r.ghostMats) g.m.opacity = g.opacity * (1 - 0.72 * r.ghost);
+  }
+
   /** 결승문이 원래 자리에서 옮겨진 거리: 지금 값과 가야 할 값 */
   private finishShift = 0;
   private finishShiftTarget = 0;
@@ -1562,14 +1636,18 @@ export class Race3DView {
     // 세로로 든 폰에서는 화면이 좁으므로 경주 화면을 조금 더 높게 잡는다
     const portraitPhone = w < 640 && window.innerHeight > window.innerWidth;
     let h = Math.round(portraitPhone ? w * 0.72 : (w * 9) / 16);
+    // 폰 세로: 경주 화면이 상단 바와 기록 칸 사이의 남는 높이를 다 쓴다 (CSS가 칸 높이를 정한다)
+    if (portraitPhone && this.container.clientHeight > 120) h = this.container.clientHeight;
     // 모바일 가로처럼 화면이 낮으면 상단 바를 뺀 높이에 맞춘다 (잘리지 않게)
-    if (window.innerHeight < 560) h = Math.max(180, Math.min(h, window.innerHeight - 58));
+    else if (window.innerHeight < 560) h = Math.max(180, Math.min(h, window.innerHeight - 58));
     // 넓은 화면에서도 상단 바와 기록 칸이 함께 보이도록 높이를 화면에 맞춘다
     else if (!portraitPhone) h = Math.min(h, Math.max(260, window.innerHeight - 236));
     this.viewW = w;
     this.viewH = h;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
+    // 세로로 긴 화면은 좌우로 보이는 폭을 지키려고 시야각을 넓힌다 (말 크기와 보이는 거리는 그대로)
+    this.camera.fov = portraitPhone ? THREE.MathUtils.clamp(2 * THREE.MathUtils.radToDeg(Math.atan(PORTRAIT_HALF_TAN / this.camera.aspect)), 42, 78) : 42;
     this.camera.updateProjectionMatrix();
   }
 
@@ -1686,6 +1764,23 @@ export class Race3DView {
     const booed = vis.has('booed'); // 관중 야유
     const chugK = oneShot('chug'); // 물통 원샷: 앞 60%는 벌컥벌컥, 나머지는 배가 볼록
     const gulping = chugK != null && chugK < 0.6;
+    const stonks = vis.has('stonks'); // 홀수·짝수 떡상
+    const storm = vis.has('storm'); // 짝수 떡락: 먹구름 + 번개
+    const rain = storm || vis.has('rain'); // 홀수 떡락: 먹구름
+    // 번개는 1.3초에 한 번, 맞는 순간 0.18초 동안 찌릿
+    const zapK = storm ? (t * 0.77 + r.info.id * 0.29) % 1 : 1;
+    const zap = zapK < 0.14 ? Math.sin((zapK / 0.14) * Math.PI) : 0;
+    const ghosting = vis.has('ghost'); // 무관심이 약
+    const rival = vis.has('rival'); // 라이벌 대결
+    // 라이벌: 같은 카드를 맞은 다른 말 (2등과 3등이 서로를 찾는다)
+    const foe = rival ? this.rigs.find((q) => q !== r && q.vis.has('rival') && !q.snap?.finished) : undefined;
+    const windK = oneShot('headwind'); // 선두는 외로워: 맞바람
+    const wind = windK == null ? 0 : windK < 0.85 ? Math.min(1, windK / 0.08) : (1 - windK) / 0.15;
+    const jiggle = vis.has('jiggle') && !flying; // 뚱보들의 역습
+    const sugarK = oneShot('sugar'); // 꼴찌 전용 각설탕: 앞 35%는 떨어지고, 그 뒤는 냠냠
+    const SUGAR_FALL = 0.35;
+    const chewing = sugarK != null && sugarK >= SUGAR_FALL && sugarK < 0.62;
+    const blissful = sugarK != null && sugarK >= 0.62;
     const belly = chugK != null && chugK >= 0.55 ? Math.sin(Math.PI * Math.min(1, (chugK - 0.55) / 0.45)) : 0;
     // 관중 야유: 토마토를 맞을 때마다 움찔한다 (0.9초에 한 번)
     const boK = booed ? (t * 1.1 + r.info.id * 0.31) % 1 : 0;
@@ -1993,6 +2088,27 @@ export class Race3DView {
       if (gulping) pitch += 0.16;
       y -= belly * 0.12;
     }
+    if (zap > 0) {
+      // 번개 맞은 순간: 펄쩍 뛰며 온몸이 덜덜
+      y += zap * 0.45;
+      roll += Math.sin(t * 70) * 0.12 * zap;
+    }
+    if (rain) pitch -= 0.05; // 비 맞아 웅크린다
+    if (wind > 0) {
+      // 맞바람에 몸이 뒤로 젖혀지고 휘청인다
+      pitch += 0.14 * wind;
+      roll += Math.sin(t * 13) * 0.05 * wind;
+    }
+    if (jiggle) {
+      // 뒤뚱뒤뚱: 몸이 좌우로 크게 흔들리고 발 디딜 때마다 쿵 내려앉는다
+      roll += Math.sin(r.phase * 0.5) * 0.13;
+      y -= Math.abs(Math.sin(r.phase * 0.5)) * 0.12;
+    }
+    if (foe) {
+      // 라이벌 쪽으로 몸을 기울여 어깨를 들이민다
+      roll += Math.sign(foe.root.position.z - r.root.position.z) * 0.1;
+      pitch -= 0.06;
+    }
     // 비틀비틀: 몸이 좌우로 기우뚱거린다
     if (vis.has('wobble') && anim !== 'fallen') roll += Math.sin(t * 9) * 0.26;
     r.bobY = ease(r.bobY, y, 12);
@@ -2078,6 +2194,16 @@ export class Race3DView {
     if (rage) headTarget = -0.3 + Math.sin(t * 9) * 0.05;
     if (booed) headTarget = -0.6 - flinch * 0.2;
     if (gulping) headTarget = 1.0 + Math.sin(t * 14) * 0.07; // 꿀꺽꿀꺽
+    if (stonks) headTarget = 0.3 + Math.sin(t * 4) * 0.05; // 턱을 치켜들고 으쓱
+    if (rain) headTarget = -0.45 + Math.sin(t * 3) * 0.04; // 비 맞은 강아지
+    if (zap > 0) headTarget = 0.5;
+    if (wind > 0) headTarget = headTarget * (1 - wind) + (0.25 + Math.sin(t * 17) * 0.08) * wind; // 바람에 고개가 젖혀진다
+    if (foe) headTarget = -0.2; // 황소처럼 고개를 숙이고 노려본다
+    if (sugarK != null) {
+      if (sugarK < SUGAR_FALL) headTarget = 0.85; // 하늘을 올려다본다
+      else if (chewing) headTarget = -0.05 + Math.sin(t * 18) * 0.16; // 오물오물
+      else headTarget = 0.35 + Math.sin(t * 6) * 0.08; // 행복
+    }
     r.head.rotation.z = ease(r.head.rotation.z, headTarget, 10);
 
     // 기린 목: 목을 늘리고 머리를 그만큼 올린다
@@ -2115,16 +2241,29 @@ export class Race3DView {
       }
     }
     // 시끄러운 응원에 선두가 고개를 세차게 젓는다
-    r.head.rotation.y = r.heliAng + r.lookBack * 2.75 + (annoyed ? Math.sin(t * 17) * 0.55 : 0);
+    // 라이벌 대결: 상대 말 쪽으로 고개를 돌려 노려본다 (+y 회전은 -z 쪽을 본다)
+    r.glare = ease(r.glare, foe ? -Math.sign(foe.root.position.z - r.root.position.z) * 1.25 : 0, 8);
+    r.head.rotation.y = r.heliAng + r.lookBack * 2.75 + r.glare + (annoyed ? Math.sin(t * 17) * 0.55 : 0);
+    // 맞바람: 갈기가 뒤로 날리며 펄럭인다
+    for (const m of r.mane) m.mesh.position.x = 0.06 - wind * (0.22 + Math.sin(t * 31 + m.frac * 9) * 0.09);
 
     // 풍선: 몸통이 둥글게 부푼다
-    r.body.scale.set(1.0 + 0.15 * r.inflate + 0.06 * belly, 0.56 + 0.5 * r.inflate + 0.2 * belly, 0.5 + 0.5 * r.inflate + 0.24 * belly);
+    // 뚱보들의 역습: 뱃살이 출렁출렁 (위아래로 늘면 옆으로 줄어든다)
+    const jig = jiggle ? Math.sin(t * 17) : 0;
+    const fat = jiggle ? 1 : 0;
+    r.body.scale.set(
+      1.0 + 0.15 * r.inflate + 0.06 * belly + 0.05 * fat,
+      0.56 + 0.5 * r.inflate + 0.2 * belly + fat * (0.08 + 0.07 * jig),
+      0.5 + 0.5 * r.inflate + 0.24 * belly + fat * (0.12 - 0.06 * jig)
+    );
 
     // 꼬리는 속도가 붙을수록 뒤로 날린다
     r.tail.rotation.z = -runAmt * 0.65 + Math.sin(r.phase * 1.2) * 0.18 + (whistle || cheering ? Math.sin(t * 22) * 0.5 : 0); // 신나면 꼬리를 흔든다
     // 꼬리 물기: 꼬리가 뒤로 팽팽하게 당겨져 길게 늘어난다
     r.tailPull = ease(r.tailPull, tailbite ? 1 : 0, 10);
     if (r.tailPull > 0.01) r.tail.rotation.z = r.tail.rotation.z * (1 - r.tailPull) + (-0.6 + Math.sin(t * 30) * 0.05) * r.tailPull;
+    // 맞바람: 꼬리가 수평으로 날리며 파르르 떤다
+    if (wind > 0) r.tail.rotation.z = r.tail.rotation.z * (1 - wind) + (-1.2 + Math.sin(t * 38) * 0.18) * wind;
     r.tail.scale.x = 1 + 1.1 * r.tailPull;
 
     // 눈 (기절·졸림이면 감는다. 춤출 때는 뜬다)
@@ -2139,6 +2278,11 @@ export class Race3DView {
     if (sniff || rage || booed) eyeScale = 0.4; // 집중 / 노려봄 / 시무룩
     if (gulping) eyeScale = 0.1; // 눈 감고 벌컥벌컥
     if (sneezing) eyeScale = sneezeK > 0.5 && sneezeK < 0.85 ? 0.1 : 0.8; // 재채기 순간 질끈
+    if (rain || foe) eyeScale = 0.45; // 축 처짐 / 노려봄
+    if (stonks) eyeScale = 0.6; // 거만하게 내리깐 눈
+    if (zap > 0) eyeScale = 1.7; // 찌릿!
+    if (wind > 0.3) eyeScale = 0.2; // 바람에 눈을 못 뜬다
+    if (sugarK != null) eyeScale = sugarK < SUGAR_FALL ? 1.6 : chewing ? 0.1 : 1.4; // 우와 → 음~ → 행복
     for (const eye of r.eyes) eye.scale.y = ease(eye.scale.y, eyeScale, 14);
 
     // 선글라스
@@ -2154,6 +2298,11 @@ export class Race3DView {
     // 대두: 머리가 부풀어 오른다
     r.headScale = ease(r.headScale, vis.has('bighead') ? 1.75 : 1, 6);
     r.head.scale.setScalar(0.9 * r.headScale);
+    // 맞바람: 얼굴이 앞뒤로 눌려 찌그러진다
+    if (wind > 0) {
+      r.head.scale.x *= 1 - 0.22 * wind;
+      r.head.scale.z *= 1 + 0.18 * wind;
+    }
 
     // 디스코: 털 색이 무지개로 바뀐다
     if (disco) {
@@ -2161,6 +2310,10 @@ export class Race3DView {
       r.discoOn = true;
     } else if (rage) {
       r.coat.color.copy(r.coatBase).lerp(RAGE_RED, 0.55 + Math.sin(t * 8) * 0.15);
+      r.discoOn = true;
+    } else if (zap > 0) {
+      // 번개 맞은 순간: 엑스레이처럼 번쩍
+      r.coat.color.copy(r.coatBase).lerp(ZAP_YELLOW, 0.8 * zap);
       r.discoOn = true;
     } else if (r.discoOn) {
       r.coat.color.copy(r.coatBase);
@@ -2244,6 +2397,55 @@ export class Race3DView {
       }
       if (gulping) pop(9, ['💧', '🪣'], headX + 0.3 + rnd(0.3), headY + 0.4, 0.7, 0.6); // 벌컥벌컥
       if (belly > 0.3) pop(5, ['😋', '💨', '✨'], headX + 0.3, headY + 0.6, 0.8, 0.9); // 끄윽
+      if (stonks) pop(7, ['📈', '⬆️', '💹'], headX - 0.3 + rnd(1.2), headY + 0.9, 0.85, 2.6); // 떡상 가즈아
+      // 떡락: 머리 위에 먹구름이 붙어 다니며 비를 뿌린다
+      if (rain && !r.cloud) this.buildCloud(r);
+      if (r.cloud && r.cloudMat) {
+        r.cloud.visible = rain;
+        if (rain) {
+          const cloudY = headY + 1.7 + Math.sin(t * 2.2) * 0.08;
+          r.cloud.position.set(headX - X - 0.15, cloudY, 0);
+          r.cloudMat.color.copy(storm ? CLOUD_DARK : CLOUD_GREY).lerp(CLOUD_FLASH, zap);
+          pop(storm ? 22 : 16, ['💧'], headX - 0.1 + rnd(1.3), cloudY - 0.35, 0.45, -4.2);
+          // 번개: 맞는 순간 구름에서 머리로 내리꽂는다
+          if (zap > 0.5 && Math.random() < dt * 30) this.spawnEmoji('⚡', headX + rnd(0.3), headY + 0.75, Z + 0.3, 1.1, -1.5);
+          if (zap > 0) pop(10, ['💥', '😵'], headX + rnd(0.6), headY + 0.4, 0.8, 1.0);
+        }
+      }
+      // 무관심이 약: 아무도 안 보는 사이 몸이 투명해진다
+      r.ghost = ease(r.ghost, ghosting ? 1 : 0, 5);
+      this.applyGhost(r);
+      if (ghosting) pop(3, ['👻', '🫥', '👀'], headX + rnd(1.4), headY + 0.8, 0.8, 0.5);
+      // 라이벌 대결: 두 말의 눈 사이에서 불꽃이 튄다 (한쪽 말만 뿌린다)
+      if (foe && r.info.id < foe.info.id) {
+        const midX = (headX + foe.root.position.x + foe.head.position.x * foe.bodyScale) / 2;
+        const midZ = (Z + foe.root.position.z) / 2;
+        if (Math.random() < dt * 16) this.spawnEmoji(['⚡', '💢', '🔥', '⚔️'][Math.floor(Math.random() * 4)], midX + 0.9 + rnd(0.6), headY + 0.2 + rnd(0.5), midZ + rnd(0.4), 0.8, 0.8);
+      }
+      if (wind > 0) {
+        // 맞바람: 앞에서 바람이 몰아쳐 뒤로 날아간다
+        pop(16 * wind, ['💨', '🍃'], headX + 1.6 + rnd(0.6), headY + rnd(1.4), 0.8, 0.1);
+        pop(5 * wind, ['🥵', '💦'], headX - 0.2, headY + 0.8, 0.75, 0.6);
+      }
+      if (jiggle) {
+        // 쿵쿵: 발 디딜 때마다 땅이 울린다
+        pop(5, ['💥', '💨'], X + rnd(1.6), 0.35, 0.7, 0.4);
+        pop(2.5, ['🐷', '🍖'], headX + rnd(0.6), headY + 0.9, 0.8, 0.8);
+      }
+      // 꼴찌 전용 각설탕: 하늘에서 각설탕이 떨어져 입에 쏙
+      if (sugarK != null && !r.sugar) this.buildSugar(r);
+      if (r.sugar) {
+        const falling = sugarK != null && sugarK < SUGAR_FALL;
+        r.sugar.visible = falling;
+        if (falling) {
+          const k = sugarK / SUGAR_FALL;
+          r.sugar.position.set(headX - X + 0.45, headY + 0.1 + (1 - k * k) * 3.0, 0);
+          r.sugar.rotation.set(t * 7, t * 5, t * 3);
+          pop(8, ['✨'], headX + 0.45, headY + (1 - k * k) * 3.0, 0.5, 0.2);
+        }
+      }
+      if (chewing) pop(6, ['😋', '🍬'], headX + 0.4, headY + 0.5, 0.7, 0.8);
+      if (blissful) pop(9, ['😍', '💕', '✨'], headX + rnd(0.8), headY + 0.9, 0.8, 1.0);
     }
 
     // 발굽 먼지 / 방귀 연기
@@ -2675,6 +2877,14 @@ const SIZE_SCALE: Partial<Record<AugmentVisual, number>> = { giant: 1.9, bulk: 1
 const SIZE_VISUALS = new Set(Object.keys(SIZE_SCALE) as AugmentVisual[]);
 /** 꼴찌의 분노: 털에 섞는 빨간색 */
 const RAGE_RED = new THREE.Color(0xff2a1a);
+/** 폰 세로에서 좌우로 보이는 폭: 예전 세로 화면(너비:높이 = 1:0.72, 시야각 42도)보다 조금 좁혀 말을 10% 크게 보인다 */
+const PORTRAIT_HALF_TAN = Math.tan(THREE.MathUtils.degToRad(21)) / 0.8;
+/** 번개 맞은 순간 털에 섞는 노란색 */
+const ZAP_YELLOW = new THREE.Color(0xfff27a);
+/** 먹구름 색: 홀수 떡락은 회색, 짝수 떡락은 더 어두운 비구름, 번개 칠 때는 번쩍 */
+const CLOUD_GREY = new THREE.Color(0x9aa3b2);
+const CLOUD_DARK = new THREE.Color(0x5f6675);
+const CLOUD_FLASH = new THREE.Color(0xfff6c2);
 const byLabelDist = (a: Rig, b: Rig): number => a.ldist - b.ldist;
 
 /** 이름표에 붙는 상태 아이콘 (방어막, 기절, 지침, 걸린 증강 등). 겹치는 것은 한 번만, 5개까지 */

@@ -155,6 +155,8 @@ interface Rig {
   buff: number;
   /** 한 번 재생하는 연출(공중제비·워프·자리 바꾸기)의 시작 시각 */
   fxStart: Record<string, number>;
+  /** 증강 소품 (스포트라이트, 쇠공, 머리띠, 메달 등). 처음 쓸 때 만들고 이름으로 찾는다 */
+  props: Record<string, THREE.Object3D>;
   bubbles: THREE.Group;
   eyes: THREE.Object3D[];
   flame: THREE.Mesh;
@@ -1217,6 +1219,7 @@ export class Race3DView {
       cross: 0,
       buff: 0,
       fxStart: {},
+      props: {},
       note: null,
       bubbles,
       eyes,
@@ -1573,6 +1576,218 @@ export class Race3DView {
     sugar.scale.setScalar(0.42);
     r.root.add(sugar);
     r.sugar = sugar;
+  }
+
+  // ---------- 증강 소품 (처음 쓸 때 만든다. 재질은 말마다 따로 만들어 말을 치울 때 함께 지운다) ----------
+
+  /** 소품 부품: 툰 재질 + 테두리 */
+  private propPart(
+    geo: THREE.BufferGeometry,
+    color: number,
+    parent: THREE.Object3D,
+    pos: [number, number, number],
+    scale: [number, number, number],
+    outline = 0.1
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ color }));
+    mesh.position.set(pos[0], pos[1], pos[2]);
+    mesh.scale.set(scale[0], scale[1], scale[2]);
+    if (outline > 0) {
+      const o = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide }));
+      o.scale.setScalar(1 + outline);
+      mesh.add(o);
+    }
+    parent.add(mesh);
+    return mesh;
+  }
+
+  /** 소품을 이름으로 한 번만 만들고, 이번 프레임에 보일지 정한다. 보이면 소품을, 아니면 null을 돌려준다 */
+  private prop(r: Rig, key: string, on: boolean, build: () => THREE.Object3D): THREE.Object3D | null {
+    let p = r.props[key];
+    if (!p) {
+      if (!on) return null;
+      p = build();
+      r.props[key] = p;
+    }
+    p.visible = on;
+    return on ? p : null;
+  }
+
+  /** 될놈될: 하늘에서 내려오는 노란 빛기둥과 바닥의 동그란 빛 */
+  private buildSpotlight(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    const beam = new THREE.Mesh(
+      new THREE.ConeGeometry(1, 1, 28, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide })
+    );
+    beam.scale.set(2.1, 11, 2.1);
+    beam.position.y = 5.5;
+    g.add(beam);
+    const pool = new THREE.Mesh(GEO.disc, new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.5, depthWrite: false }));
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.05;
+    pool.scale.set(2.1, 2.1, 1);
+    g.add(pool);
+    r.root.add(g);
+    return g;
+  }
+
+  /** 안될안: 뒷다리에 사슬로 묶인 죄수 쇠공 (말 뒤 바닥에 끌린다) */
+  private buildBallChain(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    const ball = this.propPart(GEO.sphere, 0x3f4350, g, [0, 0, 0], [0.44, 0.44, 0.44], 0.07);
+    this.propPart(GEO.sphere, 0x8c93a6, ball, [0.35, 0.45, 0.45], [0.22, 0.16, 0.12], 0);
+    for (let i = 0; i < 6; i++) this.propPart(GEO.sphere, 0x6b7080, g, [0, 0, 0], [0.075, 0.075, 0.075], 0.2);
+    r.root.add(g);
+    return g;
+  }
+
+  /** 머리띠: 이마를 두르는 띠와 뒤로 휘날리는 두 가닥 (반란은 빨강, 새벽 훈련은 흰 바탕에 빨간 줄) */
+  private buildHeadband(r: Rig, color: number, stripe: number | null): THREE.Object3D {
+    const g = new THREE.Group();
+    g.position.y = 0.3;
+    const band = this.propPart(new THREE.TorusGeometry(1, 0.13, 8, 32), color, g, [0, 0, 0], [0.6, 0.55, 0.62], 0.05);
+    band.rotation.x = Math.PI / 2;
+    if (stripe !== null) {
+      const line = this.propPart(new THREE.TorusGeometry(1, 0.05, 6, 32), stripe, g, [0, 0, 0], [0.615, 0.565, 0.6], 0);
+      line.rotation.x = Math.PI / 2;
+    }
+    for (const side of [1, -1]) {
+      const tail = this.propPart(GEO.box, color, g, [-0.72, -0.02, side * 0.1], [0.36, 0.07, 0.12], 0.12);
+      tail.name = 'tail';
+      tail.rotation.y = side * 0.35;
+    }
+    r.head.add(g);
+    return g;
+  }
+
+  /** 꼴찌들의 반란: 입에 문 깃대와 "반란!" 깃발 */
+  private buildRebelFlag(r: Rig): THREE.Object3D {
+    // 등(안장 자리)에 꽂은 깃대: 장수가 등에 꽂은 깃발처럼 머리 위로 솟아 휘날린다
+    const g = new THREE.Group();
+    g.position.set(-0.22, 1.68, 0);
+    g.rotation.z = 0.12;
+    this.propPart(GEO.cyl, 0x9c6b3f, g, [0, 1.05, 0], [0.05, 2.1, 0.05], 0.3);
+    this.propPart(GEO.sphere, 0xffd43b, g, [0, 2.14, 0], [0.09, 0.09, 0.09], 0.15);
+    const tex = canvasTexture(256, 160, (c) => {
+      c.fillStyle = '#3a2a1e';
+      c.fillRect(0, 0, 256, 160);
+      c.fillStyle = '#e03131';
+      c.fillRect(8, 8, 240, 144);
+      c.font = '900 88px Pretendard, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillStyle = '#ffffff';
+      c.fillText('반란!', 128, 86);
+    });
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+    flag.name = 'flag';
+    flag.scale.set(1.3, 0.8, 1);
+    flag.position.set(-0.68, 1.62, 0);
+    // 깃대가 조금 기울어도 깃발은 수평으로 펄럭여 글자가 읽히게 한다
+    flag.rotation.z = -0.12;
+    g.add(flag);
+    r.body.parent!.add(g);
+    return g;
+  }
+
+  /** 가슴에 매다는 소품의 자리: 목 아래 앞가슴, 카메라 쪽으로 조금 돌린다 */
+  private chestMount(r: Rig): THREE.Group {
+    const g = new THREE.Group();
+    g.position.set(0.98, 0.96, 0.28);
+    // 앞과 옆(경주 카메라 쪽) 사이를 보게 돌린다
+    g.rotation.y = 0.6;
+    r.body.parent!.add(g);
+    return g;
+  }
+
+  /** 만년 2등의 한: 파란 끈에 매단 은메달 (가운데 2) */
+  private buildMedal(r: Rig): THREE.Object3D {
+    const g = this.chestMount(r);
+    for (const side of [1, -1]) {
+      const strap = this.propPart(GEO.box, 0x2447d6, g, [side * 0.1, 0.3, -0.02], [0.08, 0.5, 0.03], 0.15);
+      strap.rotation.z = side * 0.35;
+    }
+    const disc = this.propPart(GEO.cyl, 0xd5dbe3, g, [0, 0, 0], [0.3, 0.07, 0.3], 0.12);
+    disc.rotation.x = Math.PI / 2;
+    const tex = canvasTexture(128, 128, (c) => {
+      c.fillStyle = '#aab3c0';
+      c.beginPath();
+      c.arc(64, 64, 52, 0, Math.PI * 2);
+      c.fill();
+      c.font = '900 84px Pretendard, sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillStyle = '#ffffff';
+      c.fillText('2', 64, 70);
+    });
+    const face = new THREE.Mesh(GEO.disc, new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+    face.scale.setScalar(0.25);
+    face.position.z = 0.045;
+    g.add(face);
+    return g;
+  }
+
+  /** 간헐적 단식: 끈에 매단 빈 밥그릇 */
+  private buildBowl(r: Rig): THREE.Object3D {
+    const g = this.chestMount(r);
+    for (const side of [1, -1]) {
+      const cord = this.propPart(GEO.box, 0x9c6b3f, g, [side * 0.12, 0.28, -0.02], [0.04, 0.46, 0.03], 0.2);
+      cord.rotation.z = side * 0.4;
+    }
+    const bowl = this.propPart(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), 0xf8f9fa, g, [0, 0.05, 0], [0.32, 0.24, 0.32], 0.08);
+    (bowl.material as THREE.Material).side = THREE.DoubleSide;
+    const rim = this.propPart(new THREE.TorusGeometry(1, 0.08, 6, 24), 0x4dabf7, g, [0, 0.05, 0], [0.32, 0.32, 0.32], 0);
+    rim.rotation.x = Math.PI / 2;
+    return g;
+  }
+
+  /** 짝수 새벽 훈련: 목에 두른 수건 (흰 바탕에 파란 줄) */
+  private buildTowel(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    const torso = r.body.parent!;
+    g.position.set(NECK_BASE_X + 0.12, NECK_BASE_Y + 0.38, 0);
+    g.rotation.z = -NECK_TILT;
+    for (const side of [1, -1]) {
+      this.propPart(GEO.box, 0xffffff, g, [0.12, -0.32, side * 0.33], [0.36, 0.62, 0.07], 0.1);
+      this.propPart(GEO.box, 0x4dabf7, g, [0.12, -0.52, side * 0.335], [0.37, 0.07, 0.075], 0);
+    }
+    this.propPart(GEO.box, 0xffffff, g, [0.12, 0, 0], [0.38, 0.1, 0.72], 0.1);
+    torso.add(g);
+    return g;
+  }
+
+  /** 건초 뭉치: 입에 가로로 문 건초 다발과 삐져나온 지푸라기 (파티는 조금 작다) */
+  private buildHay(r: Rig, k: number): THREE.Object3D {
+    const g = new THREE.Group();
+    g.position.set(0.86, -0.38, 0);
+    const bundle = this.propPart(GEO.cyl, 0xe9c46a, g, [0, 0, 0], [0.15 * k, 1.05 * k, 0.15 * k], 0.12);
+    bundle.rotation.x = Math.PI / 2;
+    const tie = this.propPart(GEO.cyl, 0xb5651d, g, [0, 0, 0], [0.165 * k, 0.12 * k, 0.165 * k], 0);
+    tie.rotation.x = Math.PI / 2;
+    const rnd = seeded(r.info.id * 13 + 5);
+    for (let i = 0; i < 7; i++) {
+      const side = i % 2 === 0 ? 1 : -1;
+      const straw = this.propPart(GEO.box, 0xf4d35e, g, [(rnd() - 0.5) * 0.16, (rnd() - 0.5) * 0.16, side * (0.5 + rnd() * 0.12) * k], [0.03, 0.03, 0.34 * k], 0);
+      straw.rotation.set((rnd() - 0.5) * 0.9, (rnd() - 0.5) * 0.9, 0);
+    }
+    r.head.add(g);
+    return g;
+  }
+
+  /** 홀수 건초 파티: 분홍 고깔모자와 노란 방울 */
+  private buildPartyHat(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    g.position.set(-0.08, 0.62, -0.1);
+    g.rotation.set(-0.25, 0, 0.28);
+    this.propPart(GEO.cone, 0xff8fb8, g, [0, 0.3, 0], [0.26, 0.6, 0.26], 0.1);
+    for (const [y, a] of [[0.12, 0], [0.12, 2.1], [0.12, 4.2], [0.34, 1], [0.34, 3.1], [0.34, 5.2]] as const) {
+      const rad = 0.26 * (1 - y / 0.6) * 0.98;
+      this.propPart(GEO.sphere, 0xffe23f, g, [Math.cos(a) * rad, y, Math.sin(a) * rad], [0.045, 0.045, 0.045], 0);
+    }
+    this.propPart(GEO.sphere, 0xffe23f, g, [0, 0.62, 0], [0.09, 0.09, 0.09], 0.15);
+    r.head.add(g);
+    return g;
   }
 
   /** 무관심이 약: 몸 전체를 반투명하게. 투명도가 0이 되면 원래 재질 값으로 되돌린다 */
@@ -1936,6 +2151,26 @@ export class Race3DView {
     // 한눈팔다 발을 헛디딘다 (1.4초에 한 번)
     const tripK = whistle ? (t * 0.72 + r.info.id * 0.2) % 1 : 0;
     const trip = whistle && tripK > 0.82 ? Math.sin(((tripK - 0.82) / 0.18) * Math.PI) : 0;
+    // ---- 이름값을 하는 카드들 ----
+    const spot = vis.has('spotlight'); // 될놈될
+    const chain = vis.has('ballchain'); // 안될안
+    const rebel = vis.has('rebel'); // 꼴찌들의 반란
+    const nope = vis.has('nope'); // 중간은 싫어
+    const silver = vis.has('silver'); // 만년 2등의 한
+    const hayfeast = vis.has('hayfeast'); // 건초 폭식
+    const hayparty = vis.has('hayparty'); // 홀수 건초 파티
+    const fasting = vis.has('fasting'); // 간헐적 단식
+    const dawn = vis.has('dawn') && !flying; // 짝수 새벽 훈련
+    // 건초 폭식: 2.2초에 한 번 꺼억 (트림하는 순간 고개가 들린다)
+    const burpK = hayfeast ? (t * 0.45 + r.info.id * 0.3) % 1 : 1;
+    const burping = burpK < 0.1;
+    // 한 박자에 한 번만 true (꺼억·꼬르륵·슉 글자를 박자마다 하나씩 띄운다)
+    const beat = (key: string, rate: number): boolean => {
+      const n = Math.floor(t * rate + r.info.id * 0.37);
+      const prev = r.fxStart[key];
+      r.fxStart[key] = n;
+      return prev !== undefined && prev !== n;
+    };
     // 에너지 드링크: 다리가 두 배로 빨리 돈다
     if (jitter) r.phase += dt * (2.5 + speedNorm * 13);
     r.dive = ease(r.dive, rocket ? 1 : 0, 7);
@@ -2297,6 +2532,28 @@ export class Race3DView {
     r.inner.position.z = -Math.sin(r.inner.rotation.x) * 1.6;
 
     // 방향: 역주행·문워크는 뒤돌고, 빙글빙글은 계속 돈다
+    // 될놈될·새벽 훈련·안될안의 다리 동작 (기본 달리기 위에 덮어쓴다)
+    if (!flipping && !sitting && !nap && anim !== 'fallen' && !flying && (spot || dawn || chain)) {
+      r.legs.forEach((leg, i) => {
+        const knee = r.knees[i];
+        const front = i < 2;
+        if (dawn && front) {
+          // 새벽 훈련: 앞다리로 번갈아 잽! 잽! (뻗을 때 무릎을 편다)
+          const jab = Math.max(0, Math.sin(t * 10 + i * Math.PI));
+          leg.rotation.z = 0.2 + 1.2 * jab;
+          knee.rotation.z = -1.0 * (1 - jab);
+        } else if (spot && front && runAmt > 0.2) {
+          // 될놈될: 무릎을 높이 들어 거들먹거리며 걷는다
+          knee.rotation.z *= 1.75;
+          leg.rotation.z += 0.2 * runAmt;
+        } else if (chain && i === 2) {
+          // 안될안: 쇠공을 찬 뒷다리는 뒤로 끌려간다
+          leg.rotation.z = -0.6 + Math.sin(t * 6.5 + r.info.id) * 0.12;
+          knee.rotation.z = -0.08;
+        }
+      });
+    }
+
     // 뒷걸음질(가스불 안 껐다)은 몸은 앞을 본 채 머리만 뒤로 돌린다
     const backwards = (anim === 'reverse' && !backpedal) || vis.has('moonwalk');
     // 포즈: 옆(카메라 쪽)을 보고 선다
@@ -2349,6 +2606,14 @@ export class Race3DView {
       else if (chewing) headTarget = -0.05 + Math.sin(t * 18) * 0.16; // 오물오물
       else headTarget = 0.35 + Math.sin(t * 6) * 0.08; // 행복
     }
+    if (spot) headTarget = 0.34 + Math.sin(t * 5) * 0.05; // 턱을 쳐들고 거만하게
+    if (chain) headTarget = -0.42 + Math.sin(t * 2.6) * 0.06; // 한숨 쉬며 축
+    if (rebel) headTarget = 0.12 + Math.sin(t * 11) * 0.14; // 구호에 맞춰 끄덕끄덕
+    if (silver) headTarget = -0.15 + Math.sin(t * 24) * 0.035; // 이를 악물고 부들부들
+    if (hayfeast) headTarget = burping ? 0.7 : -0.08 + Math.sin(t * 12) * 0.1; // 우물우물, 꺼억
+    if (hayparty) headTarget = Math.sin(t * 9) * 0.22; // 신나서 끄덕
+    if (fasting) headTarget = -0.32 + Math.sin(t * 2) * 0.04; // 배고파서 축
+    if (dawn) headTarget = 0.12 + Math.sin(t * 10) * 0.06; // 턱을 당기고 훅훅
     r.head.rotation.z = ease(r.head.rotation.z, headTarget, 10);
 
     // 기린 목: 목을 늘리고 머리를 그만큼 올린다
@@ -2388,14 +2653,17 @@ export class Race3DView {
     // 시끄러운 응원에 선두가 고개를 세차게 젓는다
     // 라이벌 대결: 상대 말 쪽으로 고개를 돌려 노려본다 (+y 회전은 -z 쪽을 본다)
     r.glare = ease(r.glare, foe ? -Math.sign(foe.root.position.z - r.root.position.z) * 1.25 : 0, 8);
-    r.head.rotation.y = r.heliAng + r.lookBack * 2.75 + r.glare + (annoyed ? Math.sin(t * 17) * 0.55 : 0);
+    // 중간은 싫어: 싫다고 고개를 좌우로 계속 젓는다
+    r.head.rotation.y =
+      r.heliAng + r.lookBack * 2.75 + r.glare + (annoyed ? Math.sin(t * 17) * 0.55 : 0) + (nope ? Math.sin(t * 12) * 0.85 : 0);
     // 맞바람: 갈기가 뒤로 날리며 펄럭인다
     for (const m of r.mane) m.mesh.position.x = 0.06 - wind * (0.22 + Math.sin(t * 31 + m.frac * 9) * 0.09);
 
     // 풍선: 몸통이 둥글게 부푼다
     // 뚱보들의 역습: 뱃살이 출렁출렁 (위아래로 늘면 옆으로 줄어든다)
-    const jig = jiggle ? Math.sin(t * 17) : 0;
-    const fat = jiggle ? 1 : 0;
+    // 건초 폭식도 배가 출렁인다
+    const jig = jiggle || hayfeast ? Math.sin(t * 17) : 0;
+    const fat = jiggle || hayfeast ? 1 : 0;
     r.body.scale.set(
       1.0 + 0.15 * r.inflate + 0.06 * belly + 0.05 * fat,
       0.56 + 0.5 * r.inflate + 0.2 * belly + fat * (0.08 + 0.07 * jig),
@@ -2428,6 +2696,13 @@ export class Race3DView {
     if (zap > 0) eyeScale = 1.7; // 찌릿!
     if (wind > 0.3) eyeScale = 0.2; // 바람에 눈을 못 뜬다
     if (sugarK != null) eyeScale = sugarK < SUGAR_FALL ? 1.6 : chewing ? 0.1 : 1.4; // 우와 → 음~ → 행복
+    if (spot || fasting) eyeScale = 0.55; // 거만하게 내리깐 눈 / 기운 없는 눈
+    if (chain) eyeScale = 0.45;
+    if (rebel || dawn) eyeScale = 1.3; // 결의에 찬 눈
+    if (nope) eyeScale = 0.35; // 질끈
+    if (silver) eyeScale = 0.22; // 울면서 질끈
+    if (hayfeast) eyeScale = burping ? 0.1 : 0.7;
+    if (hayparty) eyeScale = 1.4;
     for (const eye of r.eyes) eye.scale.y = ease(eye.scale.y, eyeScale, 14);
 
     // 선글라스
@@ -2591,6 +2866,80 @@ export class Race3DView {
       }
       if (chewing) pop(6, ['😋', '🍬'], headX + 0.4, headY + 0.5, 0.7, 0.8);
       if (blissful) pop(9, ['😍', '💕', '✨'], headX + rnd(0.8), headY + 0.9, 0.8, 1.0);
+
+      // ---- 이름값을 하는 카드들의 소품 ----
+      // 될놈될: 하늘에서 스포트라이트가 따라온다
+      const spotP = this.prop(r, 'spot', spot, () => this.buildSpotlight(r));
+      if (spotP) {
+        ((spotP.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.2 + Math.sin(t * 6) * 0.05;
+        pop(5, ['✨', '⭐'], headX + rnd(1.6), headY + 1.0, 0.7, 0.6);
+      }
+      // 안될안: 쇠공이 쿵쿵 끌려오고, 한숨이 나온다
+      const chainP = this.prop(r, 'chain', chain, () => this.buildBallChain(r));
+      if (chainP) {
+        const hopS = Math.abs(Math.sin(t * 6.5 + r.info.id));
+        const bx = -2.5;
+        const by = 0.44 + hopS * 0.32 * runAmt;
+        const bz = 0.42;
+        const ball = chainP.children[0];
+        ball.position.set(bx, by, bz);
+        ball.rotation.z -= dt * Math.abs(r.speed) * 0.5;
+        const ax = -0.72 * s;
+        const ay = 0.28;
+        const az = 0.27;
+        for (let k = 1; k <= 6; k++) {
+          const f = k / 7;
+          chainP.children[k].position.set(ax + (bx - ax) * f, Math.max(0.07, ay + (by - ay) * f - Math.sin(Math.PI * f) * 0.18), az + (bz - az) * f);
+        }
+        if (hopS < 0.1 && runAmt > 0.3) pop(7, ['쿵'], X + bx, 0.75, 0.7, 0.4);
+        pop(2.2, ['💨'], headX + 0.75, headY - 0.15, 0.55, 0.15);
+      }
+      // 꼴찌들의 반란: 빨간 머리띠를 두르고 등에 꽂은 "반란!" 깃발을 휘날린다
+      const rebelBand = this.prop(r, 'rebelBand', rebel, () => this.buildHeadband(r, 0xe03131, null));
+      const rebelFlag = this.prop(r, 'rebelFlag', rebel, () => this.buildRebelFlag(r));
+      if (rebelFlag) {
+        // 달릴수록 깃발이 세게 펄럭이고, 깃대도 걸음에 맞춰 흔들린다
+        rebelFlag.getObjectByName('flag')!.rotation.y = Math.sin(t * (7 + 6 * runAmt) + r.info.id) * (0.25 + 0.2 * runAmt);
+        rebelFlag.rotation.z = 0.12 + 0.18 * runAmt + Math.sin(r.phase) * 0.06;
+      }
+      if (rebel) pop(4, ['💢', '🔥'], headX + rnd(0.8), headY + 1.2, 0.8, 0.9);
+      // 중간은 싫어
+      if (nope) pop(3, ['싫어!'], headX + 0.3, headY + 1.15, 1.0, 0.6);
+      // 만년 2등의 한: 은메달을 걸고 눈물을 뒤로 줄줄 흘린다
+      const medal = this.prop(r, 'medal', silver, () => this.buildMedal(r));
+      if (medal) {
+        medal.rotation.z = Math.sin(r.phase) * 0.22;
+        pop(22, ['💧'], headX + 0.25, headY + 0.12, 0.38, 0.45);
+      }
+      // 건초 폭식: 건초를 문 채 출렁출렁, 가끔 꺼억
+      this.prop(r, 'hayBig', hayfeast, () => this.buildHay(r, 1));
+      if (hayfeast) {
+        if (beat('burp', 0.45) && burpK < 0.5) this.spawnEmoji('꺼억', headX + 0.6, headY + 0.7, Z + 0.4, 1.1, 0.8);
+        pop(3, ['🌾'], headX + 0.9, headY - 0.3, 0.55, 0.3);
+      }
+      // 홀수 건초 파티: 고깔모자 + 건초, 꽃가루
+      this.prop(r, 'partyHat', hayparty, () => this.buildPartyHat(r));
+      this.prop(r, 'haySmall', hayparty, () => this.buildHay(r, 0.7));
+      if (hayparty) pop(5, ['🎉', '🎊', '🌾'], headX + rnd(1.4), headY + 1.0, 0.75, 0.8);
+      // 간헐적 단식: 빈 밥그릇이 달랑, 배에서 꼬르륵
+      const bowl = this.prop(r, 'bowl', fasting, () => this.buildBowl(r));
+      if (bowl) {
+        bowl.rotation.z = Math.sin(r.phase * 0.5) * 0.3;
+        if (beat('growl', 0.6)) this.spawnEmoji('꼬르륵', X + 0.2 * s, 1.5 * s, Z + 0.6, 1.1, 0.5);
+      }
+      // 짝수 새벽 훈련: 땀 머리띠와 수건, 잽을 날릴 때마다 슉!
+      const dawnBand = this.prop(r, 'dawnBand', dawn, () => this.buildHeadband(r, 0xffffff, 0xe03131));
+      this.prop(r, 'towel', dawn, () => this.buildTowel(r));
+      if (dawn) {
+        if (beat('jab', 10 / Math.PI)) this.spawnEmoji('슉!', headX + 1.0, 1.6 * s, Z + 0.5, 0.8, 0.3);
+        pop(4, ['💦'], headX, headY + 0.8, 0.6, 0.7);
+      }
+      // 머리띠 꼬리가 바람에 휘날린다
+      for (const band of [rebelBand, dawnBand]) {
+        band?.children.forEach((c) => {
+          if (c.name === 'tail') c.rotation.z = Math.sin(t * 22 + c.position.z * 9) * 0.35 - 0.2 * runAmt;
+        });
+      }
     }
 
     // 발굽 먼지 / 방귀 연기
@@ -3032,7 +3381,10 @@ const TRAIL_STICKERS: Record<string, string[]> = {
   trail_fire: ['🔥']
 };
 /** 몸집을 바꾸는 연출과 그 크기 */
-const SIZE_SCALE: Partial<Record<AugmentVisual, number>> = { giant: 1.9, bulk: 1.38, pony: 0.62, slim: 0.78, muscle: 1.12 };
+const SIZE_SCALE: Partial<Record<AugmentVisual, number>> = {
+  giant: 1.9, bulk: 1.38, pony: 0.62, slim: 0.78, muscle: 1.12,
+  hayfeast: 1.38, hayparty: 1.22, fasting: 0.78, dawn: 0.84
+};
 const SIZE_VISUALS = new Set(Object.keys(SIZE_SCALE) as AugmentVisual[]);
 /** 꼴찌의 분노: 털에 섞는 빨간색 */
 const RAGE_RED = new THREE.Color(0xff2a1a);

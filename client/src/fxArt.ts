@@ -360,8 +360,21 @@ const finish: Draw = (g) => {
   }
 };
 
+/** 의성어 스티커: 남색 테두리를 두른 굵은 글자 (꺼억, 꼬르륵 등). 글자 수에 맞춰 크기를 줄인다 */
+const sound =
+  (text: string, color: string, rot = -0.12): Draw =>
+  (g) => {
+    const n = [...text].length;
+    word(g, text, 32, 34, n >= 3 ? 19 : n === 2 ? 25 : 32, color, rot);
+  };
+
 /** 이모지 → 직접 그린 기호 */
 const ART: Record<string, Draw> = {
+  꺼억: sound('꺼억', '#a9e34b'),
+  꼬르륵: sound('꼬르륵', '#b197fc', 0.1),
+  '싫어!': sound('싫어!', '#ff6b6b'),
+  '슉!': sound('슉!', '#ffffff', -0.2),
+  쿵: sound('쿵', '#ced4da', 0.15),
   '💢': anger,
   '⚡': bolt,
   '✨': sparkle,

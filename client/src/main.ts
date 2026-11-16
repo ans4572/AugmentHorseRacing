@@ -1965,21 +1965,32 @@ net.on((msg: S2C) => {
       const def = AUGMENT_BY_ID[msg.defId];
       if (!def) break;
       // 기록은 세 칸: 누가 / 무슨 카드 / 어느 말에게
-      const logBib = (id: number, blocked: boolean): string =>
-        `<span class="lg-horse${blocked ? ' blocked' : ''}">${bib(id, horseColor(id), 'sm')}<span>${esc(state.horses.find((x) => x.id === id)?.name ?? '')}</span>${blocked ? '<i>막음</i>' : ''}</span>`;
+      // 내가 이 말에 건 배팅 종류 (우승마·1~2위 등). 같은 종류를 두 번 걸었어도 한 번만
+      const myBetTypes = (id: number): BetType[] => [...new Set(state.myBets.filter((b) => b.horseId === id).map((b) => b.type))];
+      const logBib = (id: number, blocked: boolean): string => {
+        const types = myBetTypes(id);
+        const betFlag = types.length ? `<span class="lg-flag" title="내가 이 말에 건 배팅">${types.map((t) => BET_TYPE_INFO[t].label).join('·')}</span>` : '';
+        return `<span class="lg-horse${blocked ? ' blocked' : ''}">${bib(id, horseColor(id), 'sm')}<span class="lg-hname">${esc(state.horses.find((x) => x.id === id)?.name ?? '')}</span>${blocked ? '<i>막음</i>' : ''}${betFlag}</span>`;
+      };
+      // 막힌 말은 효과를 받지 않으므로 줄 색은 실제로 맞은 말로만 정한다
       const hit = [...msg.targets, ...msg.blocked];
       const targetsHtml =
         msg.targets.map((id) => logBib(id, false)).join('') + msg.blocked.map((id) => logBib(id, true)).join('');
-      // 내 말이나 내가 건 말이 대상이면 줄을 강조한다
+      // 내 말이 대상이면 표시한다 (내 배팅은 말마다 배팅 종류로 붙는다)
       const myHorseHit = hit.some((id) => isMyHorse(state.horses.find((x) => x.id === id)));
-      const myBetHit = hit.some((id) => state.myBets.some((b) => b.horseId === id));
-      const flag = myBetHit ? '<span class="lg-flag">내 배팅</span>' : myHorseHit ? '<span class="lg-flag">내 말</span>' : '';
+      const flag = myHorseHit ? '<span class="lg-flag">내 말</span>' : '';
+      // 이 증강이 내 배팅에 좋은지 나쁜지: 우승마·1~2위는 도움이 좋고, 꼴찌마·5~6위는 방해가 좋다
+      const verdicts = msg.targets.flatMap((id) =>
+        myBetTypes(id).map((t) => (t === 'winner' || t === 'top2') !== def.hostile)
+      );
+      const myBetHit = verdicts.length > 0;
+      const betTone = !myBetHit ? '' : verdicts.every((v) => v) ? ' log-mybet-good' : verdicts.every((v) => !v) ? ' log-mybet-bad' : ' log-mybet-mixed';
       addLog(
         `<span class="lg-who">${playerChip(msg.playerId, msg.playerName)}</span>` +
           `<span class="lg-card">${kindChip(def.hostile)}<span class="lg-cardname">${esc(def.name)}</span></span>` +
           `<span class="lg-to">${targetsHtml || '<span class="muted">대상 없음</span>'}${flag}</span>`,
-        // 내가 건 말이 대상이면 줄에 색을 칠한다: 이로운 효과는 연두, 해로운 효과는 빨강
-        `log-row ${def.hostile ? 'log-bad' : 'log-good'}${myBetHit ? (def.hostile ? ' log-mybet-bad' : ' log-mybet-good') : ''}`
+        // 내가 건 말이 맞으면 줄에 색을 칠한다: 내 배팅에 좋으면 연두, 나쁘면 빨강, 섞이면 노랑
+        `log-row ${def.hostile ? 'log-bad' : 'log-good'}${betTone}`
       );
       // 누가 무엇을 썼는지는 맞은 말 머리 위에 몇 초간 붙여 둔다
       view?.showAugmentNote(msg.targets, `${def.emoji} ${def.name}`, msg.playerName, def.hostile, playerColor(msg.playerId));

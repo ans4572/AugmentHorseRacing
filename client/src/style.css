@@ -935,7 +935,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .lg-emoji { font-size: 18px; line-height: 1; }
 .lg-to { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
 .lg-horse { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; white-space: nowrap; }
-.lg-horse.blocked > span:last-of-type { color: var(--ink-soft); text-decoration: line-through; }
+.lg-horse.blocked > .lg-hname { color: var(--ink-soft); text-decoration: line-through; }
 .lg-horse.blocked i { font-style: normal; color: var(--pen); font-weight: 800; }
 #game-log .log-row .lg-flag { background: var(--ink); color: #fff; font-size: 12px; font-weight: 800; padding: 1px 7px; border-radius: 3px; }
 #game-log .log-row.log-me { background: var(--hl); }
@@ -1027,7 +1027,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .lg-flag { white-space: nowrap; }
 @media (max-width: 640px) {
   #game-log .log-row { grid-template-columns: minmax(72px, 0.9fr) minmax(0, 1.3fr) auto; }
-  .lg-horse > span + span { display: none; }
+  .lg-horse > .lg-hname { display: none; }
   .lg-to { flex-wrap: nowrap; gap: 4px; }
   #game-log .log-row .lg-card { font-size: 12px; }
 }
@@ -1056,6 +1056,10 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 #game-log .log-row.log-mybet-bad { background: #ffd3cd; }
 #game-log .log-row.log-mybet-good .lg-card { color: #0b5c33; }
 #game-log .log-row.log-mybet-bad .lg-card { color: #a3140d; }
+/* 한 카드가 내 배팅 중 어떤 것엔 좋고 어떤 것엔 나쁠 때 (예: 우승마와 꼴찌마를 함께 건 말들) */
+#game-log .log-row.log-mybet-mixed { background: #fff1b8; }
+/* 말 이름 옆의 내 배팅 종류 */
+#game-log .log-row .lg-horse .lg-flag { margin-left: 2px; padding: 1px 6px; font-size: 11px; }
 
 /* ---------- 전체 점검에서 고친 것 ---------- */
 /* 출마표 카드: 종류 딱지가 줄을 바꿔도 배당 띠는 항상 카드 맨 아래에 붙는다 */
@@ -1850,6 +1854,9 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 #cheer-board #emotes { grid-template-rows: none; grid-auto-flow: row; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
 #cheer-board #emotes button { height: 32px; padding: 0; }
 #shout-row { position: relative; display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: 'who who' 'go check'; gap: 7px 6px; align-items: stretch; }
+/* 말 고르기와 외침 단추는 한 묶음: 테두리 상자로 감싸 반응 이모티콘과 나눈다. 경주 밖에서는 점선으로 쉬고 있음을 알린다 */
+#shout-row { padding: 7px 6px 6px; border: 2px solid var(--line); border-radius: 6px; background: var(--paper-2); }
+#shout-row.off { border-style: dashed; background: transparent; }
 #shout-who { grid-area: who; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
 #btn-shout-go { grid-area: go; }
 #btn-shout-check { grid-area: check; }
@@ -1941,7 +1948,7 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 @media (max-width: 640px) and (orientation: portrait) {
   #cheer-board { width: 100%; }
   #cheer-board #emotes button { height: 36px; }
-  #shout-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'who go check'; gap: 5px; }
+  #shout-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'who go check'; gap: 5px; padding: 6px 5px 5px; }
   #shout-who { gap: 3px; }
   .sw-bib, .shout-btn { height: 36px; }
   .shout-btn { font-size: 15px; padding: 0 9px; border-width: 2px; }
@@ -1960,7 +1967,7 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 }
 /* 낮은 가로 화면: 기록 칸이 낮으므로 단추를 줄인다 */
 @media (max-height: 560px) and (orientation: landscape) {
-  #shout-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'who go check'; gap: 4px; }
+  #shout-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: 'who go check'; gap: 4px; padding: 6px; }
   #cheer-board #emotes button, .sw-bib, .shout-btn { height: 28px; }
   .shout-btn { font-size: 14px; }
   #cheer-board { gap: 4px; }

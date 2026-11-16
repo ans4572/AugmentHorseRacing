@@ -37,7 +37,7 @@ export const COSMETICS: CosmeticItem[] = [
   { id: 'breed_unicorn', slot: 'breed', name: '유니콘', emoji: '🦄', price: 400, breed: 'unicorn' },
   { id: 'breed_alpaca', slot: 'breed', name: '알파카', emoji: '🦙', price: 300, breed: 'alpaca' },
   { id: 'breed_camel', slot: 'breed', name: '낙타', emoji: '🐫', price: 300, breed: 'camel' },
-  { id: 'breed_pegasus', slot: 'breed', name: '흑마 페가수스', emoji: '🪽', price: 450, breed: 'pegasus' },
+  { id: 'breed_pegasus', slot: 'breed', name: '페가수스', emoji: '🪽', price: 450, breed: 'pegasus' },
   // 털 색
   { id: 'coat_lane', slot: 'coat', name: '레인 색 그대로', emoji: '🎽', price: 0 },
   { id: 'coat_choco', slot: 'coat', name: '초코', emoji: '🍫', price: 0, color: '#7a4a2a' },
@@ -115,6 +115,10 @@ export const DEFAULT_LOOK: HorseLook = {
 
 export const DEFAULT_HORSE_NAME = '당근이';
 export const HORSE_NAME_MAX = 8;
+/** 마구간에 둘 수 있는 말 수. 게임에는 이 중 한 마리만 출전한다 */
+export const MAX_HORSES = 3;
+/** 새로 들이는 말의 기본 이름 (이미 쓰는 이름은 건너뛴다) */
+export const NEW_HORSE_NAMES = [DEFAULT_HORSE_NAME, '깍두기', '단무지', '무말랭이', '오이지'];
 
 /** 처음 마구간을 열면 주는 당근 (처음 온 사람은 이것만 받고 아래 선물은 받지 않는다) */
 export const WELCOME_CARROTS = 1000;

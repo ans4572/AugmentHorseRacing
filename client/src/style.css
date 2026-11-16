@@ -1784,3 +1784,54 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
   /* 게임 방법: 닫기 단추를 꽉 차게 (마구간 창과 같게) */
   #modal-howto .btn-row .btn { width: 100%; }
 }
+
+/* ================= 마구간: 말 3마리 ================= */
+/* 꾸밀 말 고르기: 마구간 칸 세 개. 출전마에는 형광 딱지가 붙는다 */
+.stable-horses { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 14px; }
+.sh-card {
+  position: relative; display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 9px 12px; border: 2px solid var(--ink); border-radius: var(--r);
+  background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.sh-card:hover { background: #f3f5fb; }
+.sh-card.active { background: var(--ink); color: #fff; }
+.sh-card:focus-visible { outline: 3px solid var(--pen); outline-offset: 2px; }
+.sh-card.add { border-style: dashed; border-color: var(--ink-soft); color: var(--ink-soft); }
+.sh-card.add:hover { color: var(--ink); border-color: var(--ink); }
+.sh-emoji { flex: none; font-size: 22px; line-height: 1; }
+.sh-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; font-size: 16px; }
+.sh-badge {
+  flex: none; margin-left: auto; padding: 2px 7px; border-radius: 99px;
+  background: var(--hl); color: var(--ink); font-size: 12px; font-weight: 800; line-height: 1.4;
+}
+.stable-horse-actions { display: flex; gap: 8px; }
+.stable-horse-actions #btn-stable-active { flex: 1; }
+.stable-horse-actions #btn-stable-active:disabled { opacity: 1; background: var(--hl); color: var(--ink); cursor: default; }
+.stable-horse-actions .btn[hidden] { display: none; }
+
+/* 출전마 고르기 (혼자 하기, 대기방): 말 수만큼 칸이 나뉜다 */
+.seg.horse-pick button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.seg.horse-pick[hidden] { display: none; }
+.hp-emoji { flex: none; font-size: 17px; line-height: 1; }
+.hp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#lobby-horse-pick { margin-top: 8px; }
+
+@media (max-width: 640px) {
+  /* 폰: 칸이 좁으니 그림 위, 이름 아래로 쌓고 딱지는 모서리에 붙인다 */
+  .stable-horses { gap: 6px; margin-bottom: 10px; }
+  .sh-card { flex-direction: column; justify-content: center; gap: 3px; padding: 8px 6px; text-align: center; }
+  .sh-name { max-width: 100%; font-size: 14px; }
+  .sh-badge { position: absolute; top: -8px; right: -4px; margin: 0; font-size: 11px; padding: 1px 6px; box-shadow: 0 0 0 2px var(--paper); }
+  .seg.horse-pick button { flex-direction: column; gap: 2px; padding-block: 7px; }
+  .hp-name { max-width: 100%; font-size: 14px; }
+}
+
+/* 말 종류 아이콘: 3D 모델을 찍은 그림 (client/public/breeds) */
+.breed-ic { display: block; width: 44px; height: 44px; object-fit: contain; pointer-events: none; user-select: none; }
+.stable-item .si-emoji .breed-ic { margin: 0 auto; }
+.sh-emoji .breed-ic { width: 34px; height: 34px; }
+.hp-emoji .breed-ic { width: 26px; height: 26px; }
+@media (max-width: 640px) {
+  .sh-emoji .breed-ic { width: 40px; height: 40px; }
+  .hp-emoji .breed-ic { width: 30px; height: 30px; }
+}

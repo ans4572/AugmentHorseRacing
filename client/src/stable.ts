@@ -3,6 +3,8 @@ import {
   COSMETIC_BY_ID,
   DEFAULT_HORSE_NAME,
   DEFAULT_LOOK,
+  MAX_HORSES,
+  NEW_HORSE_NAMES,
   WELCOME_CARROTS,
   CARROT_PROMOS,
   sanitizeHorseName,
@@ -10,7 +12,8 @@ import {
 } from '../../shared/src/stable';
 
 // ============================================================
-// 마구간 저장소 — 당근, 보유 꾸미기, 내 말의 모습을 이 브라우저에 저장한다.
+// 마구간 저장소 — 당근, 보유 꾸미기, 내 말(최대 3마리)의 모습을 이 브라우저에 저장한다.
+// 꾸미기는 한 번 사면 모든 말이 함께 쓴다. 게임에는 출전마(active) 한 마리만 나간다.
 // 계정이 없으므로 브라우저를 바꾸거나 저장 기록을 지우면 초기화된다.
 // ============================================================
 
@@ -18,12 +21,19 @@ const KEY = 'augment-derby-stable-v1';
 /** 중복 지급 방지 키를 이만큼만 기억한다 */
 const CLAIM_MEMORY = 60;
 
+export interface StableHorse {
+  name: string;
+  look: HorseLook;
+}
+
 export interface StableData {
   carrots: number;
   /** 구매한 꾸미기 항목 ID (가격 0인 기본 항목은 넣지 않아도 보유로 본다) */
   owned: string[];
-  name: string;
-  look: HorseLook;
+  /** 내 말들 (1~MAX_HORSES마리) */
+  horses: StableHorse[];
+  /** 게임에 출전하는 말의 번호 (horses 안의 순서) */
+  active: number;
   claimed: string[];
   /** 이미 받은 당근 선물(CARROT_PROMOS) id. claimed와 달리 오래돼도 지우지 않는다 (지우면 같은 선물을 또 받는다) */
   promos: string[];
@@ -34,8 +44,8 @@ function fresh(): StableData {
   return {
     carrots: WELCOME_CARROTS,
     owned: [],
-    name: DEFAULT_HORSE_NAME,
-    look: { ...DEFAULT_LOOK },
+    horses: [{ name: DEFAULT_HORSE_NAME, look: { ...DEFAULT_LOOK } }],
+    active: 0,
     claimed: [],
     // 처음 온 사람은 시작 당근만 받는다: 지금 있는 선물은 받은 것으로 친다
     promos: CARROT_PROMOS.map((p) => p.id),
@@ -51,14 +61,17 @@ function read(): StableData | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const p = JSON.parse(raw) as Partial<StableData>;
+    const p = JSON.parse(raw) as Partial<StableData> & { name?: unknown; look?: unknown };
     const num = (v: unknown, d = 0): number =>
       typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : d;
     const out: StableData = {
       carrots: num(p.carrots, base.carrots),
       owned: Array.isArray(p.owned) ? p.owned.filter((id) => !!COSMETIC_BY_ID[String(id)]).map(String) : [],
-      name: sanitizeHorseName(p.name),
-      look: sanitizeLook(p.look),
+      // 말이 한 마리뿐이던 때의 기록은 name, look만 있다 → 첫 번째 말로 옮긴다
+      horses: (Array.isArray(p.horses) && p.horses.length > 0 ? p.horses : [{ name: p.name, look: p.look }])
+        .slice(0, MAX_HORSES)
+        .map((h) => ({ name: sanitizeHorseName(h?.name), look: sanitizeLook(h?.look) })),
+      active: 0,
       claimed: Array.isArray(p.claimed) ? p.claimed.map(String).slice(-CLAIM_MEMORY) : [],
       // 저장된 기록에 선물 목록이 없으면 선물이 생기기 전부터 있던 마구간이다 → 선물을 받는다
       promos: Array.isArray(p.promos) ? p.promos.map(String).slice(-100) : [],
@@ -70,9 +83,13 @@ function read(): StableData | null {
         earned: num(p.stats?.earned)
       }
     };
+    const active = num(p.active);
+    out.active = active < out.horses.length ? active : 0;
     // 보유하지 않은 항목을 입고 있으면 기본값으로 되돌린다
-    for (const slot of Object.keys(out.look) as CosmeticSlot[]) {
-      if (!ownedIn(out, out.look[slot])) out.look[slot] = DEFAULT_LOOK[slot];
+    for (const h of out.horses) {
+      for (const slot of Object.keys(h.look) as CosmeticSlot[]) {
+        if (!ownedIn(out, h.look[slot])) h.look[slot] = DEFAULT_LOOK[slot];
+      }
     }
     return out;
   } catch {
@@ -106,7 +123,9 @@ if (typeof window !== 'undefined') {
 
 function save(): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(data));
+    // name, look에는 출전마를 함께 적어 둔다: 새로 고치기 전의 탭이 열려 있어도 출전마는 그대로 읽힌다
+    const active = activeHorse();
+    localStorage.setItem(KEY, JSON.stringify({ ...data, name: active.name, look: active.look }));
   } catch {
     /* 저장 공간을 쓸 수 없는 환경 — 이번 접속 동안만 유지된다 */
   }
@@ -125,37 +144,83 @@ export function isOwned(id: string): boolean {
   return ownedIn(data, id);
 }
 
-/** 서버에 보낼 내 말 정보 */
+/** 출전하는 말 */
+export function activeHorse(): StableHorse {
+  return data.horses[data.active] ?? data.horses[0];
+}
+
+/** index번 말 (없으면 출전마) */
+export function horseAt(index: number): StableHorse {
+  return data.horses[index] ?? activeHorse();
+}
+
+/** 서버에 보낼 내 말 정보 (출전마) */
 export function myHorseEntry(): MyHorseEntry {
-  return { name: data.name, look: { ...data.look } };
+  const h = activeHorse();
+  return { name: h.name, look: { ...h.look } };
 }
 
-export function setHorseName(raw: string): void {
+/** index번 말을 출전마로 정한다 */
+export function setActiveHorse(index: number): boolean {
   sync();
-  data.name = sanitizeHorseName(raw);
-  save();
-}
-
-/** 보유한 항목을 착용한다 */
-export function equip(id: string): boolean {
-  sync();
-  const item = COSMETIC_BY_ID[id];
-  if (!item || !isOwned(id)) return false;
-  data.look[item.slot] = id;
+  if (!data.horses[index]) return false;
+  data.active = index;
   save();
   return true;
 }
 
-/** 당근으로 항목을 사고 바로 착용한다 */
-export function buy(id: string): 'ok' | 'owned' | 'poor' | 'unknown' {
+/** 빈 칸에 새 말을 들인다. 새 말의 번호를 돌려준다 (칸이 다 찼으면 null) */
+export function addHorse(): number | null {
+  sync();
+  if (data.horses.length >= MAX_HORSES) return null;
+  const used = new Set(data.horses.map((h) => h.name));
+  const name = NEW_HORSE_NAMES.find((n) => !used.has(n)) ?? `${DEFAULT_HORSE_NAME}${data.horses.length + 1}`;
+  data.horses.push({ name: sanitizeHorseName(name), look: { ...DEFAULT_LOOK } });
+  save();
+  return data.horses.length - 1;
+}
+
+/** index번 말을 내보낸다. 마지막 한 마리는 내보낼 수 없다 */
+export function removeHorse(index: number): boolean {
+  sync();
+  if (data.horses.length <= 1 || !data.horses[index]) return false;
+  data.horses.splice(index, 1);
+  if (data.active === index) data.active = 0;
+  else if (data.active > index) data.active--;
+  save();
+  return true;
+}
+
+export function setHorseName(index: number, raw: string): void {
+  sync();
+  const h = data.horses[index];
+  if (!h) return;
+  h.name = sanitizeHorseName(raw);
+  save();
+}
+
+/** 보유한 항목을 index번 말에 입힌다 */
+export function equip(index: number, id: string): boolean {
   sync();
   const item = COSMETIC_BY_ID[id];
-  if (!item) return 'unknown';
+  const h = data.horses[index];
+  if (!item || !h || !isOwned(id)) return false;
+  h.look[item.slot] = id;
+  save();
+  return true;
+}
+
+/** 당근으로 항목을 사고 index번 말에 바로 입힌다 */
+export function buy(index: number, id: string): 'ok' | 'owned' | 'poor' | 'unknown' {
+  sync();
+  const item = COSMETIC_BY_ID[id];
+  const h = data.horses[index];
+  if (!item || !h) return 'unknown';
   if (isOwned(id)) return 'owned';
   if (data.carrots < item.price) return 'poor';
   data.carrots -= item.price;
   data.owned.push(id);
-  data.look[item.slot] = id;
+  h.look[item.slot] = id;
   save();
   return 'ok';
 }

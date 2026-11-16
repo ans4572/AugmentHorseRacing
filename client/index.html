@@ -101,12 +101,12 @@
         <span class="range-ends" aria-hidden="true"><i>1라운드</i><i>5라운드</i></span>
       </label>
       <div class="info-chip">시작 코인 <b id="solo-coins">1,100</b> <span class="muted">라운드가 많을수록 많이 받습니다</span></div>
-      <div class="solo-horse">
-        <div>
-          <div class="muted">출전하는 내 말</div>
-          <b id="solo-horse-summary"></b>
+      <div class="field">
+        <div class="field-head">
+          <span class="field-name" id="solo-horse-name">출전하는 내 말</span>
+          <button id="btn-solo-stable" class="btn small alt">내 말 꾸미기</button>
         </div>
-        <button id="btn-solo-stable" class="btn small alt">내 말 꾸미기</button>
+        <div id="solo-horse-pick" class="seg horse-pick" role="radiogroup" aria-labelledby="solo-horse-name"></div>
       </div>
       <p class="muted">내 말은 여섯 마리 중 하나로 뛰고, 순위에 따라 당근을 받습니다. 능력치는 경기마다 새로 정해집니다.</p>
       <div class="tear"></div>
@@ -153,6 +153,7 @@
           <button type="button" role="radio" data-value="on" aria-checked="true" class="active">출전</button>
           <button type="button" role="radio" data-value="off" aria-checked="false">안 함</button>
         </div>
+        <div id="lobby-horse-pick" class="seg horse-pick" role="radiogroup" aria-label="출전시킬 말"></div>
         <p class="field-help" id="lobby-horse-help"></p>
       </div>
       <p id="lobby-wait-msg" class="muted">방장이 게임을 시작하면 바로 넘어갑니다.</p>
@@ -283,10 +284,15 @@
         <h2 id="stable-title">내 마구간</h2>
         <div id="stable-carrots" class="carrot-chip big"></div>
       </div>
+      <div id="stable-horses" class="stable-horses" role="tablist" aria-label="꾸밀 말 고르기"></div>
       <div class="stable-body">
         <div class="stable-left">
           <div id="stable-preview"></div>
           <label>말 이름 <input id="stable-name" type="text" maxlength="8" placeholder="8자까지" /></label>
+          <div class="stable-horse-actions">
+            <button id="btn-stable-active" type="button" class="btn small"></button>
+            <button id="btn-stable-remove" type="button" class="btn small ghost">내보내기</button>
+          </div>
         </div>
         <div class="stable-right">
           <div id="stable-tabs" class="stable-tabs"></div>

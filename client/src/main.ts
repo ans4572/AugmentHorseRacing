@@ -40,8 +40,8 @@ import { EMOTES, conditionNote } from '../../shared/src/names';
 import { esc, particle } from './text';
 import { Net, loadToken, saveToken } from './net';
 import { Race3DView, type CameraTarget } from './race3d';
-import { claimGameBonus, claimGift, claimPromos, claimRoundPrize, myHorseEntry, onStableChange, stable } from './stable';
-import { closeStable, horseSummary, initStableUi, openStable } from './stableUi';
+import { claimGameBonus, claimGift, claimPromos, claimRoundPrize, myHorseEntry, onStableChange, setActiveHorse, stable } from './stable';
+import { breedIcon, closeStable, initStableUi, openStable } from './stableUi';
 import { bib, icon, inkOn, mountIcons, rankBadge } from './icons';
 import { startTitleBg, stopTitleBg } from './titleBg';
 import { cardSfx, warmCardSfx, initAudio, onSoundPrefsChange, setMusic, sfx, soundPrefs, toggleMusic, toggleSfx } from './audio';
@@ -415,8 +415,46 @@ function addLog(html: string, cls = ''): void {
 /** 메인·혼자 하기 화면의 당근과 내 말 요약을 최신 값으로 맞춘다 */
 function refreshStableBadges(): void {
   $('main-carrots').innerHTML = `${icon('carrot')}${stable().carrots}`;
-  $('solo-horse-summary').innerHTML = `${icon('star')}${esc(horseSummary())}`;
+  renderHorsePick($('solo-horse-pick'));
+  renderLobbyHorsePick();
   sendHello();
+}
+
+/** 대기방: 출전시키는 중이고 말이 두 마리 이상이면 어느 말을 내보낼지 고른다 */
+function renderLobbyHorsePick(): void {
+  const box = $('lobby-horse-pick');
+  box.hidden = !state.players.find((p) => p.id === state.myId)?.horseName || stable().horses.length < 2;
+  if (!box.hidden) renderHorsePick(box);
+}
+
+/** 내가 지금 대기방에서 말을 출전시키고 있는지 */
+function enteredInLobby(): boolean {
+  return (
+    document.body.dataset.screen === 'scr-lobby' &&
+    state.phase === 'lobby' &&
+    !!state.players.find((p) => p.id === state.myId)?.horseName
+  );
+}
+
+/** 출전마 고르기 단추 (혼자 하기, 대기방). 마구간의 말 수만큼 단추가 생긴다 */
+function renderHorsePick(box: HTMLElement): void {
+  const s = stable();
+  box.style.gridTemplateColumns = `repeat(${s.horses.length}, minmax(0, 1fr))`;
+  box.innerHTML = s.horses
+    .map((h, i) => {
+      const on = i === s.active;
+      return `<button type="button" role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" class="${on ? 'active' : ''}" data-i="${i}" title="${esc(h.name)}"><span class="hp-emoji" aria-hidden="true">${breedIcon(h.look.breed)}</span><span class="hp-name">${esc(h.name)}</span></button>`;
+    })
+    .join('');
+  box.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+    b.onclick = () => {
+      const i = Number(b.dataset.i);
+      if (i === stable().active || !setActiveHorse(i)) return;
+      refreshStableBadges();
+      // 대기방에서 이미 출전시키고 있으면 바뀐 말을 방에 알린다
+      if (enteredInLobby()) net.send({ type: 'SET_HORSE', myHorse: myHorseEntry() });
+    };
+  });
 }
 
 /** 서버에 이 브라우저의 기수 이름과 당근 수를 알린다 (관리자 화면의 접속자 목록용). 바뀐 것이 없으면 보내지 않는다 */
@@ -448,10 +486,7 @@ function closeStablePopup(): void {
   closeStable();
   refreshStableBadges();
   if (document.body.dataset.screen === 'scr-main') startTitleBg();
-  const inLobby = document.body.dataset.screen === 'scr-lobby' && state.phase === 'lobby';
-  if (inLobby && state.players.find((p) => p.id === state.myId)?.horseName) {
-    net.send({ type: 'SET_HORSE', myHorse: myHorseEntry() });
-  }
+  if (enteredInLobby()) net.send({ type: 'SET_HORSE', myHorse: myHorseEntry() });
 }
 
 /** 말 이름 옆에 붙이는 작은 주인 표시: 내 말은 별, 다른 사람의 말은 그 사람 색 표식 */
@@ -612,6 +647,7 @@ function renderLobby(): void {
     b.setAttribute('aria-checked', String(on));
     b.tabIndex = on ? 0 : -1;
   });
+  renderLobbyHorsePick();
   $('lobby-horse-help').textContent = myHorseName
     ? `${myHorseName}${topicParticle(myHorseName)} 게임 중 ${owners > HORSES_PER_RACE ? `최대 ${shows}번 출전합니다. 말이 ${HORSES_PER_RACE}마리보다 많아 못 나오는 라운드가 생길 수 있습니다.` : `${shows}번 출전합니다.`} 순위에 따라 당근을 받습니다.`
     : '내 말은 나오지 않습니다. 배팅과 증강만 합니다.';

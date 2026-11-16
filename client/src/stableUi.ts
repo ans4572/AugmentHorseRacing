@@ -3,19 +3,31 @@ import {
   COSMETICS,
   COSMETIC_BY_ID,
   DEFAULT_LOOK,
+  MAX_HORSES,
   SLOT_LABELS,
   SLOT_ORDER,
   lookBreed
 } from '../../shared/src/stable';
 import { HORSE_COLORS } from '../../shared/src/names';
 import { Race3DView } from './race3d';
-import { buy, equip, isOwned, setHorseName, stable } from './stable';
+import {
+  activeHorse,
+  addHorse,
+  buy,
+  equip,
+  horseAt,
+  isOwned,
+  removeHorse,
+  setActiveHorse,
+  setHorseName,
+  stable
+} from './stable';
 import { icon } from './icons';
 import { sfx } from './audio';
 import { esc, particle } from './text';
 
 // ============================================================
-// 마구간 화면 — 내 말 미리보기, 꾸미기 상점, 입어 보기
+// 마구간 화면 — 내 말 고르기(최대 3마리), 미리보기, 꾸미기 상점, 입어 보기
 // ============================================================
 
 const el = <T extends HTMLElement = HTMLElement>(id: string): T =>
@@ -24,6 +36,10 @@ const el = <T extends HTMLElement = HTMLElement>(id: string): T =>
 let preview: Race3DView | null = null;
 let previewFailed = false;
 let slot: CosmeticSlot = 'breed';
+/** 지금 꾸미는 말의 번호 (출전마와 다를 수 있다) */
+let editing = 0;
+/** 내보내기를 한 번 눌러 확인을 기다리는 중 */
+let confirmRemove = false;
 /** 아직 사지 않은 항목을 미리 입혀 본 상태 (칸별) */
 let tryOn: Partial<HorseLook> = {};
 let notify: (message: string, isError?: boolean) => void = () => {};
@@ -31,12 +47,95 @@ let onChange: () => void = () => {};
 
 
 function shownLook(): HorseLook {
-  return { ...stable().look, ...tryOn };
+  return { ...horseAt(editing).look, ...tryOn };
 }
 
-/** 혼자 하기 화면에 보여 줄 내 말의 이름 */
+/**
+ * 말 종류 아이콘. 이모지는 종류마다 전신, 얼굴, 날개로 제각각이라
+ * 게임의 3D 모델을 같은 각도와 크기로 찍은 그림(client/public/breeds)을 쓴다
+ */
+export function breedIcon(breedItemId: string): string {
+  const item = COSMETIC_BY_ID[breedItemId] ?? COSMETIC_BY_ID[DEFAULT_LOOK.breed];
+  return `<img class="breed-ic" src="${import.meta.env.BASE_URL}breeds/${item.breed}.png" alt="" width="64" height="64" draggable="false" />`;
+}
+
+/** 혼자 하기 화면에 보여 줄 출전마의 이름 */
 export function horseSummary(): string {
-  return stable().name;
+  return activeHorse().name;
+}
+
+/** 꾸밀 말을 바꾼다. 입어 보던 항목은 벗긴다 */
+function selectHorse(index: number): void {
+  editing = index;
+  tryOn = {};
+  confirmRemove = false;
+  el<HTMLInputElement>('stable-name').value = horseAt(editing).name;
+  render();
+  refreshPreview();
+}
+
+/** 위쪽의 말 고르기 줄과, 미리보기 아래의 출전·내보내기 단추 */
+function renderHorses(): void {
+  const s = stable();
+  const cards = s.horses.map((h, i) => {
+    const on = i === editing;
+    return `<button type="button" class="sh-card${on ? ' active' : ''}" role="tab" aria-selected="${on}" data-i="${i}" title="${esc(h.name)}">
+      <span class="sh-emoji" aria-hidden="true">${breedIcon(h.look.breed)}</span>
+      <span class="sh-name">${esc(h.name)}</span>
+      ${i === s.active ? '<span class="sh-badge">출전</span>' : ''}
+    </button>`;
+  });
+  if (s.horses.length < MAX_HORSES) {
+    cards.push(`<button type="button" class="sh-card add" data-add="1">
+      <span class="sh-emoji" aria-hidden="true">＋</span>
+      <span class="sh-name">새 말 들이기</span>
+    </button>`);
+  }
+  el('stable-horses').innerHTML = cards.join('');
+  el('stable-horses')
+    .querySelectorAll<HTMLElement>('button')
+    .forEach((b) => {
+      b.onclick = () => {
+        if (b.dataset.add) {
+          const i = addHorse();
+          if (i === null) return;
+          sfx('equip');
+          notify(`${horseAt(i).name}${particle(horseAt(i).name, '이', '가')} 마구간에 들어왔습니다. 이름과 꾸미기를 바꿔 보세요.`, false);
+          selectHorse(i);
+          onChange();
+        } else {
+          selectHorse(Number(b.dataset.i));
+        }
+      };
+    });
+
+  const isActive = editing === s.active;
+  const go = el<HTMLButtonElement>('btn-stable-active');
+  go.disabled = isActive;
+  go.innerHTML = isActive ? `${icon('star')}출전하는 말` : '이 말로 출전';
+  go.onclick = () => {
+    if (!setActiveHorse(editing)) return;
+    sfx('equip');
+    notify(`이제 ${horseAt(editing).name}${particle(horseAt(editing).name, '이', '가')} 출전합니다.`, false);
+    render();
+    onChange();
+  };
+  const out = el<HTMLButtonElement>('btn-stable-remove');
+  out.hidden = s.horses.length <= 1;
+  out.textContent = confirmRemove ? '정말 내보내기' : '내보내기';
+  out.classList.toggle('danger', confirmRemove);
+  out.onclick = () => {
+    if (!confirmRemove) {
+      confirmRemove = true;
+      renderHorses();
+      return;
+    }
+    const name = horseAt(editing).name;
+    if (!removeHorse(editing)) return;
+    notify(`${name}${particle(name, '을', '를')} 내보냈습니다. 산 꾸미기는 그대로 남아 있습니다.`, false);
+    selectHorse(stable().active);
+    onChange();
+  };
 }
 
 function refreshPreview(): void {
@@ -55,7 +154,7 @@ function refreshPreview(): void {
   const look = shownLook();
   const info: HorseInfo = {
     id: 1,
-    name: stable().name,
+    name: horseAt(editing).name,
     color: HORSE_COLORS[0],
     breed: lookBreed(look),
     stats: { speed: 60, accel: 60, stamina: 60, weight: 500, luck: 50 },
@@ -82,6 +181,8 @@ function refreshPreview(): void {
 
 function render(): void {
   const s = stable();
+  const horse = horseAt(editing);
+  renderHorses();
   el('stable-carrots').innerHTML = `${icon('carrot')}${s.carrots}`;
   el('stable-stats').textContent =
     s.stats.races > 0
@@ -106,12 +207,12 @@ function render(): void {
     .sort((a, b) => Number(isOwned(b.id)) - Number(isOwned(a.id)) || a.price - b.price)
     .map((c) => {
       const owned = isOwned(c.id);
-      const equipped = s.look[c.slot] === c.id;
+      const equipped = horse.look[c.slot] === c.id;
       const trying = !owned && shown[c.slot] === c.id;
       const stateText = equipped ? '착용 중' : owned ? '보유' : `${icon('carrot')}${c.price}`;
       const swatch = c.color ? `<span class="si-swatch" style="background:${c.color}"></span>` : '';
       return `<button class="stable-item${equipped ? ' equipped' : ''}${trying ? ' trying' : ''}${owned ? '' : ' locked'}" data-id="${c.id}">
-        <span class="si-emoji">${c.emoji}${swatch}</span>
+        <span class="si-emoji">${c.slot === 'breed' ? breedIcon(c.id) : c.emoji}${swatch}</span>
         <span class="si-name">${esc(c.name)}</span>
         <span class="si-state">${stateText}</span>
       </button>`;
@@ -124,7 +225,7 @@ function render(): void {
         const id = b.dataset.id!;
         const item = COSMETIC_BY_ID[id];
         if (isOwned(id)) {
-          equip(id);
+          equip(editing, id);
           sfx('equip');
           delete tryOn[item.slot];
         } else if (tryOn[item.slot] === id) {
@@ -150,7 +251,7 @@ function render(): void {
         lack > 0 ? `당근 ${lack}개 부족` : `당근 ${item.price}개로 사기`
       }</button>`;
     el<HTMLButtonElement>('btn-stable-buy').onclick = () => {
-      const result = buy(tryingId);
+      const result = buy(editing, tryingId);
       if (result === 'ok') {
         delete tryOn[item.slot];
         sfx('buy');
@@ -176,17 +277,15 @@ export function initStableUi(opts: {
   onChange = opts.onChange;
   const nameInput = el<HTMLInputElement>('stable-name');
   nameInput.onchange = () => {
-    setHorseName(nameInput.value);
-    nameInput.value = stable().name;
+    setHorseName(editing, nameInput.value);
+    nameInput.value = horseAt(editing).name;
+    render();
     onChange();
   };
 }
 
 export function openStable(): void {
-  tryOn = {};
-  el<HTMLInputElement>('stable-name').value = stable().name;
-  render();
-  refreshPreview();
+  selectHorse(stable().active);
 }
 
 /** 화면을 떠날 때 미리보기를 정리한다 (사지 않고 입어 본 항목은 벗는다) */

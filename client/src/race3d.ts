@@ -100,7 +100,7 @@ interface Rig {
   shades: THREE.Group;
   /** 꾸미기: 안경을 항상 쓰고 있는지 */
   alwaysShades: boolean;
-  /** 흑마 페가수스의 날개 (달리면 퍼덕인다) */
+  /** 페가수스의 날개 (달리면 퍼덕인다) */
   pegWings: THREE.Group[];
   /** 꾸미기: 프로펠러 모자의 날개 (없으면 null) */
   propeller: THREE.Object3D | null;
@@ -1087,7 +1087,7 @@ export class Race3DView {
       knees.push(knee);
     }
 
-    // 흑마 페가수스: 등에 늘 달린 날개 (깃털 세 겹)
+    // 페가수스: 등에 늘 달린 날개 (깃털 세 겹)
     const pegWings: THREE.Group[] = [];
     if (breed === 'pegasus') {
       const feather = toon(0xe5dbff);

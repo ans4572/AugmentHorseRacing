@@ -95,6 +95,8 @@ h3 { font-size: 16px; font-weight: 800; margin-top: 4px; }
 .coin { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-weight: 800; }
 .code { font-family: var(--display); font-weight: 400; font-size: 22px; letter-spacing: 3px; margin-left: 6px; }
 .tag.npc { color: var(--ink-soft); }
+.tag.gone { color: var(--ink-soft); }
+.standing-row.gone { opacity: 0.55; }
 
 /* ---------- 공통 화면 ---------- */
 .screen {

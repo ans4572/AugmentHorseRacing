@@ -40,7 +40,8 @@ export const VIEW_MODE_LABELS: Record<ViewMode, string> = {
 const OUTLINE_COLOR = 0x3a2a1e;
 
 const GEO = {
-  sphere: new THREE.SphereGeometry(1, 20, 14),
+  // 말 부품용 구. 테두리 선이 모양을 잡아 주므로 면을 적게 써도 둥글게 보인다
+  sphere: new THREE.SphereGeometry(1, 16, 10),
   cyl: new THREE.CylinderGeometry(1, 1, 1, 14),
   cone: new THREE.ConeGeometry(1, 1, 12),
   disc: new THREE.CircleGeometry(1, 24),
@@ -173,6 +174,8 @@ interface Rig {
   coast: number;
   /** 꼬리 물기: 꼬리가 뒤로 당겨진 정도(0~1) */
   tailPull: number;
+  /** 몸집을 바꾸는 연출 중 가장 나중에 걸린 것 (거대화, 건초 폭식, 조랑말, 다이어트, 득근) */
+  sizeVis: AugmentVisual | null;
   targetPos: number;
   speed: number;
   phase: number;
@@ -704,6 +707,8 @@ export class Race3DView {
       scale: [number, number, number],
       outline = 0.07
     ): THREE.Mesh => {
+      // 눈동자·콧구멍처럼 작은 둥근 부품은 면이 적은 구로도 차이가 보이지 않는다
+      if (geo === GEO.sphere && Math.max(scale[0], scale[1], scale[2]) < 0.15) geo = GEO.sphereLo;
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(pos[0], pos[1], pos[2]);
       mesh.scale.set(scale[0], scale[1], scale[2]);
@@ -1040,9 +1045,11 @@ export class Race3DView {
     // 다리 4개 (앞왼, 앞오, 뒤왼, 뒤오) — 길고 가는 다리 + 무릎 관절
     const legs: THREE.Group[] = [];
     const knees: THREE.Group[] = [];
+    // 앞다리는 몸통이 좁아지는 가슴 쪽에 붙으므로 조금 안쪽에 둔다.
+    // 바깥에 두면 허벅지 윗부분이 몸통 옆면 밖으로 나와, 다리를 흔들 때 가슴 옆을 뚫고 나온 것처럼 보인다
     const hips: [number, number][] = [
-      [0.6, 0.22],
-      [0.6, -0.22],
+      [0.6, 0.15],
+      [0.6, -0.15],
       [-0.58, 0.22],
       [-0.58, -0.22]
     ];
@@ -1055,9 +1062,11 @@ export class Race3DView {
       // 허벅지: 뒷다리는 엉덩이 근육까지 두껍게, 앞다리는 어깨 쪽이 굵게
       const hind = hx < 0;
       const tw = hind ? LEG.thighH : LEG.thighF;
-      part(THIGH_GEO, legMat, leg, [0, -LEG.thighLen / 2, 0], [tw, LEG.thighLen, tw * 0.86], 0.1);
+      // 앞다리 허벅지는 좌우로 조금 얇게: 가슴 쪽 몸통이 좁아서, 두꺼우면 윗단 테두리가 가슴 옆면에 주름처럼 비친다
+      part(THIGH_GEO, legMat, leg, [0, -LEG.thighLen / 2, 0], [tw, LEG.thighLen, tw * (hind ? 0.86 : 0.7)], 0.1);
       // 몸통과 자연스럽게 이어지는 둥근 어깨·엉덩이
-      part(GEO.sphere, legMat, leg, [0, -0.04, 0], [tw, tw, tw * 0.9], 0.08);
+      // 앞다리 어깨는 가슴 속에 묻히므로 테두리를 그리지 않는다 (테두리가 가슴 표면에 점선 주름으로 비친다)
+      part(GEO.sphere, legMat, leg, [0, -0.04, 0], [tw, tw, tw * 0.9], hind ? 0.08 : 0);
       const knee = new THREE.Group();
       knee.position.set(0, -0.66 - HIP_UP, 0);
       leg.add(knee);
@@ -1205,6 +1214,7 @@ export class Race3DView {
       rideZ: laneZ(info.id),
       coast: 0,
       tailPull: 0,
+      sizeVis: null,
       targetPos: 0,
       speed: 0,
       phase: Math.random() * Math.PI * 2,
@@ -1250,8 +1260,11 @@ export class Race3DView {
       r.snap = snap;
       // 걸려 있는 증강의 연출 종류와 이름표 아이콘은 상태가 바뀔 때만 다시 계산한다 (1초에 10번)
       r.vis.clear();
+      r.sizeVis = null;
       for (const e of snap.effects) {
         const v = AUGMENT_BY_ID[e.defId]?.visual;
+        // 효과는 걸린 순서대로 오므로, 몸집 연출은 마지막 것이 남는다
+        if (v && !e.quiet && SIZE_VISUALS.has(v)) r.sizeVis = v;
         if (e.quiet) {
           // 수치만 걸린 효과는 카드의 주인공이 아니라 "당하는 쪽"의 모습을 한다
           const side = v ? QUIET_VISUAL[v] : undefined;
@@ -1637,7 +1650,7 @@ export class Race3DView {
     const lowbat = vis.has('lowbat');
     const siren = vis.has('siren');
     r.cross = ease(r.cross, vis.has('poop') ? 1 : 0, 8);
-    r.buff = ease(r.buff, vis.has('muscle') ? 1 : 0, 5);
+    r.buff = ease(r.buff, r.sizeVis === 'muscle' ? 1 : 0, 5);
     // 득근 각성: 가끔 한쪽 앞다리를 들어 알통을 자랑한다
     const flexing = r.buff > 0.5 && Math.sin(t * 2.4) > 0.55;
     const disco = vis.has('disco');
@@ -1693,7 +1706,7 @@ export class Race3DView {
 
     // 변신 수치 (부드럽게 변하도록 보간)
     r.rear = ease(r.rear, vis.has('bipedal') ? 1 : 0, 7);
-    r.legScale = ease(r.legScale, vis.has('pony') ? 0.55 : 1, 7);
+    r.legScale = ease(r.legScale, r.sizeVis === 'pony' ? 0.55 : 1, 7);
     // 당근 낚싯대: 당근을 향해 목을 뺀다 / 자석: 코부터 끌려가느라 목이 늘어난다
     r.neckStretch = ease(r.neckStretch, vis.has('giraffe') ? 1 : carrot ? 0.5 + Math.sin(t * 9) * 0.08 : magnet ? 0.35 : 0, 6);
     r.inflate = ease(r.inflate, vis.has('balloon') ? 1 : 0, 5);
@@ -1984,13 +1997,8 @@ export class Race3DView {
     if (vis.has('wobble') && anim !== 'fallen') roll += Math.sin(t * 9) * 0.26;
     r.bobY = ease(r.bobY, y, 12);
 
-    // 몸집 변화 (거대화 > 벌크업 > 조랑말 > 다이어트 > 근육)
-    let scaleTarget = 1;
-    if (vis.has('giant')) scaleTarget = 1.9;
-    else if (vis.has('bulk')) scaleTarget = 1.38;
-    else if (vis.has('pony')) scaleTarget = 0.62;
-    else if (vis.has('slim')) scaleTarget = 0.78;
-    else if (vis.has('muscle')) scaleTarget = 1.12;
+    // 몸집 변화: 여러 개가 겹치면 가장 나중에 걸린 것
+    const scaleTarget = r.sizeVis ? SIZE_SCALE[r.sizeVis] ?? 1 : 1;
     r.bodyScale = ease(r.bodyScale, scaleTarget, 6);
     const s = r.bodyScale;
     // 칼퇴 워프: 납작하게 눌렸다가 앞뒤로 길게 늘어난다
@@ -2662,6 +2670,9 @@ const TRAIL_STICKERS: Record<string, string[]> = {
   trail_snow: ['❄️'],
   trail_fire: ['🔥']
 };
+/** 몸집을 바꾸는 연출과 그 크기 */
+const SIZE_SCALE: Partial<Record<AugmentVisual, number>> = { giant: 1.9, bulk: 1.38, pony: 0.62, slim: 0.78, muscle: 1.12 };
+const SIZE_VISUALS = new Set(Object.keys(SIZE_SCALE) as AugmentVisual[]);
 /** 꼴찌의 분노: 털에 섞는 빨간색 */
 const RAGE_RED = new THREE.Color(0xff2a1a);
 const byLabelDist = (a: Rig, b: Rig): number => a.ldist - b.ldist;

@@ -259,7 +259,10 @@ describe('판을 흔드는 카드', () => {
     run(sim, 1.5);
     expect(sim.horse(2).effects.some((e) => e.defId === 'sneeze_relay')).toBe(false);
     expect(sim.horse(3).effects.some((e) => e.defId === 'sneeze_relay')).toBe(true);
-    run(sim, 3);
+    // 옮은 말도 카드와 같은 2.5초 동안 느려진다 (2.5초에 옮았으니 4.6초에는 아직 걸려 있다)
+    run(sim, 1.6);
+    expect(sim.horse(3).effects.some((e) => e.defId === 'sneeze_relay')).toBe(true);
+    run(sim, 1.4);
     // 3번에서 끝나고 4번으로는 번지지 않는다
     expect(sim.horses.some((h) => h.effects.some((e) => e.defId === 'sneeze_relay'))).toBe(false);
   });

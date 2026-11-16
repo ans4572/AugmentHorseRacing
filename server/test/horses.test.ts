@@ -95,3 +95,26 @@ describe('출전마 다양성', () => {
     expect(plain).toBeGreaterThan(10);
   });
 });
+
+describe('이름에 맞는 능력치', () => {
+  it('이름의 특징(무거움·빠름·굼뜸·지침)이 능력치와 맞는다', async () => {
+    const { NAME_TRAITS } = await import('../../shared/src/names');
+    let checked = 0;
+    for (let seed = 0; seed < 400; seed++) {
+      for (const h of generateHorses(mulberry32(seed))) {
+        const t = NAME_TRAITS[h.name];
+        if (!t) continue;
+        checked++;
+        const s = h.stats;
+        const core = { speed: s.speed, accel: s.accel, stamina: s.stamina };
+        if (t.weight) {
+          expect(s.weight).toBeGreaterThanOrEqual(t.weight[0]);
+          expect(s.weight).toBeLessThanOrEqual(t.weight[1]);
+        }
+        if (t.best) expect(core[t.best]).toBe(Math.max(core.speed, core.accel, core.stamina));
+        if (t.worst) expect(core[t.worst]).toBe(Math.min(core.speed, core.accel, core.stamina));
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+  });
+});

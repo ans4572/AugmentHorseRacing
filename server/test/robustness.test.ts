@@ -33,10 +33,10 @@ function makeRoom(): Room {
 }
 
 /** 허브에 연결 하나를 열고, 받은 메시지를 모은다 */
-function connect(hub: GameHub): { send: (msg: object) => void; inbox: { type: string; [k: string]: unknown }[] } {
+function connect(hub: GameHub): { send: (msg: object) => void; close: () => void; inbox: { type: string; [k: string]: unknown }[] } {
   const inbox: { type: string; [k: string]: unknown }[] = [];
   const conn = hub.open((data) => inbox.push(JSON.parse(data)));
-  return { send: (msg) => conn.message(JSON.stringify(msg)), inbox };
+  return { send: (msg) => conn.message(JSON.stringify(msg)), close: () => conn.close(), inbox };
 }
 
 const rooms: Room[] = [];
@@ -148,5 +148,114 @@ describe('잘못된 입력', () => {
     expect(intruder.inbox.some((m) => m.type === 'ERROR')).toBe(true);
     expect(intruder.inbox.some((m) => m.type === 'ROOM_JOINED')).toBe(false);
     expect(npc.socket).toBeNull();
+  });
+});
+
+describe('게임 중에 스스로 나간 사람', () => {
+  it('순위는 남은 사람 뒤에 두고 나감으로 표시한다', () => {
+    const room = makeRoom();
+    rooms.push(room);
+    room.addPlayer(makeHuman('p3'));
+    room.startGame('p1');
+    room.players.get('p2')!.coins = 99999; // 가장 많이 들고 나간다
+    room.removePlayer('p2');
+    const standings = room.computeStandings();
+    const last = standings[standings.length - 1];
+    expect(last.playerId).toBe('p2');
+    expect(last.left).toBe(true);
+    expect(standings.find((s) => s.rank === 1)!.playerId).not.toBe('p2');
+    expect(last.rank).toBe(standings.length);
+  });
+
+  it('코인 구제를 받지 않는다', () => {
+    vi.useFakeTimers();
+    const room = makeRoom();
+    rooms.push(room);
+    room.addPlayer(makeHuman('p3'));
+    room.startGame('p1');
+    room.removePlayer('p2');
+    // 1라운드를 끝까지 돌리고 2라운드 시작 (코인 구제는 2라운드부터)
+    room.players.get('p2')!.coins = 0;
+    room.players.get('p3')!.coins = 0;
+    for (let i = 0; i < 400 && room.phase !== 'roundResult'; i++) vi.advanceTimersByTime(1000);
+    expect(room.phase).toBe('roundResult');
+    room.players.get('p2')!.coins = 0;
+    room.players.get('p3')!.coins = 0;
+    expect(room.nextRound('p1')).toBeNull();
+    expect(room.players.get('p2')!.coins).toBe(0);
+    expect(room.players.get('p3')!.coins).toBeGreaterThan(0);
+  });
+});
+
+describe('방이 닫힐 때 서버 정리', () => {
+  /** 방장 하나와 NPC로 방을 만들어 게임을 시작한다 */
+  function startedRoom(hub: GameHub): { host: ReturnType<typeof connect>; room: Room } {
+    const host = connect(hub);
+    host.send({ type: 'CREATE_ROOM', playerName: '방장', roomName: '방', maxPlayers: 4, totalRounds: 2, npcCount: 2 });
+    host.send({ type: 'START_GAME' });
+    return { host, room: [...hub.rooms.values()][0] };
+  }
+
+  it('대기실에서 마지막 사람이 끊기면 방 목록에서 지우고 타이머를 남기지 않는다', () => {
+    vi.useFakeTimers();
+    const hub = new GameHub();
+    hubs.push(hub);
+    const host = connect(hub);
+    host.send({ type: 'CREATE_ROOM', playerName: '방장', roomName: '방', maxPlayers: 4, totalRounds: 2, npcCount: 2 });
+    expect(hub.rooms.size).toBe(1);
+    host.close();
+    expect(hub.rooms.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  for (const [label, advanceMs, phase] of [
+    ['출마표', 0, 'preview'],
+    ['배팅', TIMINGS.preview + 100, 'betting'],
+    ['경주', TIMINGS.preview + TIMINGS.betting + TIMINGS.reveal + TIMINGS.countdown + 3000, 'racing']
+  ] as const) {
+    it(`게임 중(${label}) 모두 끊기면 2분 뒤 방을 지우고 타이머를 남기지 않는다`, () => {
+      vi.useFakeTimers();
+      const hub = new GameHub();
+      hubs.push(hub);
+      const { host, room } = startedRoom(hub);
+      vi.advanceTimersByTime(advanceMs);
+      expect(room.phase).toBe(phase);
+      host.close();
+      expect(hub.rooms.size).toBe(1); // 재접속을 기다린다
+      vi.advanceTimersByTime(120000);
+      expect(hub.rooms.size).toBe(0);
+      expect(room.phase).not.toBe('lobby');
+      expect(vi.getTimerCount()).toBe(0);
+    });
+  }
+
+  it('게임 중에 모두 스스로 나가면 바로 지운다', () => {
+    vi.useFakeTimers();
+    const hub = new GameHub();
+    hubs.push(hub);
+    const { host } = startedRoom(hub);
+    host.send({ type: 'LEAVE_ROOM' });
+    expect(hub.rooms.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('한 말에 증강이 여러 개 걸릴 때', () => {
+  it('미리 고른 카드를 다시 고르면 발동 순서의 맨 뒤로 간다', () => {
+    vi.useFakeTimers();
+    const room = makeRoom();
+    rooms.push(room);
+    room.startGame('p1');
+    // 증강 미리 고르기 단계가 열릴 때까지 진행한다
+    type Aug = { live: boolean; hands: Map<string, { cardKey: string }[]>; queued: Map<string, unknown> };
+    const aug = (): Aug | null => (room as unknown as { augment: Aug | null }).augment;
+    for (let i = 0; i < 4000 && !(aug() && !aug()!.live); i++) vi.advanceTimersByTime(50);
+    const a = aug()!;
+    expect(a.live).toBe(false);
+    const pick = (id: string, n: number): void => room.selectAugment(id, a.hands.get(id)![n].cardKey, 1);
+    pick('p1', 0);
+    pick('p2', 0);
+    pick('p1', 1); // p1이 마음을 바꿔 다시 고른다
+    expect([...a.queued.keys()]).toEqual(['p2', 'p1']);
   });
 });

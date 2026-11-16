@@ -478,6 +478,8 @@ function coinHtml(amount: number | string): string {
 }
 
 const NPC_TAG = `<span class="tag npc">${icon('robot')}NPC</span>`;
+/** 게임 중에 스스로 나간 사람: 순위 대신 붙인다 */
+const LEFT_TAG = '<span class="tag gone">나감</span>';
 
 function horseColor(id: number): string {
   return state.horses.find((x) => x.id === id)?.color ?? '#888';
@@ -1182,8 +1184,8 @@ function renderRoundResult(data: {
 
   const standingsHtml = data.standings
     .map(
-      (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}">
-        <span class="sr-main">${rankBadge(s.rank)}${playerChip(s.playerId, s.name)}${s.isNpc ? NPC_TAG : ''}</span><b>${icon('coin')}${s.coins}</b>
+      (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}${s.left ? ' gone' : ''}">
+        <span class="sr-main">${s.left ? LEFT_TAG : rankBadge(s.rank)}${playerChip(s.playerId, s.name)}${s.isNpc ? NPC_TAG : ''}</span><b>${icon('coin')}${s.coins}</b>
       </div>`
     )
     .join('');
@@ -1232,8 +1234,8 @@ function renderGameResult(data: { standings: Standing[]; awards: Award[]; ownerB
 
   const standingsHtml = data.standings
     .map(
-      (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}">
-        <span class="sr-main">${rankBadge(s.rank)}${playerChip(s.playerId, s.name)}${s.isNpc ? NPC_TAG : ''}
+      (s) => `<div class="standing-row${s.playerId === state.myId ? ' me' : ''}${s.left ? ' gone' : ''}">
+        <span class="sr-main">${s.left ? LEFT_TAG : rankBadge(s.rank)}${playerChip(s.playerId, s.name)}${s.isNpc ? NPC_TAG : ''}
         <span class="muted">적중 ${s.hits}회, 순손익 ${s.netProfit >= 0 ? '+' : ''}${s.netProfit}</span></span>
         <b>${icon('coin')}${s.coins}</b>
       </div>`

@@ -423,7 +423,7 @@ export class Room {
     this.roundTopUps = [];
     if (round > 1) {
       for (const p of this.players.values()) {
-        if (p.coins < LOW_COIN_THRESHOLD) {
+        if (!p.left && p.coins < LOW_COIN_THRESHOLD) {
           const amount = TOP_UP_AMOUNT - p.coins;
           p.coins = TOP_UP_AMOUNT;
           this.roundTopUps.push({ playerId: p.id, playerName: p.name, amount });
@@ -778,6 +778,7 @@ export class Room {
     const hands = new Map<string, { cardKey: string; def: AugmentDefinition }[]>();
 
     for (const p of this.players.values()) {
+      if (p.left) continue;
       const cards = drawCards(sim, phase, tier, totals);
       const hand = cards.map((def, i) => ({ cardKey: `${phase}:${p.id}:${i}`, def }));
       hands.set(p.id, hand);
@@ -918,6 +919,8 @@ export class Room {
       if (card.def.targetType === 'single' && !sim.horses.some((h) => h.info.id === targetHorseId)) {
         return fail('대상 말을 골라 주세요.');
       }
+      // 증강 지점에서는 고른 순서대로 발동하므로, 다시 고르면 맨 뒤로 보낸다
+      aug.queued.delete(playerId);
       aug.queued.set(playerId, { cardKey, targetHorseId });
       this.send(player, { type: 'AUGMENT_RESULT', ok: true, cardKey, queued: true });
       return;
@@ -988,11 +991,15 @@ export class Room {
   }
 
   computeStandings(): Standing[] {
-    const sorted = [...this.players.values()].sort((a, b) => {
+    const byScore = (a: Player, b: Player): number => {
       if (b.coins !== a.coins) return b.coins - a.coins;
       if (b.netProfit !== a.netProfit) return b.netProfit - a.netProfit;
       return b.hits - a.hits;
-    });
+    };
+    const all = [...this.players.values()];
+    const sorted = all.filter((p) => !p.left).sort(byScore);
+    // 게임 중에 스스로 나간 사람은 코인이 많아도 순위를 다투지 않는다 (남은 사람들 뒤에 같은 순위로 둔다)
+    const gone = all.filter((p) => p.left).sort(byScore);
     const standings: Standing[] = [];
     let prevRank = 0;
     sorted.forEach((p, i) => {
@@ -1012,6 +1019,18 @@ export class Room {
         netProfit: p.netProfit
       });
     });
+    for (const p of gone) {
+      standings.push({
+        playerId: p.id,
+        name: p.name,
+        isNpc: p.isNpc,
+        coins: p.coins,
+        rank: sorted.length + 1,
+        hits: p.hits,
+        netProfit: p.netProfit,
+        left: true
+      });
+    }
     return standings;
   }
 
@@ -1029,8 +1048,10 @@ export class Room {
   private showGameResult(): void {
     const standings = this.computeStandings();
     const awards: Award[] = [];
+    // 시상은 끝까지 남은 사람(NPC 포함)만 받는다
+    const stayed = (): Player[] => [...this.players.values()].filter((p) => !p.left);
 
-    const byBestNet = [...this.players.values()].sort((a, b) => b.bestRoundNet - a.bestRoundNet)[0];
+    const byBestNet = stayed().sort((a, b) => b.bestRoundNet - a.bestRoundNet)[0];
     if (byBestNet && byBestNet.bestRoundNet > 0) {
       awards.push({
         title: '코인 대박상',
@@ -1038,7 +1059,7 @@ export class Room {
         detail: `한 라운드 최대 순이익 +${byBestNet.bestRoundNet}`
       });
     }
-    const byHostile = [...this.players.values()].sort((a, b) => b.hostileUses - a.hostileUses)[0];
+    const byHostile = stayed().sort((a, b) => b.hostileUses - a.hostileUses)[0];
     if (byHostile && byHostile.hostileUses > 0) {
       awards.push({
         title: '최다 견제상',
@@ -1046,7 +1067,7 @@ export class Room {
         detail: `방해 증강 ${byHostile.hostileUses}회 사용`
       });
     }
-    const byHits = [...this.players.values()].sort((a, b) => b.hits - a.hits)[0];
+    const byHits = stayed().sort((a, b) => b.hits - a.hits)[0];
     if (byHits && byHits.hits > 0) {
       awards.push({
         title: '명예 예언가상',

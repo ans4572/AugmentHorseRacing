@@ -1,6 +1,6 @@
 import type { CosmeticSlot, HorseBreed, HorseInfo, HorseLook } from '../../../shared/src/types';
 import { COSMETICS, DEFAULT_LOOK } from '../../../shared/src/stable';
-import { BREED_INFO, HORSE_COLORS, HORSE_NAMES } from '../../../shared/src/names';
+import { BREED_INFO, HORSE_COLORS, HORSE_NAMES, NAME_TRAITS } from '../../../shared/src/names';
 import { pickDistinct, randInt } from './rng';
 
 /** 능력치 총합(속력+가속+지구력) 허용 범위 — 극단 조합 방지 */
@@ -41,6 +41,29 @@ export function randomLook(breed: HorseBreed, rng: () => number = Math.random): 
   return look;
 }
 
+type CoreStat = 'speed' | 'accel' | 'stamina';
+
+/**
+ * 이름에 맞게 세 능력치의 자리를 바꾼다 (예: '로켓배송'은 속력이 가장 높게).
+ * 값을 서로 바꾸기만 하므로 합계 제한과 난수 순서는 그대로다.
+ */
+function fitStatsToName(stats: Record<CoreStat, number>, trait: { best?: CoreStat; worst?: CoreStat }): void {
+  const keys: CoreStat[] = ['speed', 'accel', 'stamina'];
+  const swap = (a: CoreStat, b: CoreStat): void => {
+    const t = stats[a];
+    stats[a] = stats[b];
+    stats[b] = t;
+  };
+  if (trait.best) {
+    const top = keys.reduce((m, k) => (stats[k] > stats[m] ? k : m), trait.best);
+    swap(trait.best, top);
+  }
+  if (trait.worst) {
+    const low = keys.reduce((m, k) => (stats[k] < stats[m] ? k : m), trait.worst);
+    swap(trait.worst, low);
+  }
+}
+
 /**
  * 매 라운드 6마리의 말을 무작위 생성한다.
  * usedNames를 주면 거기 있는 이름은 피한다 (한 게임 안에서 같은 이름이 다시 나오지 않게).
@@ -59,16 +82,19 @@ export function generateHorses(rng: () => number = Math.random, usedNames?: Set<
       accel = randInt(rng, STAT_MIN, 95);
       stamina = randInt(rng, STAT_MIN, 95);
     } while (speed + accel + stamina < STAT_SUM_MIN || speed + accel + stamina > STAT_SUM_MAX);
+    const name = names[id - 1];
+    const trait = NAME_TRAITS[name];
+    const stats = { speed, accel, stamina };
+    if (trait) fitStatsToName(stats, trait);
+    const [wMin, wMax] = trait?.weight ?? [350, 650];
     horses.push({
       id,
-      name: names[id - 1],
+      name,
       color: HORSE_COLORS[id - 1],
       breed: pickBreed(rng),
       stats: {
-        speed,
-        accel,
-        stamina,
-        weight: randInt(rng, 350, 650),
+        ...stats,
+        weight: randInt(rng, wMin, wMax),
         luck: randInt(rng, 1, 100)
       }
     });

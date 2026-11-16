@@ -21,6 +21,39 @@ export const HORSE_NAMES = [
   '단짠단짠', '마감임박', '오타대장', '충전중', '자동저장', '재부팅'
 ];
 
+/**
+ * 이름에서 느껴지는 특징을 능력치에 맞춘다 (이름은 뚱보인데 가벼운 말이 없게).
+ * - weight: 몸무게를 뽑는 범위 (보통은 350~650kg)
+ * - best / worst: 속력·가속·지구력 중 이 능력치를 가장 높게 / 가장 낮게 둔다 (세 값을 서로 바꿀 뿐 합은 같다)
+ */
+export const NAME_TRAITS: Record<string, { weight?: [number, number]; best?: 'speed' | 'accel' | 'stamina'; worst?: 'speed' | 'accel' | 'stamina' }> = {
+  // 먹보·무거운 이름
+  뚱뚱보: { weight: [590, 650] },
+  삼겹살: { weight: [560, 650] },
+  치킨러버: { weight: [540, 650] },
+  급식왕: { weight: [540, 650] },
+  간식도둑: { weight: [520, 650] },
+  찹쌀떡: { weight: [520, 650] },
+  // 가볍고 빠른 이름
+  바람돌이: { weight: [350, 420], best: 'speed' },
+  번개감자: { best: 'speed' },
+  로켓배송: { best: 'speed' },
+  질주본능: { best: 'speed' },
+  칼퇴요정: { best: 'speed' },
+  // 출발이 빠른 이름
+  커피수혈: { best: 'accel' },
+  파워당근: { best: 'accel' },
+  // 굼뜬 이름
+  지각대장: { worst: 'accel' },
+  숙면왕: { worst: 'accel' },
+  낮잠천재: { worst: 'accel' },
+  꿀잠각: { worst: 'accel' },
+  이불밖위험: { worst: 'accel' },
+  // 금방 지치는 이름
+  배터리1퍼: { worst: 'stamina' },
+  충전중: { worst: 'stamina' }
+};
+
 /** NPC 이름과 성격 */
 export const NPC_PROFILES: { persona: import('./types').NpcPersona; name: string }[] = [
   { persona: 'winner', name: '불꽃승부' },

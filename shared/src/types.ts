@@ -320,9 +320,12 @@ export interface Standing {
   name: string;
   isNpc: boolean;
   coins: number;
+  /** 순위. 게임 중에 스스로 나간 사람은 남은 사람들 뒤에 둔다 */
   rank: number;
   hits: number;
   netProfit: number;
+  /** 게임 중에 스스로 나갔다 (순위 경쟁과 시상에서 빠진다) */
+  left?: boolean;
 }
 
 export interface PlayerRoundResult {

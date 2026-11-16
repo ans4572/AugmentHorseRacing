@@ -5,6 +5,7 @@ import type {
   HorseSnapshot,
   RankingEntry
 } from '../../../shared/src/types';
+import { AUGMENT_BY_ID } from '../../../shared/src/augments';
 import {
   COURSE_LENGTH,
   MAX_STACKS_PER_CARD,
@@ -695,7 +696,9 @@ export class RaceSim {
       h.shield--;
       return;
     }
-    h.effects.push({ ...e, expiresAt: this.now + 2000, relay: false });
+    // 옮은 말도 처음 말과 같은 시간 동안 느려진다 (카드 설명: '한 등수 뒤 말도 … 같은 시간')
+    const durationMs = AUGMENT_BY_ID[e.defId]?.durationMs ?? 2000;
+    h.effects.push({ ...e, expiresAt: this.now + durationMs, relay: false });
   }
 
   /** 능력치에 영향이 없는 연출 전용 표시 */

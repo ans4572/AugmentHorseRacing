@@ -1419,7 +1419,11 @@ export class Race3DView {
     const who = document.createElement('div');
     who.className = 'r3d-sign-who';
     who.style.setProperty('--pc', from.color);
-    who.textContent = `-${from.name}-`;
+    // 이름은 자르지 않는다: 긴 이름이면 피켓이 그만큼 넓어진다
+    const name = document.createElement('span');
+    name.className = 'r3d-sign-name';
+    name.textContent = from.name;
+    who.append('-', name, '-');
     board.append(line, who);
     const stick = document.createElement('div');
     stick.className = 'r3d-sign-stick';
@@ -1453,6 +1457,16 @@ export class Race3DView {
       // 같은 말에 두 외침이 함께 떠 있으면 가즈아는 왼쪽, 견제는 오른쪽에 선다
       if (this.crowds.has(`${c.horseId}:${c.kind === 'go' ? 'check' : 'go'}`)) want += c.kind === 'go' ? -1 : 1;
       live.push({ c, want, half: (c.el.offsetWidth || 120) / 2 });
+    }
+    // 피켓을 다 세우면 화면보다 넓을 때(폰, 긴 이름)는 모두 같은 비율로 줄여 화면 안에 들인다.
+    // 증강 창 위로 올라간 피켓은 말을 덜 가리게 조금 더 작게 세운다
+    const total = live.reduce((sum, l) => sum + l.half * 2, 0) + 4 * Math.max(0, live.length - 1);
+    const fit = total > 0 ? Math.min(1, (w - 8) / total) : 1;
+    const k = fit * (this.container.classList.contains('shouts-lifted') ? 0.86 : 1);
+    for (const l of live) {
+      l.half *= k;
+      const sc = k.toFixed(3);
+      if (l.c.el.style.scale !== sc) l.c.el.style.scale = sc;
     }
     // 왼쪽부터 놓으며 앞 무리와 겹치면 오른쪽으로 밀고, 화면 오른쪽을 넘으면 거꾸로 왼쪽으로 민다
     live.sort((a, b) => a.want - b.want);

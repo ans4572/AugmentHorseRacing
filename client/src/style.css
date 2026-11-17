@@ -1901,7 +1901,7 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
   transition: translate 0.35s ease-in; will-change: transform;
 }
 .r3d-crowd.out { translate: 0 110%; }
-.shouts-lifted .r3d-crowd { scale: 0.86; transform-origin: 50% 100%; }
+.r3d-crowd { transform-origin: 50% 100%; }
 .shouts-lifted .r3d-sign-stick { height: 12px; }
 .r3d-crowd-row { display: flex; align-items: flex-end; gap: 2px; }
 .r3d-crowd-more:empty { display: none; }
@@ -1921,12 +1921,13 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
 .r3d-crowd.go .r3d-sign-board { background: var(--hl); color: var(--ink); }
 .r3d-crowd.check .r3d-sign-board { background: var(--stamp); color: #fff; }
 .r3d-sign-line { display: flex; align-items: center; gap: 5px; }
-/* 외친 사람: 작은 글씨, 그 사람 색 밑줄. 긴 이름은 말줄임 */
+/* 외친 사람: 작은 글씨, 그 사람 색 밑줄. 이름은 자르지 않고 다 보인다 (긴 이름이면 피켓이 넓어진다) */
 .r3d-sign-who {
-  max-width: 8.5em; overflow: hidden; text-overflow: ellipsis;
+  display: flex;
   font-size: 11px; font-weight: 800; letter-spacing: 0; line-height: 1.25;
   border-bottom: 2.5px solid var(--pc); opacity: 0.9;
 }
+.r3d-sign-name { white-space: nowrap; }
 .r3d-sign-bib {
   min-width: 20px; height: 20px; padding: 0 4px; border-radius: 3px; color: #fff; font-size: 12px; font-weight: 900;
   display: inline-grid; place-items: center; box-shadow: 0 0 0 1.5px var(--ink); flex: none;
@@ -1956,7 +1957,7 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
   #bottom-bar { min-height: 244px; max-height: 244px; }
   .r3d-sign-board { font-size: 12px; padding: 3px 6px 2px; }
   .r3d-sign-line { gap: 3px; }
-  .r3d-sign-who { font-size: 9.5px; max-width: 7.5em; }
+  .r3d-sign-who { font-size: 9.5px; }
   .r3d-sign-bib { min-width: 16px; height: 16px; font-size: 10px; }
   .r3d-sign-stick { height: 24px; width: 5px; }
   .r3d-crowd-more { font-size: 12px; margin-bottom: 22px; }

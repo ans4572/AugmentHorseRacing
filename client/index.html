@@ -192,12 +192,16 @@
         <div id="race-wrap">
           <div id="race-canvas"></div>
           <div id="rank-board" class="hidden" aria-label="현재 순위"></div>
+          <!-- 내 마권 현황판 (넓은 화면): 경주 중 내 마권이 지금 맞고 있는지, 이대로 끝나면 얼마를 받는지 -->
+          <div id="my-tickets" class="hidden" aria-label="내 마권"></div>
           <div id="rb-tip" class="hidden" role="tooltip"></div>
           <div id="camera-select" class="hidden"></div>
           <div id="overlay-countdown" class="hidden"></div>
           <div id="augment-bar" class="hidden"></div>
         </div>
         <div id="bottom-bar">
+          <!-- 내 마권 현황 (폰 세로): 기록 칸 맨 위의 한 줄 -->
+          <div id="my-tickets-strip" class="hidden" aria-label="내 마권"></div>
           <div id="cheer-board">
             <div id="emotes"></div>
             <!-- 경주 중 외침: 말을 고르고 한 번 누르면 경주 화면 아래에서 응원 피켓이 올라온다 -->

@@ -27,6 +27,8 @@ interface ShoutCrowd {
   /** 이 시각(elapsed)이 지나면 내려간다 */
   until: number;
   x: number;
+  /** 무리의 폭. 피켓이 바뀔 때만 다시 잰다 (0이면 아직 재지 않았다) */
+  w: number;
 }
 /** 피켓이 떠 있는 시간(초). 새 외침이 오면 처음으로 돌아간다 */
 const SHOUT_LIFE = 1.5;
@@ -1397,7 +1399,7 @@ export class Race3DView {
       more.className = 'r3d-crowd-more';
       el.append(row, more);
       this.shoutLayer.appendChild(el);
-      c = { el, row, more, horseId, kind, count: 0, until: 0, x: rig.labelShown ? rig.lsx : -1 };
+      c = { el, row, more, horseId, kind, count: 0, until: 0, x: rig.labelShown ? rig.lsx : -1, w: 0 };
       if (c.x >= 0) el.style.transform = `translateX(${c.x.toFixed(1)}px) translateX(-50%) scale(1)`;
       this.crowds.set(key, c);
     }
@@ -1435,6 +1437,7 @@ export class Race3DView {
     c.row.appendChild(sign);
     while (c.row.children.length > SHOUT_MAX_SIGNS) c.row.firstElementChild?.remove();
     c.more.textContent = c.count > SHOUT_MAX_SIGNS ? `×${c.count}` : '';
+    c.w = 0;
     c.el.classList.remove('out');
   }
 
@@ -1460,7 +1463,9 @@ export class Race3DView {
       let want = rig && rig.labelShown ? rig.lsx : c.x >= 0 ? c.x : w / 2;
       // 같은 말에 여러 외침이 함께 떠 있으면 응원 → 방해 순서로 나란히 선다
       want += SHOUT_ORDER[c.kind] * 0.5;
-      live.push({ c, want, half: (c.el.offsetWidth || 120) / 2 });
+      // 폭은 피켓이 바뀔 때만 잰다. 매 프레임 재면 이름표를 옮긴 직후라 화면 배치를 통째로 다시 계산하게 된다
+      if (c.w === 0) c.w = c.el.offsetWidth || 120;
+      live.push({ c, want, half: c.w / 2 });
     }
     // 피켓을 다 세우면 화면보다 넓을 때(폰, 긴 이름)는 모두 같은 비율로 줄여 화면 안에 들인다.
     // 증강 창 위로 올라간 피켓은 말을 덜 가리게 조금 더 작게 세운다

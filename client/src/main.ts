@@ -35,7 +35,8 @@ import {
   ROUND_COINS,
   AUGMENT_PHASES,
   PLAYER_COLORS,
-  SHOUT_COOLDOWN_MS
+  SHOUT_COOLDOWN_MS,
+  payoutOf
 } from '../../shared/src/constants';
 import { AUGMENT_BY_ID, AUGMENTS, TARGET_TYPE_LABELS } from '../../shared/src/augments';
 import { EMOTES, conditionLevel, conditionNote } from '../../shared/src/names';
@@ -762,19 +763,16 @@ function renderRankBoard(snaps: { id: number; rank: number; finished: boolean }[
     .map((s) => {
       const h = state.horses.find((x) => x.id === s.id);
       if (!h) return '';
-      // 이 말에 누가 무엇을 걸었는지: 사람 표식 + 배팅 종류. 지금 순위로 맞고 있으면 밝게, 아니면 흐리게
-      const betHtml = bets
-        .filter((b) => b.horseId === s.id)
-        .map(
-          (b) =>
-            `<span class="rb-bet${betHits(b.type, s.rank, order.length) ? ' hit' : ''}${b.playerId === state.myId ? ' me' : ''}" style="--pc:${playerColor(b.playerId)}">${BET_SHORT[b.type]}</span>`
-        )
-        .join('');
+      // 순위표에는 순위만 두고, 이 말에 건 사람 수만 작게 적는다 (폭이 늘 같다).
+      // 누가 무엇을 얼마 걸었는지는 줄에 마우스를 올리거나(폰에서는 눌러) 옆에 뜨는 창에서 본다.
+      // 블라인드 방에서는 남의 배팅을 모르므로 사람 수를 적지 않는다
+      const bettors = new Set(bets.filter((b) => b.horseId === s.id).map((b) => b.playerId)).size;
+      const betHtml = bettors > 0 && !betsHidden() ? `<span class="rb-count" aria-label="이 말에 건 사람 ${bettors}명">${icon('users')}${bettors}</span>` : '';
       // 노란 줄은 내가 건 말
       const myBet = state.myBets.some((b) => b.horseId === s.id);
       return `<div class="rb-row${myBet ? ' mine' : ''}${s.finished ? ' done' : ''}${(el.dataset.hl ?? '').split(',').includes(String(s.id)) ? ' hl' : ''}" data-h="${s.id}">
         <span class="rb-rank">${s.rank}</span>${bib(h.id, h.color, 'sm')}<span class="rb-name">${esc(h.name)}</span>${ownerMark(h)}
-        ${betHtml ? `<span class="rb-bets">${betHtml}</span>` : ''}
+        ${betHtml}
       </div>`;
     })
     .join('');
@@ -789,22 +787,36 @@ function renderRankTip(): void {
   const board = $('rank-board');
   const row = rankTipHorse == null ? null : board.querySelector<HTMLElement>(`.rb-row[data-h="${rankTipHorse}"]`);
   const h = state.horses.find((x) => x.id === rankTipHorse);
+  // 창이 떠 있는 줄에 테두리를 둘러 어느 말의 창인지 알린다
+  board.querySelectorAll('.rb-row.tip-on').forEach((el) => el !== row && el.classList.remove('tip-on'));
   if (!row || !h || board.classList.contains('hidden')) {
+    row?.classList.remove('tip-on');
     tip.classList.add('hidden');
     return;
   }
+  row.classList.add('tip-on');
   const snap = lastSnaps.find((x) => x.id === h.id);
   const bets = visibleBets().filter((b) => b.horseId === h.id);
-  const list = bets.length
-    ? bets
-        .map((b) => {
-          const hit = snap ? betHits(b.type, snap.rank, state.horses.length) : false;
-          return `<div class="rbt-row${b.playerId === state.myId ? ' me' : ''}">
-            ${playerChip(b.playerId, b.playerName)}
-            <span class="rbt-type">${BET_TYPE_INFO[b.type].label}</span>
-            ${coinHtml(b.amount)}
-            <span class="rbt-state${hit ? ' hit' : ''}">${hit ? '지금 적중' : '빗나감'}</span>
-          </div>`;
+  // 사람마다 한 줄: 그 사람이 이 말에 건 종류를 딱지로 나란히 (같은 종류를 여러 번 걸었으면 금액을 합친다).
+  // 배팅마다 한 줄이면 여럿이 많이 걸었을 때 창이 화면 밖으로 길어진다
+  const byPlayer = new Map<string, { name: string; amounts: Map<BetType, number> }>();
+  for (const bet of bets) {
+    const row = byPlayer.get(bet.playerId) ?? { name: bet.playerName, amounts: new Map<BetType, number>() };
+    row.amounts.set(bet.type, (row.amounts.get(bet.type) ?? 0) + bet.amount);
+    byPlayer.set(bet.playerId, row);
+  }
+  const list = byPlayer.size
+    ? [...byPlayer.entries()]
+        // 내 줄을 맨 위에
+        .sort(([x], [y]) => Number(y === state.myId) - Number(x === state.myId))
+        .map(([id, row]) => {
+          const chips = TICKET_TYPE_ORDER.filter((t) => row.amounts.has(t))
+            .map((t) => {
+              const hit = snap ? betHits(t, snap.rank, state.horses.length) : false;
+              return `<span class="rbt-bet${hit ? ' hit' : ''}"${hit ? ' title="지금 순위대로 끝나면 적중"' : ''}>${hit ? icon('check') : ''}${BET_SHORT[t]}<i>${icon('coin')}${row.amounts.get(t)}</i></span>`;
+            })
+            .join('');
+          return `<div class="rbt-row${id === state.myId ? ' me' : ''}">${playerChip(id, row.name)}<span class="rbt-bets">${chips}</span></div>`;
         })
         .join('')
     : '<p class="rbt-empty">이 말에 건 사람이 없습니다.</p>';
@@ -812,16 +824,23 @@ function renderRankTip(): void {
     ${list}
     ${betsHidden() ? '<p class="rbt-empty">블라인드 방이라 내 배팅만 보입니다.</p>' : ''}`;
   tip.classList.remove('hidden');
-  // 등수표 오른쪽에 붙이고, 자리가 없으면(좁은 화면) 등수표 아래에 둔다
+  // 등수표 오른쪽에 붙인다. 폰처럼 좁아도 오른쪽에 210px 이상 남으면 그 폭에 맞춰 넣고, 그것도 안 되면 등수표 아래에 둔다
   const wrap = $('race-wrap');
+  tip.style.maxWidth = '';
+  tip.style.maxHeight = '';
   const right = board.offsetLeft + board.offsetWidth + 8;
-  if (right + tip.offsetWidth <= wrap.clientWidth - 4) {
+  const room = wrap.clientWidth - 4 - right;
+  let top: number;
+  if (room >= 210) {
+    if (tip.offsetWidth > room) tip.style.maxWidth = `${room}px`;
     tip.style.left = `${right}px`;
-    tip.style.top = `${Math.max(4, Math.min(board.offsetTop + row.offsetTop, wrap.clientHeight - tip.offsetHeight - 4))}px`;
+    top = Math.max(4, Math.min(board.offsetTop + row.offsetTop, wrap.clientHeight - tip.offsetHeight - 4));
   } else {
     tip.style.left = `${board.offsetLeft}px`;
-    tip.style.top = `${board.offsetTop + board.offsetHeight + 6}px`;
+    top = board.offsetTop + board.offsetHeight + 6;
   }
+  tip.style.top = `${top}px`;
+  tip.style.maxHeight = `${Math.max(60, wrap.clientHeight - top - 4)}px`;
 }
 
 /** 배팅 줄에 쓰는 한 줄짜리 능력치: 이름, 짧은 막대, 숫자 */
@@ -851,7 +870,7 @@ function myBetChips(horseId: number): string {
     .filter((b) => b.horseId === horseId)
     .map(
       (b) =>
-        `<span class="bet-chip" title="배당 ×${b.odds.toFixed(2)}, 맞히면 ${Math.floor(b.amount * b.odds).toLocaleString('ko-KR')}코인"><span>${BET_SHORT[b.type]} ${b.amount}</span><button type="button" data-bet="${b.betId}" aria-label="${BET_TYPE_INFO[b.type].label} ${b.amount}코인 마권 취소">×</button></span>`
+        `<span class="bet-chip" title="배당 ×${b.odds.toFixed(2)}, 맞히면 ${payoutOf(b.amount, b.odds).toLocaleString('ko-KR')}코인"><span>${BET_SHORT[b.type]} ${b.amount}</span><button type="button" data-bet="${b.betId}" aria-label="${BET_TYPE_INFO[b.type].label} ${b.amount}코인 마권 취소">×</button></span>`
     )
     .join('');
 }
@@ -1030,7 +1049,7 @@ function updateBetSelInfo(): void {
   const amount = Math.floor(Number($<HTMLInputElement>('bet-amount').value) || 0);
   const horse = state.horses.find((h) => h.id === state.selHorse);
   const odds = horse ? state.odds[horse.id]?.[state.selBetType] : undefined;
-  const pay = horse && odds && amount >= BET_MIN ? Math.floor(amount * odds) : 0;
+  const pay = horse && odds && amount >= BET_MIN ? payoutOf(amount, odds) : 0;
   $('ticket-pay').textContent = pay.toLocaleString('ko-KR');
   $('ticket-pay').classList.toggle('zero', pay === 0);
   if (state.betPending) {
@@ -1122,6 +1141,7 @@ function renderAugmentBarInner(): void {
   $('race-wrap').classList.toggle('augment-open', open);
   bar.classList.toggle('folded', !!aug && !open);
   requestAnimationFrame(liftShouts);
+  renderTickets();
   if (!aug) {
     bar.classList.add('hidden');
     return;
@@ -1400,14 +1420,19 @@ function leaveToMain(): void {
   hide('overlay-countdown');
   hide('modal-players');
   hide('modal-bets');
+  hide('modal-odds');
   // 게임 도중에 나가는 경우를 위해 진행 중이던 화면 상태를 모두 비운다
   state.augment = null;
+  // 접어 둔 증강 창은 그 방의 그 단계에만 해당한다 (다음 방의 같은 단계가 접힌 채 열리지 않게)
+  augFoldPhase = -1;
+  augFolded = false;
   state.horses = [];
   state.myBets = [];
   state.revealed = [];
   state.rankings = null;
   $('augment-bar').classList.add('hidden');
   renderRankBoard(null);
+  renderTickets();
   $('race-wrap').classList.remove('augment-open');
   view?.setBottomInset(false);
   liftShouts();
@@ -1431,6 +1456,136 @@ const PHASE_LABELS: Record<RoomPhase, string> = {
   roundResult: '라운드 결과',
   gameResult: '최종 결과'
 };
+
+// ============ 내 마권 현황판 ============
+// 경주 중 내 마권이 지금 순위로 맞고 있는지와, 이대로 끝나면 받는 코인을 보여 준다.
+// 마권은 말마다 한 줄로 묶으므로 24장을 다 걸어도 여섯 줄을 넘지 않는다.
+
+/** 접어 둔 상태는 이 브라우저에 남긴다: 라운드가 바뀌거나 다시 들어와도 그대로다 (계정이 없어 서버에는 둘 곳이 없다) */
+const TICKETS_FOLD_KEY = 'augment-derby-tickets-folded';
+let ticketsFolded = ((): boolean => {
+  try {
+    return localStorage.getItem(TICKETS_FOLD_KEY) === '1';
+  } catch {
+    return false;
+  }
+})();
+let ticketsKey = '';
+/** 마권별 지난 상태 (바뀐 순간 딱지를 한 번 튕긴다) */
+let ticketStates: Record<string, TicketState> = {};
+type TicketState = 'hit' | 'near' | 'far' | 'wait';
+const TICKET_PHASES = new Set<string>(['countdown', 'racing']);
+const TICKET_TYPE_ORDER: BetType[] = ['winner', 'top2', 'bottom2', 'last'];
+const TICKET_ICON: Record<TicketState, string> = { hit: icon('check'), near: icon('near'), far: icon('cross'), wait: '' };
+/** 마권이 이보다 많으면 딱지에서 금액을 빼고 줄을 낮춘다 */
+const TICKETS_DENSE_OVER = 6;
+
+/** 적중 중 / 한 등수 차이 / 빗나가는 중. 아직 순위가 없으면(출발 전) 대기 */
+function ticketState(type: BetType, rank: number | null, total: number): TicketState {
+  if (rank === null) return 'wait';
+  if (betHits(type, rank, total)) return 'hit';
+  const need = type === 'winner' ? [1] : type === 'last' ? [total] : type === 'top2' ? [1, 2] : [total - 1, total];
+  return Math.min(...need.map((n) => Math.abs(n - rank))) === 1 ? 'near' : 'far';
+}
+
+function renderTickets(): void {
+  const panel = $('my-tickets');
+  const strip = $('my-tickets-strip');
+  const show = TICKET_PHASES.has(state.phase) && state.myBets.length > 0;
+  panel.classList.toggle('hidden', !show);
+  strip.classList.toggle('hidden', !show);
+  if (!show) {
+    ticketsKey = '';
+    ticketStates = {};
+    return;
+  }
+  const total = state.horses.length || HORSES_PER_RACE;
+  const rankOf = (id: number): number | null => lastSnaps.find((s) => s.id === id)?.rank ?? null;
+  const horseIds = [...new Set(state.myBets.map((b) => b.horseId))].sort((a, b) => a - b);
+  // 낮은 화면에서 증강 카드 창이 열려 있으면 판이 그 창과 겹친다: 그동안만 판을 접힌 모양으로 둔다 (저장한 상태는 그대로)
+  const squeezed = !ticketsFolded && $('race-wrap').classList.contains('augment-open') && $('race-canvas').clientHeight < 560;
+  const key = `${ticketsFolded}${squeezed}|${state.myBets.map((b) => `${b.betId}:${b.amount}`).join(',')}|${horseIds.map((id) => rankOf(id)).join(',')}`;
+  if (key === ticketsKey) return;
+  ticketsKey = key;
+
+  const pay = (b: Bet): number => payoutOf(b.amount, b.odds);
+  const rows = horseIds.map((id) => {
+    const h = state.horses.find((x) => x.id === id);
+    const rank = rankOf(id);
+    const list = state.myBets
+      .filter((b) => b.horseId === id)
+      .sort((a, b) => TICKET_TYPE_ORDER.indexOf(a.type) - TICKET_TYPE_ORDER.indexOf(b.type))
+      .map((b) => {
+        const s = ticketState(b.type, rank, total);
+        const changed = ticketStates[b.betId] !== undefined && ticketStates[b.betId] !== s;
+        ticketStates[b.betId] = s;
+        return { b, s, changed };
+      });
+    return { id, h, rank, list, win: list.reduce((sum, x) => sum + (x.s === 'hit' ? pay(x.b) : 0), 0) };
+  });
+  const sum = rows.reduce((s, r) => s + r.win, 0);
+  const count = state.myBets.length;
+  const dense = count > TICKETS_DENSE_OVER;
+  const sumText = sum > 0 ? `+${sum.toLocaleString('ko-KR')}` : '0';
+  const foldBtn = (label: boolean): string =>
+    `<button type="button" class="tk-fold" data-tk-fold aria-expanded="${!ticketsFolded}" aria-label="내 마권 ${ticketsFolded ? '펴기' : '접기'}">${label ? (ticketsFolded ? '펴기' : '접기') : ''}${icon(ticketsFolded ? 'foldDown' : 'foldUp')}</button>`;
+
+  // ---- 넓은 화면: 경주 화면 오른쪽 위의 판 ----
+  const panelFolded = ticketsFolded || squeezed;
+  panel.classList.toggle('folded', panelFolded);
+  panel.classList.toggle('dense', dense);
+  // 다시 그려도 넘겨 둔 자리를 지킨다 (줄이 많은 가로 폰에서 순위가 바뀔 때마다 맨 위로 돌아가지 않게)
+  const scrolled = panel.querySelector('.tk-body')?.scrollTop ?? 0;
+  panel.innerHTML =
+    `<div class="tk-head"><b>내 마권</b><span class="tk-count">${count}장</span>${panelFolded ? `<b class="tk-mini${sum > 0 ? ' on' : ''}">${sumText}</b>` : ''}${squeezed ? '' : foldBtn(true)}</div>` +
+    (panelFolded
+      ? ''
+      : `<div class="tk-body">${rows
+          .map(
+            (r) => `<div class="tk-row">${bib(r.id, r.h?.color ?? '#888')}
+        <div class="tk-who"><span class="tk-name">${esc(r.h?.name ?? '')}</span>${r.rank !== null ? `<small>지금 ${r.rank}등</small>` : ''}</div>
+        <div class="tk-chips">${r.list
+          .map(
+            ({ b, s, changed }) =>
+              `<span class="tk-chip ${s}${changed ? ' flash' : ''}">${TICKET_ICON[s]}${BET_SHORT[b.type]}${dense ? '' : ` ${s === 'hit' ? '+' : ''}${pay(b).toLocaleString('ko-KR')}`}</span>`
+          )
+          .join('')}</div>
+        <div class="tk-pay${r.win > 0 ? ' on' : ''}">${r.win > 0 ? `+${r.win.toLocaleString('ko-KR')}` : '0'}</div>
+      </div>`
+          )
+          .join('')}</div><div class="tk-foot"><span>이대로 끝나면 받는 코인</span><b class="${sum > 0 ? 'on' : ''}">${sumText}</b></div>`);
+  if (scrolled > 0) {
+    const body = panel.querySelector('.tk-body');
+    if (body) body.scrollTop = scrolled;
+  }
+
+  // ---- 폰 세로: 기록 칸 맨 위의 한 줄. 말마다 한 칸, 동그라미 하나가 마권 한 장 ----
+  strip.classList.toggle('folded', ticketsFolded);
+  // 한 줄에 다 안 들어갈 만큼 많으면 동그라미를 작은 점으로 줄인다
+  strip.classList.toggle('dense', rows.length * 28 + count * 15 > 270);
+  strip.innerHTML = ticketsFolded
+    ? `<div class="ptk-line"><b>내 마권</b><span>${count}장</span><span class="ptk-line-sum${sum > 0 ? ' on' : ''}">이대로면 ${sumText}</span></div>${foldBtn(false)}`
+    : `<div class="ptk-chips">${rows
+        .map((r) => {
+          const cls = r.win > 0 ? ' on' : r.list.some((x) => x.s === 'near') ? ' close' : '';
+          return `<div class="ptk-chip${cls}"><div class="ptk-top">${bib(r.id, r.h?.color ?? '#888', 'sm')}<span class="ptk-marks">${r.list
+            .map(({ s, changed }) => `<span class="ptk-mark ${s}${changed ? ' flash' : ''}">${TICKET_ICON[s]}</span>`)
+            .join('')}</span></div><div class="ptk-bot">${r.win > 0 ? `+${r.win.toLocaleString('ko-KR')}` : r.rank !== null ? `${r.rank}등` : '대기'}</div></div>`;
+        })
+        .join('')}</div><div class="ptk-sum"><span>이대로면</span><b class="${sum > 0 ? 'on' : ''}">${sumText}</b></div>${foldBtn(false)}`;
+}
+
+/** 접기·펴기: 넓은 화면의 판과 폰의 한 줄이 같은 상태를 쓴다 */
+function toggleTicketsFold(): void {
+  ticketsFolded = !ticketsFolded;
+  try {
+    localStorage.setItem(TICKETS_FOLD_KEY, ticketsFolded ? '1' : '0');
+  } catch {
+    /* 저장하지 못해도 이번 접속 동안은 유지된다 */
+  }
+  ticketsKey = '';
+  renderTickets();
+}
 
 // ============ 외침 (가즈아! / 견제해!) ============
 // 말을 고르고 외침을 한 번 누르면 모두의 경주 화면 아래에서 응원 피켓이 올라온다. 경주에는 영향이 없다.
@@ -1523,6 +1678,7 @@ function updateTopbar(): void {
   $('scr-game').dataset.phase = state.phase;
   $('top-coins').innerHTML = `${icon('coin')}${state.coins}`;
   renderShoutBar();
+  renderTickets();
 }
 
 function enterGameScreen(): void {
@@ -1535,6 +1691,12 @@ function enterGameScreen(): void {
 // ============ 스냅샷 복구 (참가/재접속) ============
 
 function applySnapshot(snap: RoomSnapshot): void {
+  // 끊겨 있는 사이에 라운드가 넘어갔으면(ROUND_START 를 못 받았다) 지난 라운드의 것을 비운다
+  if (snap.roomId !== state.roomId || snap.round !== state.round) {
+    $('game-log').innerHTML = '';
+    shoutPicked = false;
+    state.selHorse = null;
+  }
   state.roomId = snap.roomId;
   state.players = snap.players;
   state.settings = snap.settings;
@@ -1559,7 +1721,13 @@ function applySnapshot(snap: RoomSnapshot): void {
   hide('overlay-reveal');
   hide('overlay-result');
   hide('overlay-countdown');
+  hide('modal-odds');
+  // 끊겨 있는 사이에 닫힌 증강 창과 지난 순위는 화면에 남기지 않는다.
+  // (증강 창이 남으면 못 쓰는 카드가 멈춘 채 떠 있고, 지난 순위가 남으면 새 마권을 지난 라운드 순위로 채점한다)
   state.augment = null;
+  lastSnaps = snap.phase === 'racing' && snap.race ? snap.race.horses : [];
+  if (snap.phase !== 'racing') renderRankBoard(null);
+  renderAugmentBar();
 
   if (snap.phase === 'lobby') {
     // 혼자 하기는 입장 직후 출마표가 이어서 오므로 대기실을 잠깐이라도 보여 주지 않는다
@@ -1728,6 +1896,15 @@ net.on((msg: S2C) => {
       hide('overlay-result');
       hide('overlay-betting');
       hide('overlay-reveal');
+      hide('modal-odds');
+      // 대기실에서는 경주 화면이 보이지 않는다: 안 보이는 3D 화면을 계속 그리지 않게 내린다 (다음 게임이 시작될 때 다시 만든다)
+      state.augment = null;
+      lastSnaps = [];
+      renderAugmentBar();
+      renderRankBoard(null);
+      view?.destroy();
+      view = null;
+      if (!viewFailed) $('race-canvas').innerHTML = '';
       showScreen('scr-lobby');
       renderLobby();
       break;
@@ -1743,7 +1920,7 @@ net.on((msg: S2C) => {
           state.secret = state.lastWelcome.secret;
           saveToken({ playerId: state.myId, secret: state.secret, roomId: null });
         }
-        showScreen('scr-main');
+        leaveToMain();
         break;
       }
       // 혼자 하기 시작에 실패했으면 대기실을 건너뛰지 않는다 (방은 만들어졌을 수 있다)
@@ -1789,6 +1966,7 @@ net.on((msg: S2C) => {
       setBetPending(false, false);
       hide('overlay-result');
       hide('overlay-reveal');
+      hide('modal-odds');
       $('augment-bar').classList.add('hidden');
       state.cameraSel = 'leader';
       // 새 라운드의 출마표는 맨 위(1번 말)부터 보이게 한다 (지난 라운드에 마권까지 내려 둔 자리가 남아 있다)
@@ -1797,6 +1975,7 @@ net.on((msg: S2C) => {
       view?.clearBanner();
       view?.setupRace(msg.horses, state.myId);
       renderRankBoard(null);
+      renderTickets();
       view?.setCameraTarget('leader');
       renderCameraSelect();
       renderBettingOverlay();
@@ -1847,6 +2026,7 @@ net.on((msg: S2C) => {
     }
 
     case 'BET_REVEAL': {
+      hide('modal-odds');
       state.phase = 'reveal';
       state.phaseEndsAt = msg.endsAt;
       state.revealed = msg.bets;
@@ -1887,6 +2067,7 @@ net.on((msg: S2C) => {
       lastSnaps = msg.horses;
       syncBetMarks();
       renderRankBoard(msg.horses);
+      renderTickets();
       refreshAugmentTargets();
       break;
     }
@@ -2164,23 +2345,33 @@ function bindUI(): void {
     const row = (ev.target as HTMLElement).closest<HTMLElement>('.rb-row');
     return row ? Number(row.dataset.h) : null;
   };
+  // 터치 화면에서는 탭 한 번에 mouseover 와 click 이 잇달아 온다. 둘 다 받으면 창이 떴다가 바로 닫히므로 누르기만 받는다
+  const touchOnly = (): boolean => window.matchMedia('(hover: none)').matches;
   rankBoard.onmouseover = (ev) => {
+    if (touchOnly()) return;
     const id = tipFor(ev);
     if (id === rankTipHorse) return;
     rankTipHorse = id;
     renderRankTip();
   };
   rankBoard.onmouseleave = () => {
+    if (touchOnly()) return;
     rankTipHorse = null;
     renderRankTip();
   };
   rankBoard.onclick = (ev) => {
     const id = tipFor(ev);
     // 마우스가 없는 화면: 같은 말을 다시 누르면 닫는다
-    if (window.matchMedia('(hover: none)').matches) rankTipHorse = rankTipHorse === id ? null : id;
+    if (touchOnly()) rankTipHorse = rankTipHorse === id ? null : id;
     else rankTipHorse = id;
     renderRankTip();
   };
+  // 등수표 밖을 누르면 닫는다 (폰에서는 마우스가 떠나는 일이 없다)
+  document.addEventListener('click', (ev) => {
+    if (rankTipHorse == null || (ev.target as HTMLElement).closest('#rank-board')) return;
+    rankTipHorse = null;
+    renderRankTip();
+  });
   // 증강 카드에 마우스를 올리면 그 카드가 맞힐 말을 띄워 보인다 (다시 그려도 끊기지 않게 창 전체에서 받는다)
   const augBar = $('augment-bar');
   augBar.onmouseover = (ev) => {
@@ -2238,7 +2429,8 @@ function bindUI(): void {
   const SETUP_KEY = 'augment-derby-setup';
   const savedSetup = ((): Record<string, string> => {
     try {
-      return JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}') as Record<string, string>;
+      const saved: unknown = JSON.parse(localStorage.getItem(SETUP_KEY) ?? '{}');
+      return saved && typeof saved === 'object' && !Array.isArray(saved) ? (saved as Record<string, string>) : {};
     } catch {
       return {};
     }
@@ -2478,6 +2670,12 @@ function bindUI(): void {
   });
   // 외침
   for (const [id, kind] of Object.entries(SHOUT_BUTTONS)) $(id).onclick = () => sendShout(kind);
+  // 내 마권 접기·펴기 (내용을 다시 그려도 단추가 살아 있게 바깥 칸에서 받는다)
+  for (const id of ['my-tickets', 'my-tickets-strip']) {
+    $(id).addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('[data-tk-fold]')) toggleTicketsFold();
+    });
+  }
   renderShoutBar();
 }
 

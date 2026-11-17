@@ -911,16 +911,13 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 /* 등수표: 말마다 누가 무엇을 걸었는지 */
 #rank-board { width: auto; min-width: 148px; max-width: min(360px, 62%); }
 .rb-name { flex: 0 1 auto; max-width: 96px; }
-.rb-bets { display: flex; flex-wrap: wrap; gap: 3px 4px; margin-left: auto; padding-left: 8px; justify-content: flex-end; }
-.rb-bet {
-  display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px 1px 1px; border-radius: 11px;
-  background: rgba(255, 255, 255, 0.16); color: #fff; font-size: 12px; font-weight: 800; white-space: nowrap;
-}
-.rb-bet .pmark { width: 18px; height: 18px; box-shadow: 0 0 0 1px #fff; }
+
+
+
 /* 지금 순위로 맞고 있는 배팅은 흰 바탕으로 밝게 */
-.rb-bet.hit { background: #fff; color: var(--ink); }
-.rb-row.mine .rb-bet { background: rgba(26, 33, 80, 0.14); color: var(--ink); }
-.rb-row.mine .rb-bet.hit { background: #fff; }
+
+
+
 
 /* 기록 칸: 누가 / 무슨 카드 / 어느 말에게 */
 #game-log .log-row {
@@ -942,20 +939,20 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 @media (max-width: 900px) {
   #rank-board { min-width: 112px; max-width: 72%; }
   .rb-name { max-width: 64px; }
-  .rb-bet { padding: 0 5px 0 1px; }
-  .rb-bet .pmark { width: 16px; height: 16px; }
+
+
   #game-log .log-row { grid-template-columns: minmax(64px, 96px) minmax(96px, 1fr) minmax(0, 1.2fr); gap: 6px; }
   .lg-horse { font-size: 12px; }
 }
 
 /* 내 배팅은 형광 테두리로 구분 */
-.rb-bet.me { box-shadow: 0 0 0 2px var(--hl); }
-.rb-row.mine .rb-bet.me { box-shadow: 0 0 0 2px var(--ink); }
+
+
 /* 폰 세로: 등수표가 말을 가리지 않게 이름은 빼고 번호 안장과 배팅만 */
 @media (max-width: 640px) and (orientation: portrait) {
   #rank-board { min-width: 0; max-width: 60%; background: rgba(26, 33, 80, 0.72); }
   #rank-board .rb-name { display: none; }
-  .rb-bets { justify-content: flex-start; margin-left: 0; padding-left: 4px; }
+
 }
 
 /* ---------- 증강 카드: 경주 화면 가운데에 뜨는 창 ---------- */
@@ -1003,14 +1000,11 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 #augment-bar .augment-pickhorse { padding-right: 44px; flex-wrap: wrap; }
 
 /* ---------- 등수표 배팅 딱지: 사람 색 바탕에 배팅 종류만 ---------- */
-.rb-bet, .rb-row.mine .rb-bet {
-  padding: 1px 7px; border-radius: 3px; color: #fff; opacity: 0.5;
-  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85);
-}
+
 /* 지금 순위로 맞고 있는 배팅은 또렷하게, 아니면 흐리게 */
-.rb-bet.hit, .rb-row.mine .rb-bet.hit { opacity: 1; color: #fff; }
-.rb-bet.me { box-shadow: 0 0 0 2px var(--hl); }
-.rb-row.mine .rb-bet.me { box-shadow: 0 0 0 2px var(--ink); }
+
+
+
 /* ---------- 내 색 고르기 ---------- */
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 .swatch {
@@ -1172,12 +1166,12 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 
 /* ================= 화면 정리 ================= */
 /* 등수표: 지금 순위로 맞지 않는 배팅은 흐리게 하지 않고, 사람 색 테두리만 남긴다 */
-.rb-bet, .rb-row.mine .rb-bet { background: var(--pc); opacity: 1; box-shadow: none; }
-.rb-bet:not(.hit) { background: rgba(26, 33, 80, 0.55); box-shadow: inset 0 0 0 2px var(--pc); color: #fff; }
-.rb-row.mine .rb-bet:not(.hit) { background: #fff8cf; box-shadow: inset 0 0 0 2px var(--pc); color: var(--ink); }
-.rb-bet.hit { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85); }
-.rb-bet.me, .rb-row.mine .rb-bet.me { outline: 2px solid var(--hl); outline-offset: 1px; }
-.rb-row.mine .rb-bet.me { outline-color: var(--ink); }
+
+
+
+
+
+
 /* 배팅 중에는 창 안에 남은 시간이 크게 나오므로 상단 바의 시간은 숨긴다 */
 #scr-game[data-phase='preview'] #top-timer, #scr-game[data-phase='betting'] #top-timer { display: none; }
 /* 배팅 화면(넓은 화면): 말 카드는 왼쪽, 거는 칸과 내 마권은 오른쪽에 두어 한 화면에 다 보이게 한다 */
@@ -1195,7 +1189,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
   #overlay-betting .overlay-inner:has(#bet-controls:not(.hidden)) #my-bets { max-height: 190px; overflow-y: auto; }
 }
 /* 맞고 있는 배팅 딱지: 사람 색 바탕에 흰 글자 (예전의 흰 바탕 규칙보다 뒤에 둔다) */
-.rb-bet.hit, .rb-row.mine .rb-bet.hit { background: var(--pc); color: #fff; }
+
 /* 능력치 이름과 취소 단추는 줄을 바꾸지 않는다 */
 .statbar .sb-label { white-space: nowrap; }
 @media (max-width: 900px) { .statbar .sb-label { width: 46px; } }
@@ -1481,13 +1475,9 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 .rbt-head { display: flex; align-items: center; gap: 7px; font-size: 16px; padding-bottom: 6px; border-bottom: 2px dashed var(--line); }
 .rbt-head b { font-weight: 800; }
 .rbt-head span:last-child { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
-.rbt-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; column-gap: 8px; font-size: 14px; padding: 2px 4px; border-radius: 3px; }
 .rbt-row.me { background: var(--hl); }
 .rbt-row .pchip { min-width: 0; }
 .rbt-row .pchip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
-.rbt-type { font-weight: 800; white-space: nowrap; }
-.rbt-state { font-size: 12px; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
-.rbt-state.hit { color: #0b6b3a; }
 .rbt-empty { font-size: 14px; color: var(--ink-soft); margin: 0; }
 #rank-board { pointer-events: auto; }
 
@@ -1496,9 +1486,9 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 @media (max-width: 900px) { #bottom-bar { min-height: 163px; max-height: 163px; } }
 @media (max-width: 640px) and (orientation: portrait) { #bottom-bar { min-height: 278px; max-height: 278px; } }
 /* 등수표의 배팅 딱지는 모두 건 사람 색으로 채운다. 지금 순위로 맞고 있는 딱지는 테두리로만 알린다 */
-.rb-bet, .rb-bet:not(.hit), .rb-row.mine .rb-bet, .rb-row.mine .rb-bet:not(.hit) { background: var(--pc); color: #fff; box-shadow: none; opacity: 1; }
-.rb-bet.hit { box-shadow: 0 0 0 2px #fff; }
-.rb-row.mine .rb-bet.hit { box-shadow: 0 0 0 2px var(--ink); }
+
+
+
 
 /* ================= 폰 세로 다듬기 ================= */
 @media (max-width: 640px) and (orientation: portrait) {
@@ -1563,7 +1553,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 /* 이름은 제 폭을 그대로 쓰고, 배팅 딱지는 남는 자리에서 줄바꿈한다. 자리가 아주 모자라면 딱지가 통째로 다음 줄로 내려간다 */
 #rank-board .rb-row { flex-wrap: wrap; row-gap: 3px; }
 #rank-board .rb-name { flex: none; overflow: visible; text-overflow: clip; max-width: none; }
-#rank-board .rb-bets { flex: 1 1 96px; min-width: 0; }
+
 #rank-board { max-width: min(420px, 66%); }
 
 /* ================= 배팅: 말 이름 아래에 내 마권 딱지 ================= */
@@ -1730,7 +1720,7 @@ input[type='range']:focus-visible::-moz-range-thumb { outline: 3px solid var(--p
 /* 폰 세로: 등수표 한 줄에 등수·번호·배팅 딱지를 모두 놓아 높이를 절반으로 (말을 덜 가린다) */
 @media (max-width: 640px) and (orientation: portrait) {
   #rank-board .rb-row { flex-wrap: nowrap; }
-  #rank-board .rb-bets { flex: 0 1 auto; flex-wrap: nowrap; padding-left: 2px; }
+
 }
 
 /* ================= 긴 이름: 말 이름, 주인 이름이 길어도 옆 칸을 침범하지 않는다 ================= */
@@ -1988,4 +1978,166 @@ body[data-screen='scr-game'] #toast-area { top: 64px; bottom: auto; }
   #cheer-board #emotes button, .sw-bib, .shout-btn { height: 28px; }
   .shout-btn { font-size: 14px; }
   #cheer-board { gap: 4px; }
+}
+
+/* ================= 내 마권 현황판 ================= */
+/* 경주 중 내 마권이 지금 맞고 있는지, 이대로 끝나면 얼마를 받는지. 말마다 한 줄이라 여섯 줄을 넘지 않는다 */
+#my-tickets {
+  position: absolute; right: 10px; top: 86px; z-index: 4; width: 300px;
+  border-radius: 5px; overflow: hidden; background: rgba(26, 33, 80, 0.9); color: #fff; box-shadow: 0 0 0 2px #fff;
+}
+.tk-head { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 10px; background: var(--hl); color: var(--ink); font-size: 15px; }
+.tk-head > b:first-child { font-weight: 900; letter-spacing: -0.02em; }
+.tk-count { font-size: 12px; font-weight: 800; color: #5b4a00; }
+.tk-mini { margin-left: auto; font-family: var(--display); font-weight: 900; font-size: 16px; letter-spacing: -0.02em; color: #5b4a00; }
+.tk-mini.on { color: #0b5c33; }
+.tk-fold {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 3px; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 800; color: var(--ink); background: rgba(255, 255, 255, 0.55);
+  border: 2px solid var(--ink); border-radius: 3px; padding: 1px 5px 1px 7px; line-height: 1.5;
+}
+.tk-mini + .tk-fold { margin-left: 4px; }
+.tk-fold .ic { width: 12px; height: 12px; vertical-align: 0; }
+.tk-fold:focus-visible { outline: 3px solid var(--pen); outline-offset: 2px; }
+.tk-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'bib who pay' 'bib chips pay';
+  column-gap: 9px; row-gap: 3px; align-items: center; padding: 7px 10px 8px; border-top: 1.5px solid rgba(255, 255, 255, 0.16);
+}
+.tk-row .bib { grid-area: bib; align-self: start; margin-top: 1px; }
+.tk-who { grid-area: who; display: flex; align-items: baseline; gap: 6px; min-width: 0; font-weight: 900; font-size: 15px; letter-spacing: -0.02em; white-space: nowrap; }
+.tk-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tk-who small { flex: none; font-size: 12px; font-weight: 800; color: #c9cfe6; }
+.tk-chips { grid-area: chips; display: flex; flex-wrap: wrap; gap: 4px; }
+/* 딱지: 적중 중은 초록으로 채우고, 한 등수 차이는 노란 테두리, 빗나가는 중은 흐린 회색 */
+.tk-chip {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px 2px 5px; border-radius: 99px;
+  font-size: 12.5px; font-weight: 900; white-space: nowrap; line-height: 1.35;
+  background: rgba(255, 255, 255, 0.1); color: #aab0c8; box-shadow: inset 0 0 0 1.5px rgba(170, 176, 200, 0.55);
+}
+.tk-chip .ic { width: 11px; height: 11px; vertical-align: 0; }
+.tk-chip.hit { background: #35d07f; color: #06301b; box-shadow: none; }
+.tk-chip.near { background: transparent; color: var(--hl); box-shadow: inset 0 0 0 1.5px var(--hl); }
+.tk-chip.wait { padding-left: 7px; color: #dfe3f2; }
+.tk-chip.flash, .ptk-mark.flash { animation: tk-flash 0.7s ease-out; }
+@keyframes tk-flash { from { transform: scale(1.25); } to { transform: none; } }
+.tk-pay { grid-area: pay; text-align: right; font-family: var(--display); font-weight: 900; font-size: 19px; letter-spacing: -0.02em; color: #aab0c8; white-space: nowrap; }
+.tk-pay.on { color: #35d07f; }
+.tk-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 7px 10px 8px; border-top: 2px solid rgba(255, 255, 255, 0.4); font-size: 13px; font-weight: 800; }
+.tk-foot b { font-family: var(--display); font-size: 22px; font-weight: 900; letter-spacing: -0.02em; color: #aab0c8; }
+.tk-foot b.on { color: #35d07f; }
+/* 마권이 많으면(7장 이상) 줄을 낮춘다 */
+#my-tickets.dense .tk-row { padding: 5px 10px 6px; row-gap: 2px; }
+#my-tickets.dense .tk-row .bib { width: 24px; height: 24px; font-size: 15px; }
+#my-tickets.dense .tk-who { font-size: 13.5px; }
+#my-tickets.dense .tk-pay { font-size: 17px; }
+#my-tickets.dense .tk-chip { padding: 1px 6px 1px 4px; font-size: 12px; }
+
+/* 폰 세로에서는 판 대신 기록 칸 맨 위의 한 줄을 쓴다 */
+#my-tickets-strip { display: none; }
+/* 관전 단추가 경주 화면 아래로 내려가는 폭: 판을 진행 막대 바로 아래로 올린다 */
+@media (max-width: 900px) {
+  #my-tickets { top: 36px; right: 6px; width: 264px; }
+}
+/* 폰 가로: 관전 단추가 다시 경주 화면 위에 뜨므로 그 아래에 두고, 길면 판 안에서 넘긴다 */
+@media (max-height: 560px) and (orientation: landscape) {
+  #my-tickets { top: 74px; width: 250px; }
+  /* 줄이 많으면 줄만 넘기고, 합계 줄은 늘 보이게 판 아래에 붙여 둔다 */
+  #my-tickets .tk-body { max-height: calc(100svh - 236px); overflow-y: auto; scrollbar-width: thin; }
+  /* 증강 카드 창이 화면을 거의 다 덮는다: 그동안은 판을 숨긴다 (관전 단추 줄과 같은 규칙) */
+  #race-wrap.augment-open #my-tickets { display: none; }
+}
+@media (max-width: 640px) and (orientation: portrait) {
+  #my-tickets { display: none; }
+  #my-tickets-strip { display: flex; align-items: stretch; gap: 4px; }
+  /* 한 줄이 생기는 동안만 아래 칸을 그만큼 높인다 */
+  #bottom-bar:has(#my-tickets-strip:not(.hidden)) { min-height: 330px; max-height: 330px; }
+  #bottom-bar:has(#my-tickets-strip.folded:not(.hidden)) { min-height: 316px; max-height: 316px; }
+  .ptk-chips { flex: 1; min-width: 0; display: flex; gap: 4px; }
+  .ptk-chip { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 3px; border-radius: 4px; background: var(--paper-2); box-shadow: inset 0 0 0 2px var(--line); }
+  .ptk-chip.on { background: #dff7ea; box-shadow: inset 0 0 0 2px #35d07f; }
+  .ptk-chip.close { background: #fffbe0; box-shadow: inset 0 0 0 2px #e0b400; }
+  .ptk-top { display: flex; align-items: center; gap: 4px; }
+  .ptk-top .bib { width: 18px; height: 18px; font-size: 12px; box-shadow: none; }
+  .ptk-marks { display: flex; gap: 2px; }
+  .ptk-mark { width: 13px; height: 13px; border-radius: 50%; display: grid; place-items: center; background: #aab0c8; color: #fff; }
+  .ptk-mark .ic { width: 8px; height: 8px; vertical-align: 0; }
+  .ptk-mark.hit { background: #35d07f; color: #06301b; }
+  .ptk-mark.near { background: var(--hl); color: var(--ink); box-shadow: inset 0 0 0 1px #e0b400; }
+  .ptk-mark.wait { background: var(--line); }
+  .ptk-bot { font-size: 11.5px; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
+  .ptk-chip.on .ptk-bot { color: #0b5c33; font-weight: 900; }
+  .ptk-sum { flex: none; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; padding: 0 2px 0 4px; }
+  .ptk-sum span { font-size: 10.5px; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
+  .ptk-sum b { font-family: var(--display); font-size: 18px; font-weight: 900; letter-spacing: -0.02em; color: var(--ink-soft); }
+  .ptk-sum b.on { color: #0b5c33; }
+  #my-tickets-strip .tk-fold { flex: none; margin: 0; width: 32px; padding: 0; justify-content: center; background: var(--paper); }
+  #my-tickets-strip .tk-fold .ic { width: 14px; height: 14px; }
+  /* 마권이 많으면 동그라미를 작은 점 2×2로 줄여 여섯 칸이 한 줄에 들어가게 한다 */
+  #my-tickets-strip.dense .ptk-chip { padding: 4px 2px; }
+  #my-tickets-strip.dense .ptk-top { gap: 3px; }
+  #my-tickets-strip.dense .ptk-top .bib { width: 16px; height: 16px; font-size: 11px; }
+  #my-tickets-strip.dense .ptk-marks { display: grid; grid-template-columns: repeat(2, 8px); gap: 2px; }
+  #my-tickets-strip.dense .ptk-mark { width: 8px; height: 8px; }
+  #my-tickets-strip.dense .ptk-mark .ic { display: none; }
+  #my-tickets-strip.dense .ptk-mark.far { background: var(--line); }
+  /* 접었을 때: 합계만 남긴 얇은 한 줄 */
+  .ptk-line { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 4px; background: var(--paper-2); font-size: 13px; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
+  .ptk-line b { color: var(--ink); font-weight: 900; }
+  .ptk-line-sum { margin-left: auto; font-weight: 900; }
+  .ptk-line-sum.on { color: #0b5c33; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-chip.flash, .ptk-mark.flash { animation: none; }
+}
+
+/* ================= 등수표: 순위만, 건 사람 수는 작게 ================= */
+/* 누가 무엇을 걸었는지는 줄에 마우스를 올리거나 눌러서 본다. 줄에는 "볼 것이 있다"는 표시로 사람 수만 둔다 */
+.rb-count {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 3px; flex: none;
+  height: 18px; padding: 0 6px; border-radius: 99px; background: rgba(255, 255, 255, 0.14);
+  font-size: 12px; font-weight: 900; line-height: 1; color: #dfe3f2;
+}
+.rb-count .ic { width: 11px; height: 11px; vertical-align: 0; }
+.rb-row.mine .rb-count { background: rgba(26, 33, 80, 0.14); color: var(--ink); }
+/* 줄 전체가 눌리는 자리: 손가락으로 누르기 쉽게 폰에서는 줄을 조금 높인다 */
+#rank-board .rb-row { cursor: pointer; flex-wrap: nowrap; }
+@media (max-width: 640px) {
+  #rank-board .rb-row { min-height: 26px; }
+  .rb-count { height: 17px; padding: 0 5px; font-size: 11px; margin-left: 2px; }
+}
+/* 올리면 뜨는 창: 사람마다 한 줄, 건 종류는 딱지로 (지금 맞고 있으면 초록) */
+#rb-tip { max-width: min(340px, 90%); overflow: hidden; }
+.rbt-row { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; padding: 3px 4px; border-radius: 3px; }
+.rbt-row .pchip { flex: none; max-width: 7.5em; min-height: 22px; }
+.rbt-bets { flex: 1 1 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 3px 4px; }
+.rbt-bet {
+  display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 7px; border-radius: 99px;
+  background: var(--paper-2); box-shadow: inset 0 0 0 1.5px var(--line);
+  font-size: 12.5px; font-weight: 800; color: var(--ink-soft); white-space: nowrap;
+}
+.rbt-bet .ic { width: 11px; height: 11px; vertical-align: 0; }
+.rbt-bet i { display: inline-flex; align-items: center; gap: 2px; font-style: normal; font-weight: 700; margin-left: 2px; }
+.rbt-bet.hit { background: #35d07f; color: #06301b; box-shadow: none; }
+.rbt-row.me .rbt-bet:not(.hit) { background: #fffdf0; box-shadow: inset 0 0 0 1.5px rgba(26, 33, 80, 0.3); color: var(--ink); }
+/* 폰 세로: 창이 좁다(260px 안팎). 딱지를 한 줄에 둘씩 넣어 창이 길어지지 않게 하고, 이름은 남는 폭만 쓴다 */
+@media (max-width: 640px) {
+  #rb-tip { padding: 7px 6px; gap: 4px; }
+  .rbt-row { padding: 2px; gap: 6px; }
+  .rbt-row .pchip { flex: 1 1 0; max-width: none; }
+  .rbt-row .pchip-name { font-size: 13px; }
+  .rbt-bets { flex: 0 0 auto; max-width: 152px; }
+  .rbt-bet { padding: 0 5px; gap: 2px; font-size: 12px; }
+  .rbt-bet i .ic { display: none; }
+}
+
+/* ================= 등수표와 뜨는 창: 다듬기 ================= */
+/* 창은 관전 단추 줄 위에 뜬다 (가로 폰에서 창 머리가 단추 줄에 가렸다) */
+#rb-tip { z-index: 8; }
+/* 창이 떠 있는 줄 */
+.rb-row.tip-on { box-shadow: inset 0 0 0 2px #fff; }
+.rb-row.mine.tip-on { box-shadow: inset 0 0 0 2px var(--ink); }
+@media (max-width: 640px) and (orientation: portrait) {
+  /* 줄마다 폭이 달라 사람 수 표시가 들쭉날쭉했다: 가장 넓은 줄에 맞추고 사람 수는 오른쪽 끝에 세운다 */
+  #rank-board { align-items: stretch; }
+  .rb-count { margin-left: auto; }
 }

@@ -32,6 +32,10 @@ interface ShoutCrowd {
 const SHOUT_LIFE = 2.6;
 /** 한 무리에 세우는 피켓 수. 넘으면 ×숫자로 센다 */
 const SHOUT_MAX_SIGNS = 5;
+/** 같은 말에 여러 외침이 함께 뜨면 이 순서로 왼쪽부터 선다 (응원 → 방해) */
+const SHOUT_ORDER: Record<ShoutKind, number> = { go: 0, beg: 1, check: 2, halt: 3 };
+/** 피켓이 좌우로 흔들려도 화면 끝에서 잘리지 않게 두는 여유 (px) */
+const SHOUT_EDGE = 14;
 
 // ============================================================
 // 3D 경주 뷰 (Three.js)
@@ -1394,7 +1398,7 @@ export class Race3DView {
       el.append(row, more);
       this.shoutLayer.appendChild(el);
       c = { el, row, more, horseId, kind, count: 0, until: 0, x: rig.labelShown ? rig.lsx : -1 };
-      if (c.x >= 0) el.style.transform = `translateX(${c.x.toFixed(1)}px) translateX(-50%)`;
+      if (c.x >= 0) el.style.transform = `translateX(${c.x.toFixed(1)}px) translateX(-50%) scale(1)`;
       this.crowds.set(key, c);
     }
     c.count++;
@@ -1454,36 +1458,35 @@ export class Race3DView {
       const rig = this.rigs.find((r) => r.info.id === c.horseId);
       // 화면 밖의 말은 마지막 자리(처음이면 가운데)에 세운다
       let want = rig && rig.labelShown ? rig.lsx : c.x >= 0 ? c.x : w / 2;
-      // 같은 말에 두 외침이 함께 떠 있으면 가즈아는 왼쪽, 견제는 오른쪽에 선다
-      if (this.crowds.has(`${c.horseId}:${c.kind === 'go' ? 'check' : 'go'}`)) want += c.kind === 'go' ? -1 : 1;
+      // 같은 말에 여러 외침이 함께 떠 있으면 응원 → 방해 순서로 나란히 선다
+      want += SHOUT_ORDER[c.kind] * 0.5;
       live.push({ c, want, half: (c.el.offsetWidth || 120) / 2 });
     }
     // 피켓을 다 세우면 화면보다 넓을 때(폰, 긴 이름)는 모두 같은 비율로 줄여 화면 안에 들인다.
     // 증강 창 위로 올라간 피켓은 말을 덜 가리게 조금 더 작게 세운다
     const total = live.reduce((sum, l) => sum + l.half * 2, 0) + 4 * Math.max(0, live.length - 1);
-    const fit = total > 0 ? Math.min(1, (w - 8) / total) : 1;
+    const fit = total > 0 ? Math.min(1, (w - SHOUT_EDGE * 2) / total) : 1;
     const k = fit * (this.container.classList.contains('shouts-lifted') ? 0.86 : 1);
-    for (const l of live) {
-      l.half *= k;
-      const sc = k.toFixed(3);
-      if (l.c.el.style.scale !== sc) l.c.el.style.scale = sc;
-    }
+    for (const l of live) l.half *= k;
     // 왼쪽부터 놓으며 앞 무리와 겹치면 오른쪽으로 밀고, 화면 오른쪽을 넘으면 거꾸로 왼쪽으로 민다
     live.sort((a, b) => a.want - b.want);
     const xs = live.map((l) => l.want);
     for (let i = 0; i < live.length; i++) {
-      const min = i === 0 ? live[i].half + 4 : xs[i - 1] + live[i - 1].half + live[i].half + 4;
+      const min = i === 0 ? live[i].half + SHOUT_EDGE : xs[i - 1] + live[i - 1].half + live[i].half + 4;
       xs[i] = Math.max(xs[i], min);
     }
     for (let i = live.length - 1; i >= 0; i--) {
-      const max = i === live.length - 1 ? w - live[i].half - 4 : xs[i + 1] - live[i + 1].half - live[i].half - 4;
+      const max = i === live.length - 1 ? w - live[i].half - SHOUT_EDGE : xs[i + 1] - live[i + 1].half - live[i].half - 4;
       xs[i] = Math.min(xs[i], max);
     }
+    // 줄이기는 위치 옮기기와 한 transform 안에서 한다 (scale 속성을 따로 쓰면 translate까지 함께 줄어 피켓이 말보다 왼쪽에 선다)
+    const sc = k.toFixed(3);
     live.forEach(({ c }, i) => {
       const x = xs[i];
-      if (Math.abs(x - c.x) > 0.5) {
+      if (Math.abs(x - c.x) > 0.5 || c.el.dataset.k !== sc) {
         c.x = x;
-        c.el.style.transform = `translateX(${x.toFixed(1)}px) translateX(-50%)`;
+        c.el.dataset.k = sc;
+        c.el.style.transform = `translateX(${x.toFixed(1)}px) translateX(-50%) scale(${sc})`;
       }
     });
   }

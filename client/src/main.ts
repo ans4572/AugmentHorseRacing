@@ -1442,6 +1442,8 @@ let shoutCoolUntil = 0;
 let shoutWhoKey = '';
 /** 경주 화면이 보이는 단계에서만 외칠 수 있다 */
 const SHOUT_PHASES = new Set<string>(['countdown', 'racing']);
+/** 외침 단추: 응원 두 개(가즈아!·제발!), 방해 두 개(견제해!·멈춰!) */
+const SHOUT_BUTTONS: Record<string, ShoutKind> = { 'btn-shout-go': 'go', 'btn-shout-beg': 'beg', 'btn-shout-check': 'check', 'btn-shout-halt': 'halt' };
 
 function defaultShoutTarget(): number | null {
   const sums = new Map<number, number>();
@@ -1488,7 +1490,7 @@ function syncShoutButtons(): void {
   const live = SHOUT_PHASES.has(state.phase);
   // 쉬는 동안에는 단추 색은 그대로 두고 누르지만 못하게 한다 (흐리게 하면 꺼진 단추처럼 보인다)
   const cooling = performance.now() < shoutCoolUntil;
-  for (const id of ['btn-shout-go', 'btn-shout-check']) {
+  for (const id of Object.keys(SHOUT_BUTTONS)) {
     const b = $<HTMLButtonElement>(id);
     b.disabled = !live || shoutTarget === null;
     b.classList.toggle('cooling', live && cooling);
@@ -1505,7 +1507,7 @@ function sendShout(kind: ShoutKind): void {
   shoutCoolUntil = now + SHOUT_COOLDOWN_MS;
   net.send({ type: 'SHOUT', kind, horseId: shoutTarget });
   // 다시 외칠 수 있을 때까지 단추 안의 어두운 막대가 줄어든다 (애니메이션을 처음부터 다시 튼다)
-  for (const id of ['btn-shout-go', 'btn-shout-check']) {
+  for (const id of Object.keys(SHOUT_BUTTONS)) {
     const b = $(id);
     b.classList.remove('cooling');
     void b.offsetWidth;
@@ -2475,8 +2477,7 @@ function bindUI(): void {
     el.onclick = () => net.send({ type: 'EMOTE', emoji: el.dataset.emote! });
   });
   // 외침
-  $('btn-shout-go').onclick = () => sendShout('go');
-  $('btn-shout-check').onclick = () => sendShout('check');
+  for (const [id, kind] of Object.entries(SHOUT_BUTTONS)) $(id).onclick = () => sendShout(kind);
   renderShoutBar();
 }
 

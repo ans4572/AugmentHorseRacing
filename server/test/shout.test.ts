@@ -33,6 +33,20 @@ describe('경주 중 외침', () => {
     expect(a.all('SHOUT')).toHaveLength(1);
   });
 
+  it('네 가지 외침(가즈아!·제발!·견제해!·멈춰!)을 모두 받는다', () => {
+    vi.useFakeTimers();
+    try {
+      const { a, b } = roomWithTwo('racing');
+      for (const kind of ['go', 'beg', 'check', 'halt'] as const) {
+        a.send({ type: 'SHOUT', kind, horseId: 2 });
+        vi.advanceTimersByTime(1300);
+      }
+      expect(b.all('SHOUT').map((m) => m.kind)).toEqual(['go', 'beg', 'check', 'halt']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('경주가 보이지 않는 단계에서는 버린다', () => {
     const { a, b } = roomWithTwo('betting');
     a.send({ type: 'SHOUT', kind: 'go', horseId: 3 });

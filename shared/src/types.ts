@@ -322,8 +322,8 @@ export interface RoomSummary {
   state: RoomPhase;
 }
 
-/** 경주 중 외침: go = 가즈아!, check = 견제해! */
-export type ShoutKind = 'go' | 'check';
+/** 경주 중 외침: 응원 go = 가즈아!, beg = 제발! / 방해 check = 견제해!, halt = 멈춰! */
+export type ShoutKind = 'go' | 'beg' | 'check' | 'halt';
 
 export type RoomPhase =
   | 'lobby'

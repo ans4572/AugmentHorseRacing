@@ -37,15 +37,22 @@ export function rollTier(phase: number, rng: () => number = Math.random): Augmen
  * - 한 손패 안에서는 중복 없음
  * - 등급 안에 뽑을 카드가 모자라면 가까운 등급에서 채운다
  */
+/** 배팅금으로 대상을 고르는 카드 (우승 배팅금 최다·최소 말, 전체 배팅금 최다 말) */
+export const BET_TARGETS = new Set<string>(['mostBetWin', 'leastBetWin', 'mostBetTotal']);
+
 export function drawCards(
   sim: RaceSim,
   phase: number,
   tier: AugmentTier,
   bets: BetTotals,
-  rng: () => number = Math.random
+  rng: () => number = Math.random,
+  blind = false
 ): AugmentDefinition[] {
-  // 쓸 수 있는 말이 한 마리도 없는 카드는 뽑지 않는다 (조건이 붙은 카드, 이미 옮긴 결승선 등)
-  const valid = AUGMENTS.filter((def) => def.allowedPhases.includes(phase) && sim.usableNow(def, { bets }));
+  // 쓸 수 있는 말이 한 마리도 없는 카드는 뽑지 않는다 (조건이 붙은 카드, 이미 옮긴 결승선 등).
+  // 블라인드 방에서는 배팅금으로 대상을 고르는 카드도 뺀다: 카드가 어느 말에 돈이 몰렸는지 알려 주게 된다
+  const valid = AUGMENTS.filter(
+    (def) => def.allowedPhases.includes(phase) && !(blind && BET_TARGETS.has(def.targetType)) && sim.usableNow(def, { bets })
+  );
 
   const hand: AugmentDefinition[] = [];
   for (const t of [tier, ...TIER_FALLBACK[tier]]) {

@@ -208,14 +208,24 @@ export class Room {
     }
   }
 
-  publicPlayers(): PlayerPublic[] {
+  /**
+   * 블라인드 방에서 배팅부터 경주가 끝날 때까지는 남의 코인을 배팅 전 금액으로 보여 준다.
+   * 남은 코인이 그대로 보이면 배팅 전후 차이로 얼마를 걸었는지 알 수 있다
+   */
+  private hidesCoins(): boolean {
+    return !!this.settings.blindBets && (this.phase === 'betting' || this.phase === 'reveal' || this.phase === 'countdown' || this.phase === 'racing');
+  }
+
+  /** 참가자 목록. forPlayerId를 주면 그 사람에게 보여 줄 값(블라인드 방의 남의 코인 등)으로 만든다 */
+  publicPlayers(forPlayerId?: string): PlayerPublic[] {
+    const hide = this.hidesCoins();
     return [...this.players.values()].map((p) => ({
       id: p.id,
       name: p.name,
       isNpc: p.isNpc,
       ...(p.horse ? { horseName: p.horse.name } : {}),
       connected: p.connected,
-      coins: p.coins,
+      coins: hide && p.id !== forPlayerId ? p.coinsAtBettingStart : p.coins,
       isHost: p.id === this.hostId,
       color: p.color ?? 0,
       ready: p.isNpc || (this.phase === 'preview' ? p.readyPreview : this.phase === 'betting' ? p.readyBetting : false)
@@ -223,7 +233,14 @@ export class Room {
   }
 
   broadcastRoomUpdate(): void {
-    this.broadcast({ type: 'ROOM_UPDATE', players: this.publicPlayers(), settings: this.settings });
+    if (!this.hidesCoins()) {
+      this.broadcast({ type: 'ROOM_UPDATE', players: this.publicPlayers(), settings: this.settings });
+      return;
+    }
+    // 블라인드 배팅 중: 사람마다 자기 코인만 실제 값으로 보낸다
+    for (const p of this.players.values()) {
+      this.send(p, { type: 'ROOM_UPDATE', players: this.publicPlayers(p.id), settings: this.settings });
+    }
   }
 
   humanPlayers(): Player[] {
@@ -782,7 +799,7 @@ export class Room {
 
     for (const p of this.players.values()) {
       if (p.left) continue;
-      const cards = drawCards(sim, phase, tier, totals);
+      const cards = drawCards(sim, phase, tier, totals, Math.random, !!this.settings.blindBets);
       const hand = cards.map((def, i) => ({ cardKey: `${phase}:${p.id}:${i}`, def }));
       hands.set(p.id, hand);
       const view: AugmentCardView[] = hand.map((c) => ({ cardKey: c.cardKey, defId: c.def.id }));
@@ -889,7 +906,7 @@ export class Room {
     const held = new Set(hand.map((c) => c.def.id));
     let next: AugmentDefinition | undefined;
     for (let i = 0; i < 8 && !next; i++) {
-      next = drawCards(sim, aug.phase, aug.tier, this.betTotals()).find((d) => !held.has(d.id));
+      next = drawCards(sim, aug.phase, aug.tier, this.betTotals(), Math.random, !!this.settings.blindBets).find((d) => !held.has(d.id));
     }
     if (!next) return fail('바꿀 수 있는 다른 카드가 없습니다.');
 
@@ -1135,7 +1152,7 @@ export class Room {
       roomId: this.id,
       code: this.settings.isPrivate ? this.id : undefined,
       settings: this.settings,
-      players: this.publicPlayers(),
+      players: this.publicPlayers(forPlayerId),
       phase: this.phase,
       round: this.round,
       phaseEndsAt: this.phaseEndsAt,

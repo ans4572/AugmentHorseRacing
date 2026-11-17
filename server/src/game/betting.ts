@@ -1,5 +1,5 @@
 import type { Bet, BetOutcome, BetType, RankingEntry } from '../../../shared/src/types';
-import { BET_LIMIT_RATIO, BET_MIN } from '../../../shared/src/constants';
+import { BET_LIMIT_RATIO, BET_MIN, payoutOf } from '../../../shared/src/constants';
 
 /** 배팅 단계 시작 시 보유 코인 기준 라운드 총 배팅 한도 */
 export function betLimit(coinsAtBettingStart: number): number {
@@ -52,7 +52,7 @@ export function settleBets(bets: Bet[], rankings: RankingEntry[]): BetOutcome[] 
   return bets.map((bet) => {
     const rank = rankOf.get(bet.horseId) ?? 6;
     const hit = isBetHit(bet.type, rank);
-    const payout = hit ? Math.floor(bet.amount * bet.odds) : 0;
+    const payout = hit ? payoutOf(bet.amount, bet.odds) : 0;
     return { ...bet, hit, payout };
   });
 }

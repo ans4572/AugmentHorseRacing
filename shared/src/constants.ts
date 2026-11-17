@@ -166,3 +166,11 @@ export const SHOUT_COOLDOWN_MS = 1500;
 export const SHOUT_SERVER_GAP_MS = 1200;
 /** 반응 이모티콘도 너무 잦으면 버린다 */
 export const EMOTE_SERVER_GAP_MS = 400;
+
+/**
+ * 맞혔을 때 받는 코인 = 배팅금 × 배당 (소수점 아래는 버린다).
+ * 배당은 소수 둘째 자리까지라 정수로 바꿔 곱한다: 100 × 1.15 를 그대로 곱하면 114.99999… 가 되어 1코인이 모자랐다.
+ */
+export function payoutOf(amount: number, odds: number): number {
+  return Math.floor((amount * Math.round(odds * 100)) / 100);
+}

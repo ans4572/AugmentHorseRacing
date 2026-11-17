@@ -48,6 +48,15 @@ interface Session {
 }
 
 /** 숫자로 와야 하는 값: 숫자가 아니면 기본값을 쓴다 (Math.floor(undefined)는 NaN이 되어 최소·최대 제한을 그대로 통과한다) */
+/** 다시 접속할 때 본인임을 확인하는 값. 같은 방 사람에게 보이는 playerId 와 달리 짐작할 수 없어야 한다 */
+function makeSecret(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  return c?.randomUUID ? `s_${c.randomUUID()}` : uid('s');
+}
+
+/** 받는 메시지 한 건의 최대 길이 */
+const MAX_MESSAGE_CHARS = 16384;
+
 function int(v: unknown, fallback: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? Math.floor(n) : fallback;
@@ -116,7 +125,7 @@ export class GameHub {
       lastEmoteAt: 0,
       send,
       playerId: uid('p'),
-      secret: uid('s'),
+      secret: makeSecret(),
       roomId: null,
       wrapper: null
     };
@@ -126,6 +135,8 @@ export class GameHub {
 
     return {
       message: (raw) => {
+        // 게임 메시지는 수백 바이트면 충분하다. 너무 큰 것은 읽지 않고 버린다 (Worker 쪽에는 크기 제한이 따로 없다)
+        if (typeof raw !== 'string' || raw.length > MAX_MESSAGE_CHARS) return;
         let msg: C2S;
         try {
           msg = JSON.parse(raw);
@@ -287,6 +298,15 @@ export class GameHub {
         if (!player || player.isNpc || !player.secret || player.secret !== msg.secret) {
           return sendError('다시 접속하는 데 필요한 정보가 맞지 않습니다.');
         }
+        // 같은 사람으로 붙어 있던 옛 연결(다른 탭 등)은 방에서 떼어 낸다.
+        // 그대로 두면 옛 연결이 보낸 나가기·외침이 지금 연결의 플레이어에게 그대로 먹힌다
+        for (const other of this.sessions) {
+          if (other !== session && other.roomId === room.id && other.playerId === player.id) {
+            other.roomId = null;
+            other.playerId = uid('p');
+            other.secret = makeSecret();
+          }
+        }
         session.playerId = player.id;
         session.secret = player.secret;
         session.roomId = room.id;
@@ -425,7 +445,7 @@ export class GameHub {
         // 경주가 보이는 동안만, 정해 둔 두 가지 외침과 말 번호만 받는다
         if (!player || player.isNpc) return;
         if (room.phase !== 'countdown' && room.phase !== 'racing') return;
-        if (!Object.prototype.hasOwnProperty.call(SHOUT_TEXT, msg.kind)) return;
+        if (typeof msg.kind !== 'string' || !Object.prototype.hasOwnProperty.call(SHOUT_TEXT, msg.kind)) return;
         if (!Number.isInteger(horseId) || horseId < 1 || horseId > HORSES_PER_RACE) return;
         if (now - session.lastShoutAt < SHOUT_SERVER_GAP_MS) return;
         session.lastShoutAt = now;

@@ -386,6 +386,10 @@ export class Room {
     player.socket = socket;
     player.connected = true;
     player.left = false;
+    // 방장이 없는 방(방장이 끊기거나 나갔을 때 이어받을 사람이 없었다)에 돌아왔으면 방장을 이어받는다.
+    // 그러지 않으면 다음 라운드로 넘길 사람이 없어 방이 결과 화면에서 멈춘다
+    const host = this.players.get(this.hostId);
+    if (!host || host.isNpc || host.left || !host.connected) this.hostId = player.id;
     if (this.idleTimer) {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
@@ -651,8 +655,11 @@ export class Room {
     if (!p) return;
     // 지금 단계가 아닌 준비 신호는 무시한다 (늦게 도착한 취소가 다음 단계에 영향을 주지 않게)
     if (phase !== this.phase) return;
-    if (phase === 'preview') p.readyPreview = ready;
-    else p.readyBetting = ready;
+    if (phase !== 'preview' && phase !== 'betting') return;
+    // 같은 값을 되풀이해 보내면 방 전체에 알리지 않는다
+    if ((phase === 'preview' ? p.readyPreview : p.readyBetting) === !!ready) return;
+    if (phase === 'preview') p.readyPreview = !!ready;
+    else p.readyBetting = !!ready;
     this.broadcastRoomUpdate();
     this.checkEarlySkip();
   }

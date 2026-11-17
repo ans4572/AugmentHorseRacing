@@ -29,7 +29,7 @@ interface ShoutCrowd {
   x: number;
 }
 /** 피켓이 떠 있는 시간(초). 새 외침이 오면 처음으로 돌아간다 */
-const SHOUT_LIFE = 2.6;
+const SHOUT_LIFE = 1.5;
 /** 한 무리에 세우는 피켓 수. 넘으면 ×숫자로 센다 */
 const SHOUT_MAX_SIGNS = 5;
 /** 같은 말에 여러 외침이 함께 뜨면 이 순서로 왼쪽부터 선다 (응원 → 방해) */

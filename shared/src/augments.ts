@@ -18,7 +18,7 @@ export const AUGMENTS: AugmentDefinition[] = [
   { id: 'infinite_stamina', name: '물통 원샷', description: '벌컥벌컥!\n지구력 20% 회복', rarity: 'rare', targetType: 'single', effectType: 'staminaRestorePct', value: 20, durationMs: 0, allowedPhases: ALL_PHASES, hostile: false, emoji: '🪣', visual: 'chug', visualMs: 2600 },
   { id: 'feather_body', name: '간헐적 단식', description: '굶어서 몸무게가 절반이 된다.\n속력 +19%, 5초', rarity: 'common', targetType: 'single', effectType: 'weightMult', value: 0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🪶', visual: 'fasting' },
   { id: 'teleport', name: '지름길 발견', description: '어, 이쪽이 더 빠르네?\n코스 3% 건너뛰기', rarity: 'rare', targetType: 'single', effectType: 'teleport', value: 0.03, durationMs: 0, allowedPhases: ALL_PHASES, hostile: false, emoji: '🧭', visual: 'warp', visualMs: 700 },
-  { id: 'last_spurt', name: '결승선 냄새', description: '킁킁, 결승선이다! 순위가 낮을수록 빨라진다.\n속력 +20~45%, 5초', rarity: 'rare', targetType: 'single', effectType: 'rankBasedSpeed', value: 0, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '👃', anim: 'boost', visual: 'sniff' },
+  { id: 'last_spurt', name: '결승선 냄새', description: '킁킁, 결승선이다! 순위가 낮을수록 빨라진다.\n속력 +30~45%, 5초', rarity: 'rare', targetType: 'single', effectType: 'rankBasedSpeed', value: 0, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '👃', anim: 'boost', visual: 'sniff' },
   { id: 'shield', name: '뽁뽁이 갑옷', description: '뽁뽁이로 둘둘 감는다.\n다음 방해 1회 무효', rarity: 'rare', targetType: 'single', effectType: 'shield', value: 1, durationMs: 0, allowedPhases: ALL_PHASES, hostile: false, emoji: '🛡️' },
 
   // ---------- 15.2 단일 방해 ----------
@@ -36,8 +36,8 @@ export const AUGMENTS: AugmentDefinition[] = [
   { id: 'odd_curse', name: '홀수 떡락', description: '1·3·5번 떡락…\n속력 -30%, 4.5초', rarity: 'common', targetType: 'odd', effectType: 'speedMult', value: -0.3, durationMs: 4500, allowedPhases: ALL_PHASES, hostile: true, emoji: '🌧️', visual: 'rain' },
   { id: 'even_bless', name: '짝수 떡상', description: '2·4·6번 떡상!\n속력 +30%, 4.5초', rarity: 'common', targetType: 'even', effectType: 'speedMult', value: 0.3, durationMs: 4500, allowedPhases: ALL_PHASES, hostile: false, emoji: '🌟', visual: 'stonks' },
   { id: 'even_curse', name: '짝수 떡락', description: '2·4·6번 떡락…\n속력 -30%, 4.5초', rarity: 'common', targetType: 'even', effectType: 'speedMult', value: -0.3, durationMs: 4500, allowedPhases: ALL_PHASES, hostile: true, emoji: '⛈️', visual: 'storm' },
-  { id: 'odd_bulk', name: '홀수 건초 파티', description: '1·3·5번 단체 건초 파티. 몸무게가 1.5배가 된다.\n속력 -10%, 5초', rarity: 'common', targetType: 'odd', effectType: 'weightMult', value: 1.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🌾', visual: 'hayparty' },
-  { id: 'even_diet', name: '짝수 새벽 훈련', description: '2·4·6번 지옥의 새벽 훈련. 몸무게가 40% 빠진다.\n속력 +14%, 5초', rarity: 'common', targetType: 'even', effectType: 'weightMult', value: 0.6, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🌅', visual: 'dawn' },
+  { id: 'odd_bulk', name: '홀수 건초 파티', description: '1·3·5번 단체 건초 파티. 몸무게가 2.5배가 된다.\n속력 -20%, 5초', rarity: 'common', targetType: 'odd', effectType: 'weightMult', value: 2.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🌾', visual: 'hayparty' },
+  { id: 'even_diet', name: '짝수 새벽 훈련', description: '2·4·6번 지옥의 새벽 훈련. 몸무게가 55% 빠진다.\n속력 +22%, 5초', rarity: 'common', targetType: 'even', effectType: 'weightMult', value: 0.45, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🌅', visual: 'dawn' },
 
   // ---------- 15.4 선두권·하위권 ----------
   { id: 'front_check', name: '꼬리 물기', description: '뒤에서 꼬리를 덥석!\n속력 -30%, 4.5초', rarity: 'common', targetType: 'front3', effectType: 'speedMult', value: -0.3, durationMs: 4500, allowedPhases: ALL_PHASES, hostile: true, emoji: '😬', visual: 'tailbite' },
@@ -51,7 +51,7 @@ export const AUGMENTS: AugmentDefinition[] = [
 
   // ---------- 15.5 능력치 기반 ----------
   { id: 'slow_cheer', name: '느림보 팬클럽', description: '팬들이 왔다!\n속력 +30%, 4초', rarity: 'common', targetType: 'slowest2', effectType: 'speedMult', value: 0.3, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '📣', visual: 'cheer' },
-  { id: 'catch_fast', name: '고삐 당기기', description: '워워, 천천히!\n속력 -35%, 4초', rarity: 'common', targetType: 'fastest2', effectType: 'speedMult', value: -0.35, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🪢', visual: 'siren' },
+  { id: 'catch_fast', name: '고삐 당기기', description: '워워! 뒤에서 고삐를 확 잡아챈다.\n속력 -35%, 4초', rarity: 'common', targetType: 'fastest2', effectType: 'speedMult', value: -0.35, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🪢', visual: 'siren' },
   { id: 'fat_strike', name: '뚱보들의 역습', description: '무거운 몸에 무게를 실어 밀고 나간다.\n속력 +35%, 4초', rarity: 'rare', targetType: 'heaviest2', effectType: 'speedMult', value: 0.35, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🐷', visual: 'jiggle' },
   { id: 'light_feather', name: '헬륨 가스', description: '몸은 빵빵해지지만 몸무게는 절반! 둥실둥실.\n속력 +19%, 5초', rarity: 'common', targetType: 'heaviest2', effectType: 'weightMult', value: 0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🎈', visual: 'balloon' },
   { id: 'stamina_sap', name: '헉헉 방전', description: '헉… 헉… 너무 달렸다.\n지구력 25% 감소', rarity: 'rare', targetType: 'mostStamina2', effectType: 'staminaDrainPct', value: 25, durationMs: 0, allowedPhases: ALL_PHASES, hostile: true, emoji: '😮‍💨', visual: 'lowbat', visualMs: 2600 },
@@ -75,7 +75,7 @@ export const AUGMENTS: AugmentDefinition[] = [
   { id: 'carrot_rod', name: '당근 낚싯대', description: '눈앞에 당근이 매달렸다. 끝내 못 먹고 허탈해한다.\n속력 +50%, 5초. 끝나면 정지 0.8초', rarity: 'rare', targetType: 'single', effectType: 'carrotRod', value: 0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🎣', anim: 'boost', visual: 'carrot' },
   { id: 'sneeze_relay', name: '재채기 릴레이', description: '에취! 재채기가 뒤따르는 말에게 옮는다.\n속력 -40%, 2.5초. 끝나면 한 등수 뒤 말도 속력 -40%, 2.5초', rarity: 'common', targetType: 'single', effectType: 'sneeze', value: -0.4, durationMs: 2500, allowedPhases: ALL_PHASES, hostile: true, emoji: '🤧', anim: 'slow', visual: 'sneeze' },
   { id: 'short_course', name: '결승선 당기기', description: '누가 결승선을 옮겨 놨다.\n결승선이 코스의 80% 지점으로 당겨짐', rarity: 'legendary', targetType: 'all', effectType: 'finishLine', value: 0.8, durationMs: 0, allowedPhases: [1, 2, 3], hostile: false, emoji: '🏁', visual: 'surprise', visualMs: 900 },
-  { id: 'musical_chairs', name: '자리 뽑기', description: '모두 제비를 뽑아 자리를 바꾼다.\n달리는 말 전부의 위치를 무작위로 섞음', rarity: 'legendary', targetType: 'all', effectType: 'shuffleAll', value: 0, durationMs: 0, allowedPhases: [1, 2, 3, 4], hostile: true, emoji: '🎲', visual: 'swap', visualMs: 1000, drawWeight: 0.5 },
+  { id: 'musical_chairs', name: '자리 뽑기', description: '모두 제비를 뽑아 자리를 바꾼다.\n달리는 말 전부의 위치를 무작위로 섞음', rarity: 'legendary', targetType: 'all', effectType: 'shuffleAll', value: 0, durationMs: 0, allowedPhases: [1, 2, 3, 4], hostile: true, emoji: '🎲', visual: 'lottery', visualMs: 1400, drawWeight: 0.5 },
 
   // ---------- 코믹 변신 (기획서 외 추가) — 효과는 단순하지만 말의 모습이 바뀐다 ----------
   { id: 'cool_shades', name: '간지 폭발', description: '선글라스를 쓴다.\n속력 +20%, 5초', rarity: 'common', targetType: 'single', effectType: 'speedMult', value: 0.2, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🕶️', visual: 'shades' },

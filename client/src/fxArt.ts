@@ -375,6 +375,10 @@ const ART: Record<string, Draw> = {
   '싫어!': sound('싫어!', '#ff6b6b'),
   '슉!': sound('슉!', '#ffffff', -0.2),
   쿵: sound('쿵', '#ced4da', 0.15),
+  '뽁!': sound('뽁!', '#d0ebff', 0.1), // 뽁뽁이 갑옷이 터질 때
+  '워워!': sound('워워!', '#ffd43b'), // 고삐 당기기
+  // 자리 뽑기: 뽑은 등수
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [`${n}등!`, sound(`${n}등!`, n === 1 ? '#ffd43b' : n === 6 ? '#ced4da' : '#ffffff', 0)])),
   '💢': anger,
   '⚡': bolt,
   '✨': sparkle,

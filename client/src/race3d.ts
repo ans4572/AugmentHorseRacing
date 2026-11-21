@@ -164,6 +164,8 @@ interface Rig {
   /** 증강 소품 (스포트라이트, 쇠공, 머리띠, 메달 등). 처음 쓸 때 만들고 이름으로 찾는다 */
   props: Record<string, THREE.Object3D>;
   bubbles: THREE.Group;
+  /** 뽁뽁이를 감은 시각(elapsed). 감기는 동작에 쓴다 */
+  bubbleAt: number;
   eyes: THREE.Object3D[];
   flame: THREE.Mesh;
   shadow: THREE.Mesh;
@@ -902,6 +904,18 @@ export class Race3DView {
       const ear = part(GEO.cone, coat, head, [-0.14, 0.45 + earH / 2, side * 0.27], [0.13, earH, 0.13], 0.12);
       ear.rotation.x = side * 0.25;
     }
+    // 두 눈 사이를 잇는 띠(안경테·가면)는 이마를 따라 얼굴 앞으로 둥글게 감는다.
+    // 곧은 막대 하나로 이으면 가운데가 둥근 머리 속에 묻혀, 앞에서 보면 양 끝만 떠 있다
+    const browBand = (add: (x: number, z: number, len: number, rotY: number) => void): void => {
+      const SEGS = 10;
+      const HALF = 1.1; // 눈 옆(알·가면 안쪽)까지 닿는 각도 (rad)
+      const at = (t: number): [number, number] => [Math.cos(t) * 0.675, Math.sin(t) * 0.61];
+      for (let i = 0; i < SEGS; i++) {
+        const [x0, z0] = at(-HALF + (i / SEGS) * 2 * HALF);
+        const [x1, z1] = at(-HALF + ((i + 1) / SEGS) * 2 * HALF);
+        add((x0 + x1) / 2, (z0 + z1) / 2, Math.hypot(x1 - x0, z1 - z0) * 1.15, Math.atan2(x1 - x0, z1 - z0));
+      }
+    };
     const faceId = faceItem?.id;
     if (faceId === 'face_blush') {
       // 볼터치: 진한 분홍 볼에 반짝 하이라이트
@@ -941,7 +955,9 @@ export class Race3DView {
         const tie = part(GEO.box, black, head, [-0.66, 0.08, side * 0.1], [0.05, 0.3, 0.07], 0);
         tie.rotation.x = side * 0.45;
       }
-      part(GEO.box, black, head, [0.48, 0.2, 0], [0.12, 0.12, 0.8], 0.06);
+      browBand((x, z, len, rotY) => {
+        part(GEO.box, black, head, [x, 0.2, z], [0.05, 0.13, len], 0.06).rotation.y = rotY;
+      });
     }
     // 앞머리 + 갈기
     part(GEO.sphere, dark, head, [0.14, 0.56, 0], [0.26, 0.2, 0.24], 0.1);
@@ -1057,10 +1073,14 @@ export class Race3DView {
       lens.position.set(0.3, 0.12, side * 0.53);
       shades.add(lens);
     }
-    const bridge = new THREE.Mesh(GEO.box, shadeMat);
-    bridge.scale.set(0.07, 0.06, 1.0);
-    bridge.position.set(0.52, 0.16, 0);
-    shades.add(bridge);
+    // 두 알을 잇는 테
+    browBand((x, z, len, rotY) => {
+      const seg = new THREE.Mesh(GEO.box, shadeMat);
+      seg.scale.set(0.05, 0.07, len);
+      seg.position.set(x, 0.15, z);
+      seg.rotation.y = rotY;
+      shades.add(seg);
+    });
     shades.visible = false;
     head.add(shades);
     // 갈기: 목 뒤쪽을 따라 붙인다 (목이 늘어나면 함께 벌어진다)
@@ -1228,6 +1248,7 @@ export class Race3DView {
       props: {},
       note: null,
       bubbles,
+      bubbleAt: 0,
       eyes,
       flame,
       shadow,
@@ -1633,6 +1654,57 @@ export class Race3DView {
     }
     p.visible = on;
     return on ? p : null;
+  }
+
+  /** 고삐 당기기: 입에 물린 재갈에서 뒤쪽 위로 뻗는 고삐와, 그 끝을 쥔 흰 장갑 */
+  private buildRein(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    const leather = new THREE.MeshToonMaterial({ color: 0x7a4a24 });
+    const from: [number, number] = [0.62, -0.2];
+    const to: [number, number] = [-2.3, 0.95];
+    const len = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    const ang = Math.atan2(to[1] - from[1], to[0] - from[0]) - Math.PI / 2;
+    for (const side of [1, -1]) {
+      // 양 볼에서 나와 장갑에서 만나는 두 가닥
+      const strap = new THREE.Mesh(GEO.cylLo, leather);
+      strap.scale.set(0.045, len, 0.045);
+      strap.position.set((from[0] + to[0]) / 2, (from[1] + to[1]) / 2, side * 0.2);
+      strap.rotation.z = ang;
+      strap.rotation.x = side * -0.14;
+      g.add(strap);
+    }
+    const bit = new THREE.Mesh(GEO.cylLo, new THREE.MeshToonMaterial({ color: 0xadb5bd }));
+    bit.scale.set(0.04, 0.84, 0.04);
+    bit.rotation.x = Math.PI / 2;
+    bit.position.set(from[0], from[1], 0);
+    g.add(bit);
+    const glove = new THREE.Mesh(GEO.sphereLo, new THREE.MeshToonMaterial({ color: 0xffffff }));
+    glove.scale.set(0.3, 0.26, 0.26);
+    glove.position.set(to[0], to[1], 0);
+    g.add(glove);
+    const cuff = new THREE.Mesh(GEO.cylLo, new THREE.MeshToonMaterial({ color: 0xe03131 }));
+    cuff.scale.set(0.2, 0.16, 0.2);
+    cuff.rotation.z = ang;
+    cuff.position.set(to[0] - 0.26, to[1] + 0.1, 0);
+    g.add(cuff);
+    r.head.add(g);
+    return g;
+  }
+
+  /** 자리 뽑기: 입에 문 제비 한 장 */
+  private buildLotSlip(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    g.position.set(0.9, -0.22, 0);
+    const paper = new THREE.Mesh(GEO.box, new THREE.MeshToonMaterial({ color: 0xfff9db }));
+    paper.scale.set(0.5, 0.34, 0.03);
+    paper.position.set(0.22, 0, 0);
+    g.add(paper);
+    const mark = new THREE.Mesh(GEO.box, new THREE.MeshBasicMaterial({ color: 0xe03131 }));
+    mark.scale.set(0.2, 0.1, 0.05);
+    mark.position.set(0.28, 0, 0);
+    g.add(mark);
+    r.head.add(g);
+    return g;
   }
 
   /** 될놈될: 하늘에서 내려오는 노란 빛기둥과 바닥의 동그란 빛 */
@@ -2107,6 +2179,9 @@ export class Race3DView {
     const sitting = flipK != null && !flipping;
     const warpK = oneShot('warp');
     const swapK = oneShot('swap');
+    const lotK = oneShot('lottery'); // 자리 뽑기: 앞 60%는 뱅글뱅글 섞이고, 나머지는 뽑은 제비를 들어 보인다
+    const LOT_MIX = 0.6;
+    const lotMixing = lotK != null && lotK < LOT_MIX;
     const lowbat = vis.has('lowbat');
     const siren = vis.has('siren');
     r.cross = ease(r.cross, vis.has('poop') ? 1 : 0, 8);
@@ -2412,6 +2487,18 @@ export class Race3DView {
       y += Math.sin(Math.PI * swapK) * 3.2;
       flipAng = swapK * Math.PI * 2;
     }
+    if (lotK != null) {
+      // 자리 뽑기: 섞이는 동안 콩콩 뛰고, 제비를 뽑으면 한 번 폴짝
+      y += lotMixing ? Math.abs(Math.sin(lotK * Math.PI * 7)) * 0.45 : Math.sin(Math.PI * Math.min(1, (lotK - LOT_MIX) / 0.25)) * 0.7;
+    }
+    // 고삐 당기기: 0.8초에 한 번 뒤에서 확 잡아챈다 (0→1로 당겨졌다가 풀린다)
+    const yankPh = siren ? (t * 1.25 + r.info.id * 0.37) % 1 : 1;
+    const yank = siren ? Math.max(0, 1 - yankPh / 0.45) : 0;
+    if (siren) {
+      // 앞이 들리며 뒷다리로 버틴다
+      pitch += 0.1 + yank * 0.22;
+      y += yank * 0.12;
+    }
     if (lowbat) y = 0;
     // ---- 새 카드의 몸 동작 ----
     if (whistle) {
@@ -2591,14 +2678,15 @@ export class Race3DView {
     const mate = pairing ? snap?.effects.find((e) => e.link != null && AUGMENT_BY_ID[e.defId]?.visual === 'pair')?.link : undefined;
     const towardMate = mate != null ? Math.sign(r.info.id - mate) * 0.32 : 0;
     r.pairTurn = ease(r.pairTurn, towardMate, 6);
-    r.root.rotation.y = r.facing + r.spin + r.pairTurn + (disco ? Math.sin(t * 6) * 0.7 : 0);
+    // 자리 뽑기: 섞이는 동안 팽이처럼 세 바퀴 돌고 제자리로 돌아온다 (끝에서 속도가 줄어든다)
+    const lotSpin = lotMixing ? (1 - Math.pow(1 - lotK! / LOT_MIX, 2)) * Math.PI * 6 : 0;
+    r.root.rotation.y = r.facing + r.spin + r.pairTurn + lotSpin + (disco ? Math.sin(t * 6) * 0.7 : 0);
 
     // 머리 끄덕임 / 처짐 (몸을 세워도 앞을 보도록 되돌린다)
     let droop = 0;
     if (anim === 'tired' || anim === 'slow') droop = -0.32;
     if (anim === 'stunned') droop = -0.6;
     if (anim === 'boost') droop = 0.12;
-    if (siren) droop = -0.55; // 딱지 끊기고 풀이 죽었다
     if (lowbat) droop = -0.8;
     let headTarget = droop + Math.sin(r.phase + 0.8) * 0.08 * runAmt - theta * 0.75;
     if (disco) headTarget = Math.sin(t * 10) * 0.25;
@@ -2620,6 +2708,8 @@ export class Race3DView {
     if (gulping) headTarget = 1.0 + Math.sin(t * 14) * 0.07; // 꿀꺽꿀꺽
     if (stonks) headTarget = 0.3 + Math.sin(t * 4) * 0.05; // 턱을 치켜들고 으쓱
     if (rain) headTarget = -0.45 + Math.sin(t * 3) * 0.04; // 비 맞은 강아지
+    if (siren) headTarget = 0.3 + yank * 0.55; // 고삐에 끌려 고개가 뒤로 젖혀진다
+    if (lotK != null && !lotMixing) headTarget = 0.4; // 뽑은 제비를 치켜든다
     if (zap > 0) headTarget = 0.5;
     if (wind > 0) headTarget = headTarget * (1 - wind) + (0.25 + Math.sin(t * 17) * 0.08) * wind; // 바람에 고개가 젖혀진다
     if (foe) headTarget = -0.2; // 황소처럼 고개를 숙이고 노려본다
@@ -2707,7 +2797,7 @@ export class Race3DView {
     else if (anim === 'tired' || anim === 'slow') eyeScale = 0.55;
     if (jitter) eyeScale = 1.55; // 카페인으로 눈이 번쩍
     if (lowbat) eyeScale = 0.28;
-    if (whistle || carrot || cheering || surpriseK != null) eyeScale = 1.5; // 눈이 휘둥그레
+    if (whistle || carrot || cheering || surpriseK != null || yank > 0.3 || (lotK != null && !lotMixing)) eyeScale = 1.5; // 눈이 휘둥그레
     if (carrying || annoyed || sulk) eyeScale = 0.4; // 찡그린다
     if (tailbite) eyeScale = 1.6; // 아야!
     if (sniff || rage || booed) eyeScale = 0.4; // 집중 / 노려봄 / 시무룩
@@ -2770,8 +2860,27 @@ export class Race3DView {
     // 방어막은 뽁뽁이로 보여 준다
     const shielded = (snap?.shield ?? 0) > 0;
     if (shielded !== (r.bubbles.parent !== null)) {
-      if (shielded) (r.bubbles.userData.home as THREE.Object3D).add(r.bubbles);
-      else r.bubbles.removeFromParent();
+      if (shielded) {
+        (r.bubbles.userData.home as THREE.Object3D).add(r.bubbles);
+        r.bubbleAt = t;
+      } else {
+        r.bubbles.removeFromParent();
+        // 방해를 막고 터졌다: 뽁! 뽁! 뽁! (경주가 끝나 사라질 때는 조용히 없어진다)
+        if (snap && !snap.finished) {
+          const bx = r.root.position.x;
+          const bz = r.root.position.z;
+          for (let n = 0; n < 3; n++) this.spawnEmoji('뽁!', bx + (n - 1) * 0.9, 2.3 * s + (n % 2) * 0.5, bz + 0.5, 1.0 - n * 0.1, 1.4 + n * 0.5);
+          for (let n = 0; n < 9; n++) this.spawnEmoji(n % 3 === 0 ? '💥' : '🫧', bx + (Math.random() - 0.5) * 2.6, 1.2 * s + Math.random() * 1.8, bz + (Math.random() - 0.5) * 1.2, 0.5 + Math.random() * 0.5, 0.8 + Math.random() * 1.6);
+        }
+      }
+    }
+    if (shielded) {
+      // 둘둘 감는다: 0.45초 동안 부풀어 올랐다가(살짝 넘쳤다가) 자리 잡고, 그 뒤로는 숨 쉬듯 말랑거린다
+      const wrapK = Math.min(1, (t - r.bubbleAt) / 0.45);
+      const back = 1 + 2.2 * Math.pow(wrapK - 1, 3) + 1.2 * Math.pow(wrapK - 1, 2);
+      const squish = Math.sin(t * 9 + r.info.id) * 0.03;
+      r.bubbles.scale.set(back * (1 + squish), back * (1 - squish), back * (1 + squish));
+      r.bubbles.position.y = 1.15 * (1 - back * (1 - squish)); // 몸통 가운데(높이 1.15)를 기준으로 커진다
     }
     const airborne = flying || r.inflate > 0.5;
     const shadowScale = (airborne ? 0.7 : 1) * s;
@@ -2801,7 +2910,27 @@ export class Race3DView {
       if (r.buff > 0.5) pop(4, ['💪', '🥕', '💦'], X + rnd(1.2), 3.2 * s, 0.85); // 득근: 당근 단백질의 힘
       if (lowbat) pop(4, ['💦', '😮‍💨'], headX, headY + 0.9, 0.8, 0.7); // 헉헉 방전
       if (nap) pop(3, ['💤', '🍚'], X + 0.6, 2.4, 0.9, 0.9); // 식곤증: 밥 먹고 꿀잠
-      if (siren) pop(4, ['🪢', '✋'], headX, headY + 1.0, 0.8, 0.8); // 고삐 당기기
+      if (siren) {
+        // 고삐 당기기: 잡아챌 때마다 워워!
+        if (beat('yank', 1.25)) this.spawnEmoji('워워!', headX - 0.6, headY + 1.2, Z + 0.5, 1.6, 0.8);
+        pop(3, ['💦', '😵'], headX, headY + 0.9, 0.7, 0.8);
+      }
+      const rein = this.prop(r, 'rein', siren, () => this.buildRein(r));
+      if (rein) {
+        // 당길 때는 팽팽하게 뒤로 끌려가고, 풀리면 느슨하게 처진다
+        rein.rotation.z = 0.08 - yank * 0.22 + Math.sin(t * 23) * 0.015 * (1 - yank);
+        rein.position.x = -yank * 0.14;
+      }
+      if (lotK != null) {
+        // 자리 뽑기: 섞이는 동안 제비가 사방으로 날리고, 뽑고 나면 자기 등수를 외친다
+        if (lotMixing) pop(7, ['🎲', '📄', '❓', '💨'], X + rnd(2.2), r.inner.position.y + 1.4 + rnd(1.6), 0.8, 1.2);
+        else if (r.fxStart.lotShown !== r.fxStart.lottery && snap) {
+          r.fxStart.lotShown = r.fxStart.lottery;
+          this.spawnEmoji(`${snap.rank}등!`, headX + 0.6, headY + 1.2, Z + 0.6, 2.0, 0.5);
+        }
+      }
+      const slip = this.prop(r, 'lotSlip', lotK != null && !lotMixing, () => this.buildLotSlip(r));
+      if (slip) slip.rotation.z = Math.sin(t * 16) * 0.25;
       if (vis.has('eat')) pop(5, ['🥕', '😋'], headX + 0.5, headY - 0.2, 0.7, 0.9); // 당근 먹방
       if (disco) pop(7, ['🎵', '🎶', '🪩'], X + rnd(2), 3.2, 0.8); // 디스코 타임
       if (whistle) {

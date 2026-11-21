@@ -252,7 +252,7 @@ export type AugmentVisual =
   | 'flip' // 공중제비 후 엉덩방아
   | 'lowbat' // 뚝뚝 끊기다 고개를 떨굼
   | 'warp' // 납작하게 눌렸다가 길게 늘어남
-  | 'siren' // 머리에 경광등
+  | 'siren' // 고삐 당기기: 뒤에서 고삐를 잡아채 고개가 젖혀진다 (예전 이름 '과속 단속'의 열쇠말을 그대로 쓴다)
   | 'tailbite' // 꼬리를 물려 뒤로 당겨지고 앞발만 헛돈다
   | 'sniff' // 코를 땅에 박고 킁킁대며 달린다
   | 'rage' // 얼굴이 시뻘게지고 머리에서 김이 난다
@@ -266,7 +266,8 @@ export type AugmentVisual =
   | 'jiggle' // 뱃살이 출렁이며 쿵쿵 뒤뚱뒤뚱 달린다
   | 'sugar' // 하늘에서 각설탕이 떨어져 입에 쏙
   | 'chug' // 고개를 젖혀 벌컥벌컥 마시고 배가 볼록해진다
-  | 'swap'; // 하늘로 솟았다가 떨어짐
+  | 'swap' // 하늘로 솟았다가 떨어짐
+  | 'lottery'; // 자리 뽑기: 뱅글뱅글 돌다가 뽑은 제비(등수)를 들어 보인다
 
 export interface AugmentCardView {
   cardKey: string; // 이 제시(offer)에만 유효한 고유 키

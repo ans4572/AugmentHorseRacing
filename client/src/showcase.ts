@@ -45,6 +45,8 @@ export function startShowcase(): void {
 
   const view = new Race3DView(document.getElementById('race-canvas')!);
   view.setupRace(horses);
+  // 개발 중 확인용: 실제 경주 화면과 같은 이름으로 꺼내 둔다
+  if (import.meta.env.DEV) (window as unknown as { __race3d?: Race3DView }).__race3d = view;
   // ?showcase=side 처럼 시점을 고를 수 있다 (기본: 측면)
   const wanted = new URLSearchParams(location.search).get('showcase') || 'side';
   const order = ['broadcast', 'side', 'chase', 'top'];

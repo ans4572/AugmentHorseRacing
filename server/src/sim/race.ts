@@ -180,7 +180,7 @@ export class RaceSim {
         0.8,
         (4 + h.info.stats.accel * 0.1) * (500 / effWeight) * accelMult
       );
-      // 증강으로 무거워지면 최고 속력도 줄고, 가벼워지면 는다 (몸무게 절반 ≈ +19%, 3배 ≈ -24%)
+      // 증강으로 무거워지면 최고 속력도 줄고, 가벼워지면 는다 (몸무게 절반 ≈ +19%, 2.5배 ≈ -20%, 3배 ≈ -24%)
       const weightSpeedFactor = clamp(Math.pow(weightRatio, -0.25), 0.7, 1.25);
       // 증강에 의한 최종 속력 배율은 모두 합쳐 0.2~2.0배 안에서만 움직인다
       const totalMult = clamp(speedMult * weightSpeedFactor, SPEED_MULT_MIN, SPEED_MULT_MAX);
@@ -609,9 +609,9 @@ export class RaceSim {
           break;
         }
         case 'rankBasedSpeed': {
-          // 적용 시점 순위에 따라 +20% ~ +45%
+          // 적용 시점 순위에 따라 +30% ~ +45% (1등이 써도 같은 골드의 다른 강화 카드에 크게 밀리지 않게)
           const rank = this.currentRanking().indexOf(id) + 1;
-          const bonus = 0.2 + (rank - 1) * 0.05;
+          const bonus = 0.3 + (rank - 1) * 0.03;
           h.effects.push({ ...this.makeEffect(def), effectType: 'speedMult', value: bonus });
           break;
         }

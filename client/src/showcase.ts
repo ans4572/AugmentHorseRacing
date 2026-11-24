@@ -11,7 +11,12 @@ import { playCardSfx } from './cardSfx';
 const BREEDS: HorseBreed[] = ['horse', 'zebra', 'unicorn', 'donkey', 'cow', 'zebra'];
 /** ?showcase&cards=a,b,c 로 보고 싶은 카드만 고를 수 있다 */
 const PICKED = new URLSearchParams(location.search).get('cards');
-const CARDS = PICKED ? PICKED.split(',') : [
+/**
+ * 고르기 막대: 주소에 ?… 를 붙일 수 없는 곳(공유용 페이지)에 올릴 때 쓴다.
+ * VITE_SHOWCASE_PICKER=카드1,카드2 로 빌드하면 쇼케이스가 바로 열리고, 화면 아래 단추로 카드를 고른다.
+ */
+const PICKER: string[] = (import.meta.env.VITE_SHOWCASE_PICKER as string | undefined)?.split(',') ?? [];
+let CARDS = PICKER.length ? [PICKER[0]] : PICKED ? PICKED.split(',') : [
   'banana_peel', 'poop_signal', 'stamina_sap', 'teleport', 'muscle_awakening', 'catch_fast', 'extreme_swap', 'shield',
   'rocket_booster', 'sudden_sleep', 'reverse_instinct', 'stamina_steal', 'energy_drink', 'angel_wings',
   'bipedal', 'pony_morph', 'giraffe_neck', 'balloon_horse', 'giant_horse', 'paper_horse',
@@ -20,9 +25,17 @@ const CARDS = PICKED ? PICKED.split(',') : [
   'first_suffering', 'mukbang', 'leg_tangle', 'popular_tragedy', 'light_feather',
   'front_check', 'last_spurt', 'last_miracle', 'popularity_crash', 'infinite_stamina',
   'odd_bless', 'odd_curse', 'even_curse', 'unpopular_rebellion', 'rival_duel', 'front_fatigue', 'fat_strike',
-  'back_recover', 'slow_cheer', 'escape_last'
+  'back_recover', 'slow_cheer', 'escape_last',
+  'back_smash', 'all_or_nothing', 'spicy_carrot', 'whip_crack', 'hurdle_set'
 ];
+/** 걸린 순간부터 차례로 진행하는 연출 — 실제처럼 남은 시간이 줄어들게 보여 준다 */
+const TIMED_VISUALS = new Set(['flip', 'smack', 'yut', 'spicy', 'whip', 'hurdle']);
 const STEP_MS = 3200;
+/** 고르기 막대 화면의 확대 배율 */
+const ZOOM = 1.6;
+let LOSE = new URLSearchParams(location.search).has('lose');
+/** ?bystander 를 붙이면 카드의 주인공이 아닌 쪽(허들을 넘는 말, 당근만 먹는 말)을 본다 */
+let BYSTANDER = new URLSearchParams(location.search).has('bystander');
 
 export function startShowcase(): void {
   document.querySelectorAll<HTMLElement>('.screen').forEach((el) => {
@@ -35,7 +48,9 @@ export function startShowcase(): void {
   const phaseEl = document.getElementById('top-phase')!;
   document.getElementById('top-coins')!.textContent = '';
 
-  const horses: HorseInfo[] = BREEDS.map((breed, i) => ({
+  // 고르기 막대를 쓰는 화면은 폰 세로로 보므로 세 마리만 가까이 세운다
+  const gap = PICKER.length ? 9 : 10;
+  const horses: HorseInfo[] = (PICKER.length ? BREEDS.slice(0, 3) : BREEDS).map((breed, i) => ({
     id: i + 1,
     name: BREED_INFO[breed].label,
     color: HORSE_COLORS[i],
@@ -52,17 +67,29 @@ export function startShowcase(): void {
   const order = ['broadcast', 'side', 'chase', 'top'];
   for (let i = 0; i < Math.max(0, order.indexOf(wanted)); i++) view.cycleViewMode();
 
-  view.setCameraTarget(4);
+  view.setCameraTarget(PICKER.length ? 2 : 4);
+  if (PICKER.length) {
+    // 폰 세로 화면에서는 말이 작게 잡혀 연출이 안 보인다. 렌즈만 당겨서 크게 본다 (경주 화면의 카메라는 건드리지 않는다)
+    const cam = (view as unknown as { camera: { zoom: number; updateProjectionMatrix(): void } }).camera;
+    cam.zoom = ZOOM;
+    cam.updateProjectionMatrix();
+  }
 
   if (new URLSearchParams(location.search).has('motions')) {
     runMotionDemo(view, horses, phaseEl);
     return;
   }
 
-  const start = performance.now();
+  let start = performance.now();
+  let lastStep = -1;
+  const picker = PICKER.length ? buildPicker(() => { start = performance.now(); lastStep = -1; }) : null;
   setInterval(() => {
     const elapsed = performance.now() - start;
     const step = Math.floor(elapsed / STEP_MS);
+    if (step !== lastStep) {
+      lastStep = step;
+      picker?.onStep();
+    }
     const pos = 60 + ((elapsed / 1000) * 14) % 860;
     // 정지·역주행 카드는 실제 게임처럼 제자리에 서거나 뒤로 가게 보여 준다
     const stepStartPos = 60 + (((step * STEP_MS) / 1000) * 14) % 860;
@@ -70,7 +97,7 @@ export function startShowcase(): void {
     const names: string[] = [];
     const snaps: HorseSnapshot[] = horses.map((h, i) => {
       const def = AUGMENT_BY_ID[CARDS[(step + i * 3) % CARDS.length]];
-      names.push(`${h.id}번 ${def.emoji}${def.name}`);
+      if (!picker || i === 0) names.push(picker ? `${def.emoji} ${def.name}` : `${h.id}번 ${def.emoji}${def.name}`);
       let anim: HorseSnapshot['anim'] = def.anim ?? 'run';
       if (def.effectType === 'stop') anim = 'stunned';
       if (def.effectType === 'fly') anim = 'flying';
@@ -79,7 +106,7 @@ export function startShowcase(): void {
         // 옆으로 벌려 세워 한 화면에 모두 보이게 한다
         pos:
           (anim === 'stunned' ? stepStartPos : anim === 'reverse' ? stepStartPos - stepSec * 10 : pos) +
-          (def.visual === 'ride' && i > 0 ? i - 1 : i) * 10 - (def.visual === 'ride' && i > 0 ? 0.5 : 0),
+          (def.visual === 'ride' && i > 0 ? i - 1 : i) * gap - (def.visual === 'ride' && i > 0 ? 0.5 : 0),
         speed: anim === 'stunned' ? 0 : 16,
         rank: i + 1,
         finished: false,
@@ -88,9 +115,10 @@ export function startShowcase(): void {
         anim,
         // 한 번 재생하는 연출(공중제비·워프 등)은 실제처럼 남은 시간이 줄어든다
         effects:
-          def.visualMs || def.visual === 'flip'
+          def.visualMs || TIMED_VISUALS.has(def.visual ?? '')
             ? stepSec * 1000 < (def.visualMs || def.durationMs)
-              ? [{ defId: def.id, emoji: def.emoji, hostile: def.hostile, remainMs: (def.visualMs || def.durationMs) - stepSec * 1000 }]
+              // ?lose 를 붙이면 '모 아니면 도'의 꽝(도) 쪽을 본다
+              ? [{ defId: def.id, emoji: def.emoji, hostile: def.hostile || (def.effectType === 'gamble' && LOSE), remainMs: (def.visualMs || def.durationMs) - stepSec * 1000, ...(BYSTANDER ? { quiet: true } : {}) }]
               : []
             : [{ defId: def.id, emoji: def.emoji, hostile: def.hostile, remainMs: 1000, ...(def.visual === 'ride' && i > 0 ? { link: h.id - 1 } : {}) }],
         shield: def.effectType === 'shield' ? 1 : 0
@@ -99,6 +127,108 @@ export function startShowcase(): void {
     phaseEl.textContent = names.join(' · ');
     view.pushState(snaps);
   }, 100);
+}
+
+/** 결과가 둘로 갈리는 카드: [기본 쪽 이름, 다른 쪽 이름] */
+const VARIANTS: Record<string, [string, string]> = {
+  all_or_nothing: ['모 (성공)', '도 (꽝)'],
+  spicy_carrot: ['걸린 말', '안 걸린 말'],
+  hurdle_set: ['걸린 말', '넘는 말']
+};
+
+/** 화면 아래 고르기 막대: 카드, 갈리는 결과, 소리. 고르면 restart 로 연출을 처음부터 다시 튼다 */
+function buildPicker(restart: () => void): { onStep: () => void } {
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:50;background:#1a2150;color:#fff;font:700 14px/1.45 "Pretendard",system-ui,sans-serif;padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px';
+  const desc = document.createElement('div');
+  desc.style.cssText = 'font-weight:500;color:#c9d2ff;min-height:2.9em';
+  const row = (): HTMLDivElement => {
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
+    return el;
+  };
+  const chip = (label: string): HTMLButtonElement => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.style.cssText = 'font:800 14px "Pretendard",system-ui,sans-serif;border:2px solid #fff;border-radius:4px;padding:9px 11px;cursor:pointer;white-space:nowrap';
+    return b;
+  };
+  const paint = (b: HTMLButtonElement, on: boolean): void => {
+    b.style.background = on ? '#ffe23f' : 'transparent';
+    b.style.color = on ? '#1a2150' : '#fff';
+    b.setAttribute('aria-pressed', String(on));
+  };
+  const cardRow = row();
+  const optRow = row();
+  bar.append(desc, cardRow, optRow);
+  document.body.appendChild(bar);
+
+  let ac: AudioContext | null = null;
+  let soundOn = false;
+  let other = false;
+  const playNow = (): void => {
+    if (!ac || !soundOn) return;
+    // 게임과 같이 녹음 효과음을 먼저 쓰고, 녹음을 못 받으면 합성음을 낸다
+    const card = CARDS[0];
+    const clip = new Audio(`${import.meta.env.BASE_URL}sfx/${card}.mp3`);
+    clip.volume = 0.9;
+    clip.play().catch(() => {
+      if (!ac) return;
+      const out = ac.createGain();
+      out.gain.value = 0.9;
+      out.connect(ac.destination);
+      playCardSfx(card, ac, out, ac.currentTime + 0.03);
+    });
+  };
+  const soundBtn = chip('소리 켜기');
+  soundBtn.onclick = () => {
+    soundOn = !soundOn;
+    if (soundOn) {
+      ac ??= new AudioContext();
+      void ac.resume();
+    }
+    soundBtn.textContent = soundOn ? '소리 끄기' : '소리 켜기';
+    paint(soundBtn, soundOn);
+    if (soundOn) restart();
+  };
+  paint(soundBtn, false);
+
+  const cardBtns = PICKER.map((id) => {
+    const def = AUGMENT_BY_ID[id];
+    const b = chip(`${def.emoji} ${def.name}`);
+    b.onclick = () => {
+      CARDS = [id];
+      other = false;
+      render();
+      restart();
+    };
+    cardRow.appendChild(b);
+    return b;
+  });
+
+  const render = (): void => {
+    const id = CARDS[0];
+    const def = AUGMENT_BY_ID[id];
+    cardBtns.forEach((b, i) => paint(b, PICKER[i] === id));
+    desc.textContent = def.description.replace(/\n/g, ' ');
+    LOSE = id === 'all_or_nothing' && other;
+    BYSTANDER = id !== 'all_or_nothing' && other;
+    optRow.replaceChildren();
+    VARIANTS[id]?.forEach((label, i) => {
+      const b = chip(label);
+      paint(b, other === (i === 1));
+      b.onclick = () => {
+        other = i === 1;
+        render();
+        restart();
+      };
+      optRow.appendChild(b);
+    });
+    optRow.appendChild(soundBtn);
+  };
+  render();
+  return { onStep: playNow };
 }
 
 /** 새 카드 9장의 동작 시안: 한 장면에 한 카드씩, 누가 어떤 동작을 하는지 글로 함께 보여 준다 */

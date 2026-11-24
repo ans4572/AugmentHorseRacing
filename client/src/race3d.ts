@@ -1342,7 +1342,8 @@ export class Race3DView {
           if (side) r.vis.add(side);
           continue;
         }
-        if (v) r.vis.add(v);
+        // 모 아니면 도: 꽝(도)은 방해 효과로 오므로 다른 모습을 한다
+        if (v) r.vis.add(v === 'yut' && e.hostile ? 'yutlose' : v);
       }
       r.fxList = labelFxList(snap, r.vis);
       r.fxText = r.fxList.join('');
@@ -1654,6 +1655,131 @@ export class Race3DView {
     }
     p.visible = on;
     return on ? p : null;
+  }
+
+  /**
+   * 채찍 소리: 흰 장갑이 쥔 긴 가죽 채찍. 손잡이(원점)를 축으로 휘두르고,
+   * 줄은 마디마다 꺾여서 늘어지고 감기고 펴진다 (마디는 userData.segs 에 손잡이 쪽부터 담는다)
+   */
+  private buildCrop(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    this.propPart(GEO.sphereLo, 0xffffff, g, [0, 0, 0], [0.3, 0.26, 0.26], 0.08);
+    this.propPart(GEO.cylLo, 0xe03131, g, [-0.28, 0.12, 0], [0.2, 0.16, 0.2], 0.08).rotation.z = 1.1;
+    // 손잡이: 굵은 나무 자루에 금색 고리
+    this.propPart(GEO.cylLo, 0x8a5a2b, g, [0.3, 0, 0], [0.09, 0.75, 0.09], 0.16).rotation.z = Math.PI / 2;
+    this.propPart(GEO.cylLo, 0xffc93c, g, [0.66, 0, 0], [0.11, 0.08, 0.11], 0.12).rotation.z = Math.PI / 2;
+    // 줄: 끝으로 갈수록 가늘어지는 마디를 이어 붙인다
+    const segs: THREE.Group[] = [];
+    let parent: THREE.Object3D = g;
+    for (let i = 0; i < WHIP_SEGS; i++) {
+      const joint = new THREE.Group();
+      joint.position.x = i === 0 ? 0.7 : WHIP_SEG_LEN;
+      parent.add(joint);
+      const thick = 0.07 - (i / (WHIP_SEGS - 1)) * 0.05;
+      // 마디가 꺾여도 틈이 안 보이게 조금 겹친다
+      this.propPart(GEO.cylLo, 0x3b2412, joint, [WHIP_SEG_LEN / 2, 0, 0], [thick, WHIP_SEG_LEN * 1.15, thick], 0.35).rotation.z = Math.PI / 2;
+      segs.push(joint);
+      parent = joint;
+    }
+    // 끝에 달린 밝은 술 (짝! 소리가 나는 부분)
+    this.propPart(GEO.box, 0xffe9b0, parent, [WHIP_SEG_LEN + 0.12, 0, 0], [0.26, 0.05, 0.1], 0.2);
+    g.userData.segs = segs;
+    r.root.add(g);
+    return g;
+  }
+
+  /** 장애물 설치: 빨간 줄무늬 가로대와 흰 기둥 둘. 바닥에 세우거나(크기 1) 작게 줄여 목에 건다 */
+  private buildHurdle(r: Rig, parent: THREE.Object3D, size: number): THREE.Object3D {
+    const g = new THREE.Group();
+    for (const side of [1, -1]) {
+      this.propPart(GEO.box, 0xffffff, g, [0, 0.7, side * 0.85], [0.12, 1.4, 0.12], 0.12);
+      this.propPart(GEO.box, 0xffffff, g, [0, 0.05, side * 0.85], [0.7, 0.1, 0.14], 0.1); // 받침
+    }
+    // 가로대: 흰 바탕에 빨간 띠 세 개
+    this.propPart(GEO.box, 0xffffff, g, [0, 1.3, 0], [0.14, 0.22, 1.9], 0.08);
+    for (let i = -1; i <= 1; i++) this.propPart(GEO.box, 0xe03131, g, [0, 1.3, i * 0.56], [0.16, 0.24, 0.28], 0);
+    g.scale.setScalar(size);
+    // 목에 걸 때는 가로대가 턱 밑에 오도록 올려 단다 (거꾸로 매달려 기둥이 위로 선다)
+    if (parent !== r.root) g.position.set(0.1, -0.65 + 1.3 * size, 0);
+    parent.add(g);
+    return g;
+  }
+
+  /** 등짝 스매싱: 하늘에서 내려오는 분홍 고무장갑 낀 손 (손바닥이 아래, 손가락은 말 머리 쪽) */
+  private buildSmackHand(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    const PINK = 0xff6f9c;
+    this.propPart(GEO.box, PINK, g, [0, 0, 0], [0.85, 0.2, 0.8], 0.08);
+    // 손가락 넷: 부채꼴로 쫙 펴고, 끝은 둥글게
+    const lengths = [0.52, 0.66, 0.62, 0.46];
+    for (let i = 0; i < 4; i++) {
+      const finger = new THREE.Group();
+      finger.position.set(0.36, 0, -0.3 + i * 0.2);
+      finger.rotation.y = (1.5 - i) * 0.16;
+      this.propPart(GEO.box, PINK, finger, [lengths[i] / 2, 0, 0], [lengths[i], 0.17, 0.16], 0.1);
+      this.propPart(GEO.sphereLo, PINK, finger, [lengths[i], 0, 0], [0.11, 0.09, 0.085], 0.14);
+      g.add(finger);
+    }
+    // 엄지: 옆으로 벌린다
+    const thumb = new THREE.Group();
+    thumb.position.set(-0.1, 0, 0.38);
+    thumb.rotation.y = -0.95;
+    this.propPart(GEO.box, PINK, thumb, [0.22, 0, 0], [0.44, 0.17, 0.18], 0.1);
+    this.propPart(GEO.sphereLo, PINK, thumb, [0.44, 0, 0], [0.12, 0.09, 0.095], 0.14);
+    g.add(thumb);
+    // 손목에서 팔뚝까지 올라오는 장갑 목과 노란 끝단 (손등과 일직선)
+    this.propPart(GEO.cyl, PINK, g, [-0.6, 0, 0], [0.24, 0.42, 0.2], 0.06).rotation.z = Math.PI / 2;
+    this.propPart(GEO.cyl, 0xffe066, g, [-0.86, 0, 0], [0.29, 0.14, 0.25], 0.06).rotation.z = Math.PI / 2;
+    r.root.add(g);
+    return g;
+  }
+
+  /** 등짝 스매싱: 등에 남은 빨간 손자국 (카메라가 보는 쪽 등 위에 비스듬히 붙인다) */
+  private buildSmackMark(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    g.position.set(-0.5, 1.15 + 0.23, 0.4);
+    g.rotation.x = 1.14;
+    g.scale.setScalar(1.3);
+    const RED = 0xff3b30;
+    this.propPart(GEO.sphereLo, RED, g, [0, 0, 0], [0.2, 0.05, 0.18], 0);
+    for (let i = 0; i < 4; i++) this.propPart(GEO.box, RED, g, [0.27, 0, -0.135 + i * 0.09], [0.22, 0.05, 0.06], 0);
+    const thumb = this.propPart(GEO.box, RED, g, [0.02, 0, 0.23], [0.07, 0.05, 0.16], 0);
+    thumb.rotation.y = -0.5;
+    r.body.parent!.add(g);
+    return g;
+  }
+
+  /** 모 아니면 도: 윷가락 네 개. 갈색 등이 카메라를 보고, 뒤집으면 X 표시가 그려진 흰 배가 보인다 */
+  private buildYut(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+      const stick = new THREE.Group();
+      stick.position.x = (i - 1.5) * 0.36;
+      this.propPart(GEO.box, 0x8a5a2b, stick, [0, 0, 0.03], [0.26, 0.9, 0.1], 0.08);
+      this.propPart(GEO.box, 0xfff3d6, stick, [0, 0, -0.04], [0.22, 0.84, 0.06], 0);
+      for (let k = -1; k <= 1; k++) this.propPart(GEO.box, OUTLINE_COLOR, stick, [0, k * 0.24, -0.075], [0.14, 0.04, 0.02], 0);
+      g.add(stick);
+    }
+    r.root.add(g);
+    return g;
+  }
+
+  /** 매운 당근 뽑기: 입에서 앞으로 뿜는 불 (바깥은 주황, 속은 노랑) */
+  private buildFireBreath(r: Rig): THREE.Object3D {
+    const g = new THREE.Group();
+    g.position.set(0.9, -0.22, 0);
+    const outer = new THREE.Mesh(GEO.cone, new THREE.MeshBasicMaterial({ color: 0xff6b1a, transparent: true, opacity: 0.8, depthWrite: false }));
+    outer.rotation.z = Math.PI / 2; // 뾰족한 쪽이 입, 넓은 쪽이 앞
+    outer.scale.set(0.5, 1.9, 0.5);
+    outer.position.x = 0.95;
+    g.add(outer);
+    const inner = new THREE.Mesh(GEO.cone, new THREE.MeshBasicMaterial({ color: 0xffe066 }));
+    inner.rotation.z = Math.PI / 2;
+    inner.scale.set(0.28, 1.3, 0.28);
+    inner.position.x = 0.7;
+    g.add(inner);
+    r.head.add(g);
+    return g;
   }
 
   /** 고삐 당기기: 입에 물린 재갈에서 뒤쪽 위로 뻗는 고삐와, 그 끝을 쥔 흰 장갑 */
@@ -2258,6 +2384,46 @@ export class Race3DView {
     const hayparty = vis.has('hayparty'); // 홀수 건초 파티
     const fasting = vis.has('fasting'); // 간헐적 단식
     const dawn = vis.has('dawn') && !flying; // 짝수 새벽 훈련
+    // ---- 코믹 카드 3종: 등짝 스매싱 / 모 아니면 도 / 매운 당근 뽑기 ----
+    // 카드가 걸린 뒤 흐른 시간(초). 안 걸려 있으면 -1 (구경꾼처럼 수치만 걸린 효과는 세지 않는다)
+    const fxSec = (v: AugmentVisual): number => {
+      const e = snap?.effects.find((x) => !x.quiet && AUGMENT_BY_ID[x.defId]?.visual === v);
+      if (!e) {
+        delete r.fxStart[v];
+        return -1;
+      }
+      r.fxStart[v] ??= t - Math.max(0, (AUGMENT_BY_ID[e.defId].durationMs - e.remainMs) / 1000);
+      return t - r.fxStart[v];
+    };
+    const smackT = fxSec('smack');
+    const smacked = smackT >= SMACK_HIT; // 손이 닿은 뒤
+    // 맞은 뒤: 0.07초 등이 눌리고 → 그 반동으로 0.53초 펄쩍 뛰고 → 내려앉으며 0.18초 출렁인다
+    const smackAfter = smackT - SMACK_HIT;
+    const smackOuch = smacked && smackAfter < 0.6; // 악! 하는 동안
+    const smackJump = smackAfter >= 0.07 && smackAfter < 0.6 ? Math.sin(((smackAfter - 0.07) / 0.53) * Math.PI) : 0;
+    const yutT = fxSec('yut');
+    const yutTossing = yutT >= 0 && yutT < YUT_TOSS; // 윷이 구르는 동안 올려다본다
+    const yutWin = yutT >= YUT_TOSS && vis.has('yut'); // 모: 덩실덩실
+    const yutLose = yutT >= YUT_TOSS && vis.has('yutlose'); // 도: 축 처진다
+    const spicyT = fxSec('spicy');
+    const spicyFire = spicyT >= SPICY_CHEW; // 매운맛이 올라와 불을 뿜는다
+    const munch = vis.has('munch') || (spicyT >= 0 && !spicyFire); // 당근을 오물오물 (안 걸린 말들, 걸린 말도 처음에는)
+    if (!vis.has('munch')) delete r.fxStart.munch;
+    else r.fxStart.munch ??= t;
+    const munchT = vis.has('munch') ? t - r.fxStart.munch : -1;
+    // ---- 채찍 소리 / 장애물 설치 ----
+    const whipT = fxSec('whip');
+    // 채찍은 0.15초 뒤 처음 울리고 그 뒤로 1초에 한 번. 울리는 순간 0.14초 동안 움찔한다
+    const whipC = whipT >= 0 ? (whipT + 0.85) % 1 : 1;
+    const crack = whipC < 0.14 ? Math.sin((whipC / 0.14) * Math.PI) : 0;
+    const hurdleT = fxSec('hurdle');
+    const tripping = hurdleT >= 0 && hurdleT < HURDLE_TRIP ? Math.sin((hurdleT / HURDLE_TRIP) * Math.PI) : 0; // 걸려서 고꾸라지는 순간
+    const dazed = hurdleT >= HURDLE_TRIP; // 허들을 목에 걸고 비틀비틀
+    if (!vis.has('hurdleclear')) delete r.fxStart.hclear;
+    else r.fxStart.hclear ??= t;
+    // 허들을 넘는 진행도(0~1). 넘지 않으면 -1
+    const clearK = vis.has('hurdleclear') ? Math.min(1, (t - r.fxStart.hclear) / HURDLE_JUMP) : -1;
+    const leaping = clearK >= 0 && clearK < 1;
     // 건초 폭식: 2.2초에 한 번 꺼억 (트림하는 순간 고개가 들린다)
     const burpK = hayfeast ? (t * 0.45 + r.info.id * 0.3) % 1 : 1;
     const burping = burpK < 0.1;
@@ -2269,11 +2435,11 @@ export class Race3DView {
       return prev !== undefined && prev !== n;
     };
     // 에너지 드링크: 다리가 두 배로 빨리 돈다
-    if (jitter) r.phase += dt * (2.5 + speedNorm * 13);
+    if (jitter || whipT >= 0) r.phase += dt * (2.5 + speedNorm * 13); // 채찍 소리에 놀라도 다리가 빨라진다
     r.dive = ease(r.dive, rocket ? 1 : 0, 7);
     // 한눈팔기: 고개를 옆(관중석 쪽)으로 돌린다
-    r.lookBack = ease(r.lookBack, backpedal ? 1 : vis.has('whistle') ? 0.5 : 0, 9);
-    r.droop = ease(r.droop, vis.has('droop') && !flying ? 1 : sulk ? 0.7 : sniff ? 0.6 : booed ? 0.35 : 0, 5);
+    r.lookBack = ease(r.lookBack, backpedal ? 1 : vis.has('whistle') ? 0.5 : whipT >= 0 && crack === 0 ? 0.28 : 0, 9); // 채찍 소리: 뒤를 흘끔흘끔
+    r.droop = ease(r.droop, vis.has('droop') && !flying ? 1 : sulk ? 0.7 : sniff ? 0.6 : yutLose ? 0.45 : booed ? 0.35 : 0, 5);
     const diveAng = -0.52 * r.dive; // 엉덩이를 들어 올린 각도
 
     // 변신 수치 (부드럽게 변하도록 보간)
@@ -2381,10 +2547,22 @@ export class Race3DView {
       r.legs.forEach((leg, i) => {
         const knee = r.knees[i];
         const front = i < 2;
-        if (surpriseK != null) {
+        if (surpriseK != null || smackJump > 0.12) {
           // 깜짝: 네 다리를 쫙 벌리고 뛴다
           leg.rotation.z = front ? 1.0 : -1.0;
           knee.rotation.z = -0.15;
+        } else if (leaping) {
+          // 허들 넘기: 앞다리는 앞으로, 뒷다리는 뒤로 쭉 뻗는다
+          leg.rotation.z = front ? 1.05 : -0.95;
+          knee.rotation.z = front ? -0.9 * (1 - clearK) : -0.2;
+        } else if (tripping > 0) {
+          // 허들에 걸림: 앞다리가 꺾이고 뒷다리가 들린다
+          leg.rotation.z = front ? -0.5 : -1.0;
+          knee.rotation.z = front ? -1.2 : -0.3;
+        } else if (yutWin && front) {
+          // 모: 앞다리를 번갈아 들며 덩실덩실 어깨춤
+          leg.rotation.z = 0.9 + Math.sin(t * 8 + i * Math.PI) * 0.55;
+          knee.rotation.z = -0.9 + Math.sin(t * 8 + i * Math.PI) * 0.35;
         } else if (magnet) {
           // 자석: 다리가 뒤로 쓸려 질질 끌린다
           leg.rotation.z = -1.15 + Math.sin(t * 22 + i * 1.9) * 0.14;
@@ -2598,6 +2776,60 @@ export class Race3DView {
       roll += Math.sign(foe.root.position.z - r.root.position.z) * 0.1;
       pitch -= 0.06;
     }
+    if (crack > 0) {
+      // 채찍 소리: 짝! 할 때마다 엉덩이가 움찔 튀어 오른다
+      y += crack * 0.4;
+      pitch -= crack * 0.14;
+    }
+    if (leaping) {
+      // 허들 넘기: 포물선을 그리며 뛰어오르고, 올라갈 때는 앞이 들리고 내려올 때는 숙여진다
+      y = Math.sin(Math.PI * clearK) * 1.9;
+      pitch = Math.cos(Math.PI * clearK) * 0.32;
+    }
+    if (tripping > 0) {
+      // 허들에 걸림: 코부터 고꾸라진다
+      pitch -= tripping * 0.6;
+      y += tripping * 0.35;
+    }
+    if (dazed) {
+      // 허들을 목에 건 채 비틀비틀
+      roll += Math.sin(t * 7) * 0.14;
+      pitch -= 0.06 + Math.abs(Math.sin(t * 5)) * 0.07;
+    }
+    if (smackT >= 0) {
+      // 등짝 스매싱: 맞는 순간 등이 푹 꺼졌다가 펄쩍 뛰고, 그 뒤로는 따가워서 몸을 움츠리고 내뺀다
+      if (!smacked) {
+        // 머리 위의 손을 느끼고 살짝 움츠린다
+        y -= 0.08 * Math.min(1, smackT / 0.3);
+      } else {
+        // 눌림: 닿자마자 빠르게 꺼지고, 뛰어오르면서 풀린다
+        const press = smackAfter < 0.07 ? Math.sin((smackAfter / 0.07) * (Math.PI / 2)) : Math.max(0, 1 - (smackAfter - 0.07) / 0.12);
+        y -= 0.08 + 0.4 * press;
+        pitch -= 0.1 * press; // 엉덩이 쪽이 먼저 꺼진다
+        y += smackJump * 1.5;
+        pitch += smackJump * 0.22;
+        // 착지: 한 번 출렁
+        if (smackAfter >= 0.6 && smackAfter < 0.78) y -= 0.16 * Math.sin(((smackAfter - 0.6) / 0.18) * Math.PI);
+        if (!smackOuch) pitch -= 0.09 * Math.min(1, (smackAfter - 0.6) / 0.15);
+      }
+    }
+    if (yutTossing) pitch += 0.08;
+    if (yutWin) {
+      // 모: 어깨를 들썩이며 덩실덩실
+      y += Math.abs(Math.sin(t * 8)) * 0.4;
+      roll += Math.sin(t * 8) * 0.1;
+    }
+    if (yutLose) {
+      // 도: 어깨가 축 처진다
+      y = Math.min(y, 0) - 0.15;
+      pitch -= 0.1;
+    }
+    if (spicyFire) {
+      // 매워서 온몸이 부들부들
+      roll += Math.sin(t * 49) * 0.06;
+      y += Math.sin(t * 41) * 0.04;
+      pitch += 0.06;
+    }
     // 비틀비틀: 몸이 좌우로 기우뚱거린다
     if (vis.has('wobble') && anim !== 'fallen') roll += Math.sin(t * 9) * 0.26;
     r.bobY = ease(r.bobY, y, 12);
@@ -2726,6 +2958,17 @@ export class Race3DView {
     if (hayparty) headTarget = Math.sin(t * 9) * 0.22; // 신나서 끄덕
     if (fasting) headTarget = -0.32 + Math.sin(t * 2) * 0.04; // 배고파서 축
     if (dawn) headTarget = 0.12 + Math.sin(t * 10) * 0.06; // 턱을 당기고 훅훅
+    if (whipT >= 0) headTarget = 0.32 + crack * 0.35; // 겁먹어 고개를 쳐든다
+    if (leaping) headTarget = 0.2;
+    if (tripping > 0) headTarget = -0.5;
+    if (dazed) headTarget = -0.15 + Math.sin(t * 7) * 0.18; // 어질어질
+    if (smackT >= 0.12 && !smacked) headTarget = 0.45; // 응? 하고 위를 본다
+    if (smacked) headTarget = smackOuch ? 0.8 : 0.15 + Math.sin(t * 21) * 0.05; // 악! 하고 쳐들었다가 이를 악문다
+    if (yutTossing) headTarget = 0.8; // 구르는 윷을 올려다본다
+    if (yutWin) headTarget = 0.3 + Math.sin(t * 8) * 0.15;
+    if (yutLose) headTarget = -0.55 + Math.sin(t * 2.4) * 0.05;
+    if (munch) headTarget = -0.1 + Math.sin(t * 18) * 0.16; // 오물오물
+    if (spicyFire) headTarget = 0.22 + Math.sin(t * 31) * 0.06; // 고개를 들고 불을 뿜는다
     r.head.rotation.z = ease(r.head.rotation.z, headTarget, 10);
 
     // 기린 목: 목을 늘리고 머리를 그만큼 올린다
@@ -2815,6 +3058,17 @@ export class Race3DView {
     if (silver) eyeScale = 0.22; // 울면서 질끈
     if (hayfeast) eyeScale = burping ? 0.1 : 0.7;
     if (hayparty) eyeScale = 1.4;
+    if (whipT >= 0) eyeScale = 1.65; // 겁먹은 눈
+    if (leaping) eyeScale = 1.2;
+    if (tripping > 0) eyeScale = 1.8;
+    if (dazed) eyeScale = 0.3;
+    if (smackT >= 0.12 && !smacked) eyeScale = 1.35;
+    if (smacked) eyeScale = smackOuch ? 1.8 : 0.3; // 악! → 눈물 찔끔
+    if (yutTossing) eyeScale = 1.5;
+    if (yutWin) eyeScale = 1.4;
+    if (yutLose) eyeScale = 0.3;
+    if (munch) eyeScale = 0.15; // 맛있어서 눈을 감는다
+    if (spicyFire) eyeScale = 1.8; // 매워서 눈이 튀어나온다
     for (const eye of r.eyes) eye.scale.y = ease(eye.scale.y, eyeScale, 14);
 
     // 선글라스
@@ -2840,7 +3094,8 @@ export class Race3DView {
     if (disco) {
       r.coat.color.setHSL((t * 0.9 + r.info.id * 0.13) % 1, 0.85, 0.6);
       r.discoOn = true;
-    } else if (rage) {
+    } else if (rage || spicyFire) {
+      // 꼴찌의 분노 / 매운 당근: 온몸이 시뻘게진다
       r.coat.color.copy(r.coatBase).lerp(RAGE_RED, 0.55 + Math.sin(t * 8) * 0.15);
       r.discoOn = true;
     } else if (zap > 0) {
@@ -3018,6 +3273,151 @@ export class Race3DView {
       if (chewing) pop(6, ['😋', '🍬'], headX + 0.4, headY + 0.5, 0.7, 0.8);
       if (blissful) pop(9, ['😍', '💕', '✨'], headX + rnd(0.8), headY + 0.9, 0.8, 1.0);
 
+      // ---- 채찍 소리 / 장애물 설치 ----
+      // 채찍 소리: 흰 장갑이 쥔 채찍이 엉덩이 뒤에서 짝! 짝! 울린다 (맞지는 않는다)
+      const crop = this.prop(r, 'crop', whipT >= 0, () => this.buildCrop(r));
+      if (crop) {
+        crop.position.set(-4.3 * s, 3.3 * s, 0.35);
+        // 한 박자(1초): 줄을 늘어뜨리고 있다가 → 뒤로 감아 올리고 → 앞으로 내리쳐 줄이 쭉 펴지며 짝!
+        const wind = whipC > 0.7 ? Math.pow((whipC - 0.7) / 0.3, 0.7) : 0; // 감아 올리기
+        const snap = whipC < 0.25 ? 1 - whipC / 0.25 : 0; // 내리친 직후, 서서히 풀린다
+        crop.rotation.z = 0.3 + wind * 0.9 - snap * 0.75 + Math.sin(t * 6) * 0.05;
+        const segs = crop.userData.segs as THREE.Group[];
+        for (let i = 0; i < segs.length; i++) {
+          const tipward = i / (segs.length - 1);
+          const loose = -0.15 + Math.sin(t * 5 + i * 0.6) * 0.05; // 힘없이 아래로 늘어진다
+          const coiled = 0.3; // 머리 위로 크게 감긴다
+          // 내리칠 때: 줄 앞쪽은 쭉 펴지고, 끝으로 갈수록 S자 물결이 달려 나가며 파르르 떤다
+          const wave = Math.sin(i * 0.95 - whipC * 30) * 0.55 * snap * tipward * tipward;
+          segs[i].rotation.z = (loose + (coiled - loose) * wind) * (1 - snap) + wave;
+        }
+      }
+      if (whipT >= 0) {
+        const n = Math.floor(whipT + 0.85);
+        if (n >= 1 && r.fxStart.whipN !== n) {
+          r.fxStart.whipN = n;
+          this.spawnEmoji('짝!', rearX - 1.3, 2.2 * s, Z + 0.6, 1.7, 0.7);
+          for (let k = 0; k < 3; k++) this.spawnEmoji('💥', rearX - 1.2 + rnd(0.8), 1.7 * s + rnd(0.8), Z + rnd(0.8), 0.6, 0.9);
+        }
+        pop(6, ['💦', '😱'], headX + rnd(0.5), headY + 0.9, 0.75, 1.0);
+      } else delete r.fxStart.whipN;
+      // 장애물 설치: 허들이 앞에서 다가온다. 넘는 말은 그 위로 지나가고, 걸린 말은 발에 채인다
+      const approaching = hurdleT >= 0 && hurdleT < HURDLE_TRIP / 2;
+      const gate = this.prop(r, 'hurdle', leaping || approaching, () => this.buildHurdle(r, r.root, 1));
+      if (gate) gate.position.set(leaping ? 3.2 - clearK * 6.4 : 2.6 - (hurdleT / (HURDLE_TRIP / 2)) * 1.7, 0, 0);
+      if (clearK >= 0) {
+        if (r.fxStart.hclearShown !== r.fxStart.hclear) {
+          r.fxStart.hclearShown = r.fxStart.hclear;
+          this.spawnEmoji('휙!', X + 0.4, 3.6 * s, Z + 0.6, 1.6, 1.0);
+        }
+        pop(9, ['✨'], X + rnd(2), r.inner.position.y + 1.2 + rnd(1.2), 0.7, 0.3);
+      }
+      // 걸린 말: 허들을 목에 건 채 달린다
+      const yoke = this.prop(r, 'hurdleYoke', hurdleT >= HURDLE_TRIP / 2, () => this.buildHurdle(r, r.head, 0.9));
+            // 머리가 허들 사이에 끼었다: 가로대는 턱 밑, 기둥은 얼굴 양옆으로 솟는다. 비스듬히 돌려 옆에서도 모양이 보인다
+      if (yoke) yoke.rotation.set(Math.PI + Math.sin(t * 7) * 0.15, 0.7, Math.sin(t * 5) * 0.1);
+      if (hurdleT >= HURDLE_TRIP / 2) {
+        if (r.fxStart.hurdleShown !== r.fxStart.hurdle) {
+          r.fxStart.hurdleShown = r.fxStart.hurdle;
+          this.spawnEmoji('쿵', headX + 0.5, headY + 0.6, Z + 0.6, 1.8, 0.6);
+          for (let k = 0; k < 5; k++) this.spawnEmoji(k % 2 ? '💥' : '⭐', headX + rnd(1.6), headY + rnd(1.2), Z + rnd(1), 0.75, 1.1);
+        }
+        pop(6, ['💫', '⭐', '😵'], headX + rnd(0.9), headY + 0.9, 0.75, 0.6);
+      }
+
+      // ---- 코믹 카드 3종 ----
+      // 등짝 스매싱: 하늘에서 고무장갑 손이 내리꽂혔다가 튕겨 올라간다
+      const hand = this.prop(r, 'smackHand', smackT >= 0 && smackT < SMACK_HIT + 1.0, () => this.buildSmackHand(r));
+      if (hand) {
+        // 손바닥을 펴 보이며 나타난다 → 뒤로 더 젖힌다(예비 동작) → 점점 빨라지며 내리친다
+        // → 0.1초 붙어 있다 → 튕겨 올라 따가운 손을 털고 → 위로 사라진다
+        const after = smackT - SMACK_HIT;
+        const striking = smackT >= SMACK_WIND && after < 0;
+        let lift: number;
+        if (smackT < SMACK_WIND) {
+          const u = smackT / SMACK_WIND;
+          lift = 1 + 0.14 * u * u * (3 - 2 * u); // 천천히 뒤로 젖힌다
+        } else if (after < 0) {
+          lift = 1.14 * (1 - Math.pow((smackT - SMACK_WIND) / (SMACK_HIT - SMACK_WIND), 3)); // 내려올수록 빨라진다
+        } else if (after < 0.1) lift = 0;
+        else {
+          const up = Math.min(1, (after - 0.1) / 0.14);
+          lift = 0.95 * (1 - Math.pow(1 - up, 2)) + (after > 0.75 ? Math.pow((after - 0.75) / 0.25, 2) * 2 : 0);
+        }
+        const tilt = Math.min(1, lift);
+        // 팔꿈치가 뒤쪽 위에 있는 것처럼 호를 그린다: 위에서는 뒤로 많이 빠지고, 내려올수록 앞으로 나온다
+        const back = Math.sin(Math.min(1.14, lift) * 1.1);
+        // 닿아 있는 동안은 눌린 등을 따라 내려간다
+        const pressed = after >= 0 && after < 0.1 ? 0.4 * Math.sin((Math.min(after, 0.07) / 0.07) * (Math.PI / 2)) : 0;
+        hand.position.set((-0.3 - back * 2.7) * s, (2.5 - pressed) * s + lift * 2.3, 0.2 + lift * 0.9);
+        // 들고 있을 때는 손등이 카메라를 향해 손 모양이 다 보이고, 내리칠 때 눕는다. 손목은 팔보다 조금 늦게 따라온다
+        const lag = striking ? 0.3 * Math.sin(((smackT - SMACK_WIND) / (SMACK_HIT - SMACK_WIND)) * Math.PI) : 0;
+        // 따가워서 터는 손: 처음에 크게, 점점 잦아든다
+        const shake = after > 0.1 ? Math.sin((after - 0.1) * 34) * 0.24 * Math.max(0, 1 - (after - 0.1) / 0.6) : 0;
+        hand.rotation.set(0.45 + tilt * 0.85, 0, -0.55 * Math.min(1.3, lift) - lag + shake);
+        // 뿅 하고 나타난다 (살짝 커졌다가 제 크기로)
+        const pop01 = Math.min(1, smackT / 0.16);
+        const grow = 1.3 * s * (1 + 0.25 * Math.sin(pop01 * Math.PI)) * (0.3 + 0.7 * pop01);
+        // 내리칠 때는 가는 쪽으로 늘어나고, 닿는 순간 납작하게 퍼진다
+        const hit = after >= 0 && after < 0.1;
+        hand.scale.set(grow * (hit ? 1.15 : 1), grow * (hit ? 0.55 : striking ? 1 + lag * 0.5 : 1), grow * (hit ? 1.15 : 1));
+      }
+      const mark = this.prop(r, 'smackMark', smacked, () => this.buildSmackMark(r));
+      if (mark) mark.scale.setScalar(1.3 * (1 + Math.sin(t * 14) * 0.08)); // 손자국이 욱신욱신
+      if (smacked) {
+        if (r.fxStart.smackShown !== r.fxStart.smack) {
+          // 닿는 순간 한 번: 찰싹!
+          r.fxStart.smackShown = r.fxStart.smack;
+          this.spawnEmoji('찰싹!', X - 0.2, 3.4 * s, Z + 0.6, 2.2, 0.6);
+          for (let n = 0; n < 6; n++) this.spawnEmoji(n % 2 ? '💥' : '⭐', X - 0.3 + rnd(2.2), 2.4 * s + rnd(1.2), Z + rnd(1), 0.8, 1.2);
+        }
+        pop(6, ['💢', '💦', '😭'], headX + rnd(0.5), headY + 0.9, 0.8, 1.0); // 따가워!
+        pop(3, ['♨️'], X - 0.3, 2.7 * s, 0.6, 1.2); // 손자국에서 김이 난다
+      }
+      // 모 아니면 도: 윷가락 네 개가 머리 위에서 구르다가 나란히 서고, 효과가 끝날 때까지 결과를 보여 준다
+      const yutP = this.prop(r, 'yut', yutT >= 0, () => this.buildYut(r));
+      if (yutP) {
+        const settled = yutT >= YUT_TOSS;
+        // 결과를 크게 보여 준 뒤(1.7초)에는 조금 작아져 자리를 덜 차지한다
+        const shrink = Math.min(1, Math.max(0, (yutT - YUT_TOSS - 1.7) / 0.3));
+        yutP.scale.setScalar(1 - 0.3 * shrink);
+        const air = settled ? 0 : Math.sin((Math.PI * yutT) / YUT_TOSS);
+        // 이름표에 가리지 않게 얼굴 앞에 띄운다
+        yutP.position.set(headX - X + 1.7, headY + 0.25 + air * 1.2 + (settled ? Math.sin(t * 3) * 0.06 : 0), 0);
+        yutP.children.forEach((stick, i) => {
+          if (settled) {
+            // 모는 네 개 모두 등(갈색), 도는 하나만 배(흰색)가 보인다
+            stick.rotation.set(0, i === 1 && yutLose ? Math.PI : 0, 0);
+            stick.position.y = 0;
+          } else {
+            stick.rotation.set(t * (17 + i * 3), t * (5 + i), Math.sin(t * 9 + i) * 0.6);
+            stick.position.y = Math.sin(t * 11 + i * 1.7) * 0.25;
+          }
+        });
+      }
+      if (yutTossing) pop(5, ['❓'], headX + 0.2 + rnd(0.8), headY + 0.9, 0.7, 0.8);
+      if ((yutWin || yutLose) && r.fxStart.yutShown !== r.fxStart.yut) {
+        r.fxStart.yutShown = r.fxStart.yut;
+        this.spawnEmoji(yutWin ? '모!' : '도…', headX + 1.9, headY + 1.3, Z + 0.6, 2.2, 0.5);
+      }
+      // 뒤늦게 본 사람도 알 수 있게 결과 글자를 가끔 다시 띄운다
+      if ((yutWin || yutLose) && yutT > YUT_TOSS + 1.2) pop(1.3, [yutWin ? '모!' : '도…'], headX + 1.9, headY + 1.3, 1.5, 0.5);
+      if (yutWin) pop(8, ['🎉', '✨', '🤑'], headX + rnd(1.6), headY + 1.0, 0.85, 1.2);
+      if (yutLose) {
+        pop(16, ['💧'], headX + 0.25, headY + 0.12, 0.38, 0.45); // 눈물이 줄줄
+        pop(2.5, ['😭', '💸'], headX + rnd(0.8), headY + 0.9, 0.8, 0.6);
+      }
+      // 매운 당근 뽑기: 다 같이 당근을 먹고, 걸린 말만 불을 뿜는다
+      if (munch) pop(7, ['🥕'], headX + 0.5, headY - 0.1, 0.65, 0.8);
+      if (munchT > 1.0) pop(6, ['😌', '😋'], headX, headY + 0.9, 0.8, 0.7); // 휴, 나는 아니다
+      const fire = this.prop(r, 'fireBreath', spicyFire, () => this.buildFireBreath(r));
+      if (fire) {
+        fire.scale.set(0.85 + Math.sin(t * 37) * 0.2, 1 + Math.sin(t * 29) * 0.15, 1 + Math.sin(t * 31) * 0.15);
+        pop(12, ['🔥'], headX + 2.2 + rnd(0.8), headY - 0.2 + rnd(0.5), 0.85, 0.4);
+        pop(6, ['🌶️', '💦', '🥵'], headX + rnd(0.6), headY + 0.9, 0.8, 1.0);
+        if (beat('spicyShout', 1.0)) this.spawnEmoji('맵다!', headX + 0.2, headY + 1.5, Z + 0.5, 1.7, 0.7);
+      }
+
       // ---- 이름값을 하는 카드들의 소품 ----
       // 될놈될: 하늘에서 스포트라이트가 따라온다
       const spotP = this.prop(r, 'spot', spot, () => this.buildSpotlight(r));
@@ -3135,6 +3535,7 @@ export class Race3DView {
     const mat = p.sprite.material as THREE.SpriteMaterial;
     // 텍스처가 없던 재질에 처음 붙일 때만 셰이더가 바뀐다. 다른 텍스처로 바꾸는 것은 값만 바뀐다
     if (!mat.map) mat.needsUpdate = true;
+    mat.rotation = 0; // 전에 쓰던 스티커의 기울기가 남지 않게
     mat.map = tex;
     p.maxLife = 0.9 + Math.random() * 0.5;
     p.life = p.maxLife;
@@ -3513,7 +3914,7 @@ const TMP_B = new THREE.Vector3();
 const RING_GEO = new THREE.TorusGeometry(1.3, 0.13, 8, 32);
 const TAU = Math.PI * 2;
 /** 수치만 걸린(quiet) 효과가 보여 줄 모습: 업은 말, 응원이 시끄러운 선두, 당근을 놓친 말 */
-const QUIET_VISUAL: Partial<Record<AugmentVisual, AugmentVisual>> = { ride: 'carry', cheer: 'annoyed', carrot: 'sulk' };
+const QUIET_VISUAL: Partial<Record<AugmentVisual, AugmentVisual>> = { ride: 'carry', cheer: 'annoyed', carrot: 'sulk', spicy: 'munch', hurdle: 'hurdleclear' };
 /** 갤럽에서 다리별로 땅을 딛기 시작하는 때 (한 걸음 = 1). 앞다리 둘, 뒷다리 둘 순서로 적는다 */
 const GALLOP_OFFSETS = [0.3, 0.42, 0, 0.1];
 /** 한 걸음 중 발이 땅에 닿아 있는 비율 */
@@ -3537,6 +3938,20 @@ const SIZE_SCALE: Partial<Record<AugmentVisual, number>> = {
   hayfeast: 1.38, hayparty: 1.22, fasting: 0.78, dawn: 0.84
 };
 const SIZE_VISUALS = new Set(Object.keys(SIZE_SCALE) as AugmentVisual[]);
+/** 등짝 스매싱: 손이 등에 닿기까지 걸리는 시간(초) */
+const SMACK_HIT = 0.5;
+/** 등짝 스매싱: 손을 치켜들고 보여 주는 시간(초). 이 뒤에 내리친다 */
+const SMACK_WIND = 0.28;
+/** 채찍 줄의 마디 수와 마디 길이 */
+const WHIP_SEGS = 13;
+const WHIP_SEG_LEN = 0.2;
+/** 모 아니면 도: 윷이 공중에서 구르는 시간(초) */
+const YUT_TOSS = 0.9;
+/** 매운 당근 뽑기: 불을 뿜기 전에 당근을 씹는 시간(초) */
+const SPICY_CHEW = 0.5;
+/** 장애물 설치: 허들을 뛰어넘는 데 걸리는 시간(초) / 걸려서 고꾸라지는 시간(초) */
+const HURDLE_JUMP = 1.0;
+const HURDLE_TRIP = 0.4;
 /** 꼴찌의 분노: 털에 섞는 빨간색 */
 const RAGE_RED = new THREE.Color(0xff2a1a);
 /** 폰 세로에서 좌우로 보이는 폭: 예전 세로 화면(너비:높이 = 1:0.72, 시야각 42도)보다 조금 좁혀 말을 10% 크게 보인다 */

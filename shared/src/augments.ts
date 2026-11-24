@@ -90,6 +90,11 @@ export const AUGMENTS: AugmentDefinition[] = [
   { id: 'balloon_horse', name: '풍선 말', description: '풍선처럼 부풀어 둥실둥실 떠간다.\n속력 +50%, 5초', rarity: 'epic', targetType: 'single', effectType: 'speedMult', value: 0.5, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🎈', visual: 'balloon' },
   { id: 'giant_horse', name: '거대화', description: '몸집도 다리도 2배! 보폭이 커져 성큼성큼.\n속력 +55%, 5초', rarity: 'epic', targetType: 'single', effectType: 'speedMult', value: 0.55, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🦖', visual: 'giant' },
   { id: 'disco_time', name: '디스코 타임', description: '음악이 나오면 춤을 참을 수 없다.\n정지, 1.8초', rarity: 'epic', targetType: 'front3', effectType: 'stop', value: 0, durationMs: 1800, allowedPhases: ALL_PHASES, hostile: true, emoji: '🪩', visual: 'disco' },
+  { id: 'back_smash', name: '등짝 스매싱', description: '찰싹! 엄마 손은 맵다.\n속력 +85%, 2.5초', rarity: 'rare', targetType: 'single', effectType: 'speedMult', value: 0.85, durationMs: 2500, allowedPhases: ALL_PHASES, hostile: false, emoji: '🖐️', anim: 'boost', visual: 'smack' },
+  { id: 'all_or_nothing', name: '모 아니면 도', description: '윷을 던진다. 모가 나오면 대박, 도가 나오면 쪽박.\n반반 확률로 속력 +80% 또는 -40%, 4초', rarity: 'rare', targetType: 'single', effectType: 'gamble', value: 0.8, failValue: -0.4, durationMs: 4000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🎰', visual: 'yut' },
+  { id: 'spicy_carrot', name: '매운 당근 뽑기', description: '당근 하나에 청양고추가 들었다. 누가 걸릴지는 아무도 모른다.\n무작위 1마리 속력 +60%, 2.5초', rarity: 'common', targetType: 'random1', effectType: 'speedMult', value: 0.6, durationMs: 2500, allowedPhases: ALL_PHASES, hostile: false, emoji: '🌶️', anim: 'boost', visual: 'spicy' },
+  { id: 'whip_crack', name: '채찍 소리', description: '짝! 소리만 났는데 화들짝 내뺀다.\n속력 +30%, 3초', rarity: 'common', targetType: 'back3', effectType: 'speedMult', value: 0.3, durationMs: 3000, allowedPhases: ALL_PHASES, hostile: false, emoji: '🔊', visual: 'whip' },
+  { id: 'hurdle_set', name: '장애물 설치', description: '누가 트랙에 허들을 세워 놨다. 넘는 말도 있고, 걸리는 말도 있다.\n각자 반반 확률로 걸려 속력 -50%, 2.5초. 적어도 한 마리는 걸림', rarity: 'common', targetType: 'front3', effectType: 'hurdle', value: -0.5, durationMs: 2500, allowedPhases: ALL_PHASES, hostile: true, emoji: '🚧', visual: 'hurdle' },
   { id: 'pony_party', name: '단체 조랑말', description: '단체로 조랑말이 되어 버린다.\n속력 -35%, 5초', rarity: 'epic', targetType: 'front3', effectType: 'speedMult', value: -0.35, durationMs: 5000, allowedPhases: ALL_PHASES, hostile: true, emoji: '🎠', visual: 'pony' }
 ];
 
@@ -117,5 +122,6 @@ export const TARGET_TYPE_LABELS: Record<string, string> = {
   leastBetWin: '우승 배팅금 최소 말',
   mostBetTotal: '전체 배팅금 최다 말',
   swap16: '현재 1등 ↔ 6등',
+  random1: '무작위 1마리',
   all: '달리는 말 전부'
 };

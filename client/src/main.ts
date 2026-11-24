@@ -311,6 +311,8 @@ function targetsNow(def: AugmentDefinition): number[] | null {
 
 /** 카드의 "지금 대상" 표시: 실제 말 번호. 내가 건 말은 노란 테두리 */
 function targetNowHtml(def: AugmentDefinition): string {
+  // 무작위 카드는 미리 알 수 있는 대상이 없다
+  if (def.targetType === 'random1') return '<span class="aug-tgt-none">쓰는 순간에 뽑음</span>';
   const ids = targetsNow(def);
   if (!ids) return '';
   if (ids.length === 0) return '<span class="aug-tgt-none">지금은 해당하는 말이 없음</span>';
@@ -2686,7 +2688,7 @@ net.onConnectionChange = (connected) => {
   $('conn-banner').textContent = '서버와 연결이 끊겼습니다. 다시 연결하는 중입니다.';
 };
 
-if (new URLSearchParams(location.search).has('showcase')) {
+if (new URLSearchParams(location.search).has('showcase') || import.meta.env.VITE_SHOWCASE_PICKER) {
   // 확인용 화면: 서버 없이 말 종류와 변신 연출만 보여 준다
   import('./showcase').then((m) => m.startShowcase());
 } else {

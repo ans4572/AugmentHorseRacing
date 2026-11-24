@@ -73,3 +73,8 @@
 | 내 배팅 적중 | Cash register | MaoDin204 | CC0 1.0 | https://freesound.org/people/MaoDin204/sounds/721774 |
 | 내 배팅 빗나감 | wah wah sad trombone.wav | kirbydx | CC0 1.0 | https://freesound.org/people/kirbydx/sounds/175409 |
 | 최종 우승 | TaDa!.aif | jimhancock | CC0 1.0 | https://freesound.org/people/jimhancock/sounds/256128 |
+| 등짝 스매싱 | Slap 3 | ihitokage | CC0 1.0 | https://freesound.org/people/ihitokage/sounds/395348 |
+| 모 아니면 도 | Falling Bamboo | AyeJayCee | CC0 1.0 | https://freesound.org/people/AyeJayCee/sounds/326299 |
+| 매운 당근 뽑기 | Cartoon Scream 1.wav | tonsil5 | CC0 1.0 | https://freesound.org/people/tonsil5/sounds/416840 |
+| 채찍 소리 | Whip Crack.m4a | SciFiSounds | CC0 1.0 | https://freesound.org/people/SciFiSounds/sounds/529925 |
+| 장애물 설치 | falling.wav | Wagna | CC0 1.0 | https://freesound.org/people/Wagna/sounds/326133 |

@@ -64,5 +64,10 @@ export const CARD_SAMPLE_IDS: readonly string[] = [
   'cheer_squad',
   'carrot_rod',
   'sneeze_relay',
-  'short_course'
+  'short_course',
+  'back_smash',
+  'all_or_nothing',
+  'spicy_carrot',
+  'whip_crack',
+  'hurdle_set'
 ];

@@ -249,6 +249,46 @@ export const CARD_SFX: Record<string, CardSound> = {
     tone(ac, out, t + 0.22, 0.7, 'sawtooth', [90, 520], 0.18);
     return 1.0;
   },
+  whip_crack: (ac, out, t) => {
+    // 휘익 → 짝! → 놀란 히이잉
+    hiss(ac, out, t, 0.14, 0.2, 'bandpass', [1200, 5200], { q: 3, attack: 0.08 });
+    hiss(ac, out, t + 0.15, 0.06, 0.85, 'highpass', 3000, { attack: 0.001 });
+    click(ac, out, t + 0.15, 0.6, 4200);
+    tone(ac, out, t + 0.3, 0.45, 'sawtooth', [[0, 900], [0.3, 1700], [1, 1000]], 0.14, { vibrato: [21, 180] });
+    return 0.85;
+  },
+  hurdle_set: (ac, out, t) => {
+    // 허들이 쿵 박히고 → 한 마리는 휙 넘고 → 한 마리는 우당탕
+    thud(ac, out, t, 0.45);
+    tone(ac, out, t + 0.22, 0.25, 'sine', [400, 1500], 0.18, { attack: 0.03 });
+    [0, 0.07, 0.15, 0.25].forEach((d, i) => tone(ac, out, t + 0.55 + d, 0.07, 'square', [700 - i * 110, 260], 0.2, { attack: 0.001 }));
+    thud(ac, out, t + 0.85, 0.55);
+    return 1.15;
+  },
+  back_smash: (ac, out, t) => {
+    // 손이 내려오는 휘익 → 찰싹! → 히이잉
+    // 화면에서 손이 0.28초 치켜들었다가 0.5초에 닿는다
+    hiss(ac, out, t + 0.24, 0.24, 0.22, 'bandpass', [900, 2600], { q: 2, attack: 0.1 });
+    hiss(ac, out, t + 0.5, 0.09, 0.75, 'highpass', 1800, { attack: 0.001 });
+    tone(ac, out, t + 0.5, 0.08, 'square', [900, 240], 0.3, { attack: 0.001 });
+    tone(ac, out, t + 0.64, 0.5, 'sawtooth', [[0, 700], [0.25, 1500], [1, 900]], 0.16, { vibrato: [19, 160] });
+    return 1.2;
+  },
+  all_or_nothing: (ac, out, t) => {
+    // 윷가락이 달그락달그락 구르다가 탁! 하고 멈춘다
+    [0, 0.09, 0.17, 0.27, 0.36, 0.48, 0.62].forEach((d, i) => tone(ac, out, t + d, 0.05, 'square', [1200 - i * 60, 700], 0.16, { attack: 0.001 }));
+    [0, 0.05, 0.1, 0.15].forEach((d, i) => click(ac, out, t + 0.86 + d, 0.3, 1500 - i * 150));
+    thud(ac, out, t + 0.9, 0.4);
+    return 1.2;
+  },
+  spicy_carrot: (ac, out, t) => {
+    // 아삭아삭 → 매운맛이 올라오는 삐이이 → 화르륵
+    [0, 0.14, 0.28].forEach((d) => hiss(ac, out, t + d, 0.07, 0.4, 'bandpass', 2600, { q: 1.2, attack: 0.002 }));
+    tone(ac, out, t + 0.42, 0.3, 'sine', [700, 2600], 0.18, { attack: 0.05 });
+    hiss(ac, out, t + 0.7, 0.75, 0.42, 'lowpass', [400, 2400], { attack: 0.06, hold: true });
+    tone(ac, out, t + 0.7, 0.7, 'sawtooth', [90, 150], 0.14, { tremolo: [23, 0.7], attack: 0.05 });
+    return 1.5;
+  },
   fart_boost: (ac, out, t) => {
     // 뿌우욱
     tone(ac, out, t, 0.5, 'sawtooth', [[0, 120], [0.3, 82], [0.8, 96], [1, 60]], 0.36, { tremolo: [31, 0.85], attack: 0.01 });

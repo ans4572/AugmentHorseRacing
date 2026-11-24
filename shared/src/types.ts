@@ -155,6 +155,7 @@ export type TargetType =
   | 'leastBetWin'  // 우승 배팅금 최소 말
   | 'mostBetTotal' // 전체 배팅금 최다 말
   | 'swap16'       // 현재 1등과 6등 위치 교환
+  | 'random1'      // 달리는 말 가운데 무작위 1마리 (쓰는 순간 뽑는다)
   | 'all';         // 달리는 말 전부 (판 전체를 바꾸는 카드)
 
 export type EffectType =
@@ -178,6 +179,8 @@ export type EffectType =
   | 'cheer'              // 대상 속력 증가(value) + 지금 선두는 조금 느려짐
   | 'carrotRod'          // 속력 증가(value) 뒤 잠깐 멈춤
   | 'sneeze'             // 속력 감소(value), 끝나면 한 등수 뒤 말에게 옮음
+  | 'gamble'             // 반반 확률: 속력 증가(value) 또는 속력 감소(failValue)
+  | 'hurdle'             // 대상마다 반반 확률로 넘거나 걸려 넘어진다 (걸리면 속력 감소 value). 적어도 한 마리는 걸린다
   | 'cosmetic';          // 연출 전용 표시 — 즉시 효과 카드의 모습을 잠깐 보여 준다 (능력치 영향 없음)
 
 export interface AugmentDefinition {
@@ -199,6 +202,8 @@ export interface AugmentDefinition {
   visualMs?: number;
   /** 말을 고르는 카드에서 고를 수 있는 말의 조건. back3 = 지금 4등 아래, notFirst = 맨 앞이 아닌 말 */
   targetRule?: 'back3' | 'notFirst';
+  /** 반반 카드(gamble)가 꽝일 때의 값 (속력 증감률) */
+  failValue?: number;
   /** 같은 희귀도 안에서 뽑힐 비중 (기본 1). 판을 크게 뒤집는 카드는 낮춘다 */
   drawWeight?: number;
 }
@@ -267,7 +272,15 @@ export type AugmentVisual =
   | 'sugar' // 하늘에서 각설탕이 떨어져 입에 쏙
   | 'chug' // 고개를 젖혀 벌컥벌컥 마시고 배가 볼록해진다
   | 'swap' // 하늘로 솟았다가 떨어짐
-  | 'lottery'; // 자리 뽑기: 뱅글뱅글 돌다가 뽑은 제비(등수)를 들어 보인다
+  | 'lottery' // 자리 뽑기: 뱅글뱅글 돌다가 뽑은 제비(등수)를 들어 보인다
+  | 'smack' // 등짝 스매싱: 하늘에서 고무장갑 손이 내려와 찰싹, 등에 빨간 손자국
+  | 'yut' // 모 아니면 도: 머리 위에서 윷이 구르고 '모'가 나와 덩실덩실
+  | 'yutlose' // 모 아니면 도: '도'가 나와 축 처진다 (꽝인 쪽)
+  | 'spicy' // 매운 당근 뽑기: 걸린 말이 입에서 불을 뿜는다
+  | 'munch' // 매운 당근 뽑기: 안 걸린 말들이 당근을 오물오물 먹고 안도한다
+  | 'whip' // 채찍 소리: 뒤에서 채찍이 짝! 울릴 때마다 움찔하며 내뺀다
+  | 'hurdle' // 장애물 설치: 허들에 걸려 고꾸라지고, 허들을 목에 건 채 비틀거린다
+  | 'hurdleclear'; // 장애물 설치: 허들을 우아하게 뛰어넘는다 (안 걸린 쪽)
 
 export interface AugmentCardView {
   cardKey: string; // 이 제시(offer)에만 유효한 고유 키

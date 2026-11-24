@@ -73,6 +73,10 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const MAGNET_PULL = 55;
 /** 업히러 앞 말을 따라잡는 속도 (코스 단위/초) */
 const PIGGYBACK_CATCH = 90;
+/** 장애물 설치에서 허들을 넘은 말이 뛰어넘는 연출 시간 */
+const HURDLE_CLEAR_MS = 1000;
+/** 무작위 카드에서 안 걸린 말들이 연출을 보여 주는 시간 */
+const BYSTANDER_MS = 1600;
 /** 나란히 달리기에서 두 말이 가운데로 모이는 빠르기 */
 const PAIR_RATE = 1.6;
 
@@ -91,9 +95,12 @@ export class RaceSim {
   finishLine = COURSE_LENGTH;
   horses: SimHorse[];
   private rng: () => number;
+  /** 카드의 뽑기(무작위 대상, 반반 확률)에 쓰는 난수. 따로 주면 경주의 난수 흐름을 건드리지 않는다 (점검 도구용) */
+  private cardRng: () => number;
 
-  constructor(infos: HorseInfo[], rng: () => number = Math.random) {
+  constructor(infos: HorseInfo[], rng: () => number = Math.random, cardRng: () => number = rng) {
     this.rng = rng;
+    this.cardRng = cardRng;
     this.horses = infos.map((info) => ({
       info,
       pos: 0,
@@ -383,6 +390,7 @@ export class RaceSim {
       case 'mostBetTotal':
         return byBet(opts.bets?.total, true);
       case 'all':
+      case 'random1': // 후보는 달리는 말 전부. 그중 누가 걸릴지는 쓰는 순간(applyAugment) 뽑는다
         return unfinished.map((h) => h.info.id);
       case 'swap16': {
         // 미완주 말 중 최상위와 최하위
@@ -410,7 +418,9 @@ export class RaceSim {
     if (def.targetType !== 'single') return this.resolveTargets(def, opts).length > 0;
     const full = this.currentRanking();
     const order = full.filter((id) => !this.horse(id).finished);
-    if (def.effectType === 'magnet') return order.some((id, idx) => idx >= 2 && full.indexOf(id) >= 3);
+    if (def.effectType === 'magnet') {
+      return order.some((id, idx) => idx >= 2 && full.indexOf(id) >= 3 && this.magnetHasRoom(this.horse(id), this.horse(order[idx - 2]), def));
+    }
     if (def.effectType === 'piggyback') return order.length >= 2;
     if (def.effectType === 'pairUp') {
       return unfinished.some((h) => unfinished.some((o) => Math.abs(o.info.id - h.info.id) === 1));
@@ -425,9 +435,19 @@ export class RaceSim {
     def: AugmentDefinition,
     opts: { targetHorseId?: number; bets?: BetTotals } = {}
   ): ApplyResult {
-    const targetIds = this.resolveTargets(def, opts);
+    let targetIds = this.resolveTargets(def, opts);
     if (targetIds.length === 0) {
       return { ok: false, targets: [], blocked: [], message: '카드를 쓸 수 있는 말이 없습니다.' };
+    }
+    // 무작위 한 마리: 달리는 말 가운데 하나를 뽑는다. 안 걸린 말들은 구경꾼으로 연출만 한다
+    let bystanders: number[] = [];
+    if (def.targetType === 'random1') {
+      // 같은 카드가 이미 최대로 걸린 말은 뽑기에서 뺀다 (모두 그렇다면 그대로 뽑아 아래에서 안내한다)
+      const open = targetIds.filter((id) => this.stacksOf(this.horse(id), def) < MAX_STACKS_PER_CARD);
+      const pool = open.length > 0 ? open : targetIds;
+      const pick = pool[Math.floor(this.cardRng() * pool.length)];
+      bystanders = targetIds.filter((id) => id !== pick);
+      targetIds = [pick];
     }
 
     // 결승선 옮기기: 말이 아니라 코스를 바꾼다
@@ -473,6 +493,33 @@ export class RaceSim {
       return { ok: true, targets: movable.map((h) => h.info.id), blocked };
     }
 
+    // 장애물 설치: 대상마다 반반 확률로 넘거나 걸린다. 비행 중이거나 방어막이 있는 말은 허들을 피한다
+    if (def.effectType === 'hurdle') {
+      const blocked: number[] = [];
+      const runners: SimHorse[] = [];
+      let capped = 0;
+      for (const id of targetIds) {
+        const h = this.horse(id);
+        if (h.effects.some((e) => e.effectType === 'fly')) blocked.push(id);
+        else if (this.stacksOf(h, def) >= MAX_STACKS_PER_CARD) capped++; // 이미 허들 두 개에 걸려 있는 말은 건드리지 않는다
+        else if (h.shield > 0) {
+          h.shield--;
+          blocked.push(id);
+        } else runners.push(h);
+      }
+      if (runners.length === 0 && blocked.length === 0) {
+        return { ok: false, targets: [], blocked: [], message: capped > 0 ? '같은 효과가 이미 최대로 걸려 있습니다.' : '카드를 쓸 수 있는 말이 없습니다.' };
+      }
+      let tripped = runners.filter(() => this.cardRng() < 0.5);
+      // 다 넘어 버리면 카드가 헛돌므로, 그때는 맨 앞에서 달리던 말이 걸린다
+      if (tripped.length === 0 && runners.length > 0) tripped = [runners[0]];
+      for (const h of runners) {
+        if (tripped.includes(h)) h.effects.push({ ...this.makeEffect(def), effectType: 'speedMult' });
+        else h.effects.push({ ...this.makeEffect(def), effectType: 'cosmetic', value: 0, expiresAt: this.now + HURDLE_CLEAR_MS, hostile: false, emoji: '✨', quiet: true });
+      }
+      return { ok: true, targets: tripped.map((h) => h.info.id), blocked };
+    }
+
     // 말을 고르는 카드 중 조건이 붙은 것: 조건에 안 맞으면 카드를 잃지 않고 안내만 한다
     let linkId: number | undefined;
     if (def.effectType === 'magnet') {
@@ -482,6 +529,10 @@ export class RaceSim {
         return { ok: false, targets: [], blocked: [], message: '4~6등인 말에게만 쓸 수 있습니다.' };
       }
       linkId = order[idx - 2];
+      // 말들이 뭉쳐 있어 이미 그 자리에 있으면 끌려갈 거리가 없다: 카드를 잃지 않고 안내만 한다
+      if (!this.magnetHasRoom(this.horse(targetIds[0]), this.horse(linkId), def)) {
+        return { ok: false, targets: [], blocked: [], message: '이미 두 등수 앞 말 바로 뒤에 붙어 있습니다.' };
+      }
     }
     if (def.effectType === 'piggyback') {
       const order = this.currentRanking().filter((id) => !this.horse(id).finished);
@@ -555,8 +606,7 @@ export class RaceSim {
       }
 
       // 동일 카드 중첩 제한
-      const stacks = h.effects.filter((e) => e.defId === def.id).length;
-      if (def.durationMs > 0 && stacks >= MAX_STACKS_PER_CARD) {
+      if (def.durationMs > 0 && this.stacksOf(h, def) >= MAX_STACKS_PER_CARD) {
         capped++;
         continue;
       }
@@ -654,6 +704,18 @@ export class RaceSim {
           h.effects.push({ ...this.makeEffect(def), effectType: 'speedMult', relay: true });
           break;
         }
+        case 'gamble': {
+          // 반반: 대박이면 빨라지고, 쪽박이면 느려진다. 쪽박은 방해 효과로 남아 화면에서도 구분된다
+          const win = this.cardRng() < 0.5;
+          h.effects.push({
+            ...this.makeEffect(def),
+            effectType: 'speedMult',
+            value: win ? def.value : def.failValue ?? -def.value,
+            hostile: !win,
+            emoji: win ? '🤑' : '😭'
+          });
+          break;
+        }
         case 'piggyback': {
           h.effects.push({ ...this.makeEffect(def), linkId });
           // 업혀 쉬는 동안 숨을 돌린다
@@ -674,6 +736,13 @@ export class RaceSim {
       if ((def.effectType === 'pairUp' || def.effectType === 'piggyback') && linkId != null) applied.push(linkId);
     }
 
+    // 무작위 카드: 안 걸린 말들도 잠깐 같은 장면에 낀다 (수치 영향 없음)
+    if (applied.length > 0) {
+      for (const id of bystanders) {
+        this.horse(id).effects.push({ ...this.makeEffect(def), effectType: 'cosmetic', value: 0, expiresAt: this.now + BYSTANDER_MS, anim: undefined, quiet: true });
+      }
+    }
+
     if (applied.length === 0 && blocked.length === 0) {
       return {
         ok: false,
@@ -683,6 +752,16 @@ export class RaceSim {
       };
     }
     return { ok: true, targets: applied, blocked };
+  }
+
+  /** 자석: 끌려갈 거리가 남아 있는지 (두 등수 앞 말 바로 뒤 지점보다 뒤에 있어야 한다) */
+  private magnetHasRoom(h: SimHorse, anchor: SimHorse, def: AugmentDefinition): boolean {
+    return h.pos < Math.min(anchor.pos - def.value, this.finishLine - 1) - 1;
+  }
+
+  /** 이 말에 같은 카드의 효과가 몇 겹 걸려 있는지. 연출만 하는 표시(구경꾼, 허들을 넘은 말)는 세지 않는다 */
+  private stacksOf(h: SimHorse, def: AugmentDefinition): number {
+    return h.effects.filter((e) => e.defId === def.id && e.effectType !== 'cosmetic').length;
   }
 
   /** 재채기가 끝나면 한 등수 뒤에서 달리는 말에게 같은 감속을 한 번 옮긴다 */

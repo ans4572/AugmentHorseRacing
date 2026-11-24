@@ -21,7 +21,8 @@ const horses: HorseInfo[] = [70, 66, 62, 58, 54, 50].map((speed, i) => ({
 const bets = { win: new Map([[3, 100], [5, 10]]), total: new Map([[3, 150], [5, 10]]) };
 
 function warmedUp(): RaceSim {
-  const sim = new RaceSim(horses, mulberry32(7));
+  // 카드의 뽑기는 다른 난수로 돌려, 카드를 쓴 경주와 안 쓴 경주의 운(컨디션 변동)이 똑같이 흐르게 한다
+  const sim = new RaceSim(horses, mulberry32(7), mulberry32(11));
   for (let i = 0; i < 300; i++) sim.tick(50);
   return sim;
 }
@@ -50,8 +51,10 @@ export function auditAll(): AuditRow[] {
     const ctrl = warmedUp();
     // 고를 수 있는 말에 조건이 붙은 카드는 조건에 맞는 말에게 쓴다 (4등 아래 → 5등, 맨 앞 제외 → 3등)
     const order = test.currentRanking();
-    const targetHorseId = def.targetRule === 'back3' ? order[4] : def.targetRule === 'notFirst' ? order[2] : 3;
-    const result = test.applyAugment(def, { targetHorseId, bets });
+    // 그 말에게 쓸 수 없으면(예: 자석은 이미 앞 말에 붙어 있으면 못 쓴다) 조건에 맞는 다른 말로 넘어간다
+    const picks = def.targetRule === 'back3' ? [order[4], order[5], order[3]] : def.targetRule === 'notFirst' ? [order[2]] : [3];
+    let result = test.applyAugment(def, { targetHorseId: picks[0], bets });
+    for (let n = 1; !result.ok && n < picks.length; n++) result = test.applyAugment(def, { targetHorseId: picks[n], bets });
     const id = result.targets[0] ?? 3;
     const startPos = test.horse(id).pos;
     const staminaDelta = test.horse(id).stamina - ctrl.horse(id).stamina;
@@ -96,7 +99,13 @@ if (process.argv[1]?.includes('audit-augments')) {
   for (const r of rows) {
     let verdict = 'OK';
     const moves = !['shield', 'staminaRestorePct', 'staminaDrainPct'].includes(r.effectType);
-    if (moves) {
+    if (r.effectType === 'gamble') verdict = '반반 (모 또는 도)';
+    // 누가 득을 볼지 상황에 따라 달라지는 카드: 8초 뒤 위치 차이로는 판정할 수 없어 테스트('판을 흔드는 카드')에서 따로 본다
+    else if (r.effectType === 'pairUp') verdict = '두 말이 가운데로 모임 (따로 검사)';
+    else if (r.effectType === 'shuffleAll') verdict = '자리를 무작위로 섞음 (따로 검사)';
+    // 결승선 당기기는 위치가 아니라 완주 시각이 당겨진다
+    else if (r.effectType === 'finishLine') verdict = r.finishDelta < -0.2 ? 'OK' : '⚠ 효과 거의 없음';
+    else if (moves) {
       if (Math.abs(r.delta8s) < 2) verdict = '⚠ 효과 거의 없음';
       else if (r.hostile && r.delta8s > 0) verdict = '⚠ 방해인데 빨라짐';
       else if (!r.hostile && r.delta8s < 0) verdict = '⚠ 강화인데 느려짐';

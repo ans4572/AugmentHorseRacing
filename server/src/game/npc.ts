@@ -349,7 +349,9 @@ export function npcChooseAugment(
     const gain =
       def.targetType === 'single'
         ? pick.gain
-        : targets.reduce((s, id) => s + sign * (want.get(id) ?? 0), 0);
+        : targets.reduce((s, id) => s + sign * (want.get(id) ?? 0), 0) /
+          // 무작위 한 마리 카드는 후보 가운데 하나만 걸리므로 평균으로 본다
+          (def.targetType === 'random1' ? Math.max(1, targets.length) : 1);
     score += Math.max(-9, Math.min(9, gain * 1.3));
 
     const helpsMine = !def.hostile && targets.some((id) => (want.get(id) ?? 0) > 0);

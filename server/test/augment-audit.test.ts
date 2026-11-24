@@ -39,7 +39,7 @@ describe('전체 증강 점검 — 모든 카드가 설명한 방향으로 실�
         return;
       }
       // 누가 득을 볼지 상황에 따라 달라지는 카드는 방향을 따지지 않는다 (아래 '판을 흔드는 카드'에서 따로 본다)
-      if (['pairUp', 'shuffleAll', 'piggyback', 'magnet'].includes(r.effectType)) return;
+      if (['pairUp', 'shuffleAll', 'piggyback', 'magnet', 'gamble'].includes(r.effectType)) return;
       if (r.effectType === 'staminaRestorePct') expect(r.staminaDelta).toBeGreaterThan(0);
       if (r.effectType === 'staminaDrainPct') expect(r.staminaDelta).toBeLessThan(0);
       // 완주 시각이 0.2초 이상 달라져야 "효과가 있다"고 본다
@@ -176,6 +176,20 @@ describe('판을 흔드는 카드', () => {
     expect(sim.horse(5).pos).toBeGreaterThan(sim.horse(4).pos);
   });
 
+  it('자석: 이미 두 등수 앞 말 바로 뒤에 있으면 카드를 잃지 않고 안내를 받는다', () => {
+    const sim = spread();
+    const def = AUGMENT_BY_ID['magnet'];
+    // 5번(5등)을 3번(3등) 바로 뒤에 붙여 놓는다: 끌려갈 거리가 없다
+    sim.horse(5).pos = sim.horse(3).pos - def.value;
+    sim.horse(4).pos = sim.horse(5).pos + 1;
+    const order = sim.currentRanking();
+    expect(order.indexOf(5)).toBe(4);
+    const res = sim.applyAugment(def, { targetHorseId: 5 });
+    expect(res.ok).toBe(false);
+    expect(res.message).toContain('이미');
+    expect(sim.horse(5).effects.some((e) => e.defId === 'magnet')).toBe(false);
+  });
+
   it('나란히 달리기: 더 가까운 옆 레인 말과 가운데로 모인다', () => {
     const sim = spread([600, 560, 500, 480, 440, 400]);
     const before = sim.horse(3).pos - sim.horse(4).pos; // 20
@@ -265,6 +279,136 @@ describe('판을 흔드는 카드', () => {
     run(sim, 1.4);
     // 3번에서 끝나고 4번으로는 번지지 않는다
     expect(sim.horses.some((h) => h.effects.some((e) => e.defId === 'sneeze_relay'))).toBe(false);
+  });
+
+  it('모 아니면 도: 반반 확률로 빨라지거나 느려지고, 느려진 쪽은 방해 효과로 남는다', () => {
+    const card = AUGMENT_BY_ID['all_or_nothing'];
+    // 카드 뽑기 난수를 정해 두 결과를 모두 본다 (0.5 미만이면 모)
+    const play = (roll: number): { sim: RaceSim; ctrl: RaceSim } => {
+      const sim = new RaceSim(sixHorses(), mulberry32(3), () => roll);
+      const ctrl = new RaceSim(sixHorses(), mulberry32(3));
+      for (let i = 0; i < 300; i++) {
+        sim.tick(50);
+        ctrl.tick(50);
+      }
+      expect(sim.applyAugment(card, { targetHorseId: 3 }).targets).toEqual([3]);
+      return { sim, ctrl };
+    };
+    const win = play(0.2);
+    expect(win.sim.horse(3).effects[0]).toMatchObject({ effectType: 'speedMult', value: 0.8, hostile: false });
+    const lose = play(0.7);
+    expect(lose.sim.horse(3).effects[0]).toMatchObject({ effectType: 'speedMult', value: -0.4, hostile: true });
+    for (const g of [win, lose]) {
+      run(g.sim, 4);
+      run(g.ctrl, 4);
+    }
+    expect(win.sim.horse(3).pos).toBeGreaterThan(win.ctrl.horse(3).pos + 25);
+    expect(lose.sim.horse(3).pos).toBeLessThan(lose.ctrl.horse(3).pos - 15);
+    // 4초 뒤에는 어느 쪽이든 끝난다
+    run(win.sim, 0.2);
+    expect(win.sim.horse(3).effects).toHaveLength(0);
+    // 방어막은 쓰이지 않는다 (말이 스스로 던진 윷이라 방해가 아니다)
+    const shielded = new RaceSim(sixHorses(), mulberry32(3), () => 0.9);
+    shielded.horse(3).shield = 1;
+    expect(shielded.applyAugment(card, { targetHorseId: 3 }).blocked).toEqual([]);
+    expect(shielded.horse(3).shield).toBe(1);
+  });
+
+  it('매운 당근 뽑기: 달리는 말 가운데 한 마리만 빨라지고, 나머지는 연출만 걸린다', () => {
+    const card = AUGMENT_BY_ID['spicy_carrot'];
+    const picked = new Set<number>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const sim = new RaceSim(sixHorses(), mulberry32(3), mulberry32(seed));
+      for (let i = 0; i < 300; i++) sim.tick(50);
+      // 완주한 말은 뽑히지 않는다
+      sim.horse(1).finished = true;
+      sim.horse(1).finishTime = 1000;
+      const r = sim.applyAugment(card);
+      expect(r.ok).toBe(true);
+      expect(r.targets).toHaveLength(1);
+      expect(r.targets[0]).not.toBe(1);
+      picked.add(r.targets[0]);
+      for (const h of sim.horses) {
+        const fx = h.effects.filter((e) => e.defId === 'spicy_carrot');
+        if (h.info.id === 1) expect(fx).toHaveLength(0);
+        else if (h.info.id === r.targets[0]) expect(fx).toMatchObject([{ effectType: 'speedMult', value: 0.6 }]);
+        else expect(fx).toMatchObject([{ effectType: 'cosmetic', quiet: true }]);
+      }
+    }
+    expect(picked.size).toBe(5); // 달리는 다섯 마리가 고루 걸린다
+  });
+
+  it('장애물 설치: 선두권이 각자 반반으로 걸리고, 다 넘으면 맨 앞 말이 걸린다. 방어막은 허들을 피한다', () => {
+    const card = AUGMENT_BY_ID['hurdle_set'];
+    const at = (roll: () => number): RaceSim => {
+      const sim = new RaceSim(sixHorses(), mulberry32(3), roll);
+      for (let i = 0; i < 300; i++) sim.tick(50);
+      sim.horses.forEach((h, i) => {
+        h.pos = [600, 560, 520, 480, 440, 400][i];
+        h.prevPos = h.pos;
+      });
+      return sim;
+    };
+    const fx = (sim: RaceSim, id: number) => sim.horse(id).effects.filter((e) => e.defId === 'hurdle_set');
+    // 2등만 걸리는 경우: 1등과 3등은 연출만 걸린 채 넘어간다
+    const rolls = [0.9, 0.1, 0.9];
+    const some = at(() => rolls.shift()!);
+    expect(some.applyAugment(card).targets).toEqual([2]);
+    expect(fx(some, 2)).toMatchObject([{ effectType: 'speedMult', value: -0.5, hostile: true }]);
+    expect(fx(some, 1)).toMatchObject([{ effectType: 'cosmetic', quiet: true }]);
+    expect(fx(some, 3)).toMatchObject([{ effectType: 'cosmetic', quiet: true }]);
+    expect(fx(some, 4)).toHaveLength(0);
+    // 모두 넘는 주사위가 나오면 맨 앞 말이 걸린다
+    const none = at(() => 0.9);
+    expect(none.applyAugment(card).targets).toEqual([1]);
+    // 모두 걸릴 수도 있다
+    const all = at(() => 0.1);
+    expect(all.applyAugment(card).targets).toEqual([1, 2, 3]);
+    // 방어막이 있는 말은 허들을 피하고 방어막을 잃는다
+    const guarded = at(() => 0.1);
+    guarded.horse(1).shield = 1;
+    const r = guarded.applyAugment(card);
+    expect(r.blocked).toEqual([1]);
+    expect(r.targets).toEqual([2, 3]);
+    expect(guarded.horse(1).shield).toBe(0);
+    expect(fx(guarded, 1)).toHaveLength(0);
+    // 걸린 말은 2.5초 동안 뒤처진다
+    const ctrl = at(() => 0.9);
+    run(all, 2.5);
+    run(ctrl, 2.5);
+    expect(all.horse(4).pos).toBeCloseTo(ctrl.horse(4).pos, 5);
+    expect(all.horse(2).pos).toBeLessThan(ctrl.horse(2).pos - 15);
+  });
+
+  it('매운 당근 뽑기: 구경꾼 연출은 중첩으로 세지 않아, 연달아 써도 막히지 않는다', () => {
+    const def = AUGMENT_BY_ID['spicy_carrot'];
+    const sim = cruising();
+    // 구경꾼 연출(1.6초)이 남아 있는 동안 세 번 연달아 쓴다
+    for (let n = 0; n < 3; n++) expect(sim.applyAugment(def).ok, `${n + 1}번째`).toBe(true);
+    for (const h of sim.horses) {
+      expect(h.effects.filter((e) => e.defId === def.id && e.effectType === 'speedMult').length).toBeLessThanOrEqual(2);
+    }
+    // 여섯 마리 모두 두 겹이 될 때까지 쓰면(12번) 그다음에는 카드를 잃지 않고 안내를 받는다
+    for (let n = 0; n < 9; n++) sim.applyAugment(def);
+    const full = sim.applyAugment(def);
+    expect(full.ok).toBe(false);
+    expect(full.message).toContain('최대');
+  });
+
+  it('장애물 설치: 같은 말에게 허들 감속이 두 겹 넘게 쌓이지 않는다', () => {
+    const def = AUGMENT_BY_ID['hurdle_set'];
+    const sim = cruising();
+    for (let n = 0; n < 12; n++) sim.applyAugment(def);
+    for (const h of sim.horses) {
+      expect(h.effects.filter((e) => e.defId === def.id && e.effectType === 'speedMult').length).toBeLessThanOrEqual(2);
+    }
+    // 선두권 세 마리가 모두 두 겹이면 카드를 잃지 않고 안내를 받는다
+    const front = sim.currentRanking().slice(0, 3).map((id) => sim.horse(id));
+    if (front.every((h) => h.effects.filter((e) => e.defId === def.id && e.effectType === 'speedMult').length === 2)) {
+      const res = sim.applyAugment(def);
+      expect(res.ok).toBe(false);
+      expect(res.message).toContain('최대');
+    }
   });
 
   it('쓸 수 있는 말이 없는 카드는 뽑을 때 빠진다', () => {
